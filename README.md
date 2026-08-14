@@ -6,6 +6,30 @@ It replaces spreadsheets, paper forms, and chat threads with one secure system f
 
 This is a real Next.js application backed by PostgreSQL. It is not a static website or a frontend mockup.
 
+## Quick start on your machine
+
+From a clone of this repository:
+
+```bash
+git clone https://github.com/pvatsal237/YCMS.git
+cd YCMS
+npm run setup:local
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) and sign in as `admin@ycms.local` with password `YcmsDemo123!`.
+
+`npm run setup:local` installs Node packages, starts PostgreSQL (Docker Compose when Docker is running, otherwise a local Postgres server), writes `.env` and `.env.local`, applies migrations, and seeds demo data.
+
+If you are continuing from a Cloud Agent branch, check that branch out before running setup:
+
+```bash
+git fetch origin
+git checkout <branch-from-the-cloud-agent>
+npm run setup:local
+npm run dev
+```
+
 ## Technology stack
 
 - Next.js (App Router) and TypeScript
@@ -31,8 +55,10 @@ PostgreSQL is the system of record. The app does not use Firebase or Supabase as
 
 ## Installation
 
+Prefer `npm run setup:local` (see Quick start). The manual steps below are the same work, split out.
+
 ```bash
-git clone <repository-url>
+git clone https://github.com/pvatsal237/YCMS.git
 cd YCMS
 npm install
 ```
@@ -82,24 +108,25 @@ Never commit real secrets. `.env` and `.env.local` are gitignored. `.env.example
 Example:
 
 ```
-DATABASE_URL="postgresql://ycms:ycms_dev_password@localhost:5432/ycms?schema=public"
+DATABASE_URL="postgresql://ycms:ycms_dev_password@127.0.0.1:5432/ycms?schema=public"
 AUTH_SECRET="replace-with-a-long-random-string"
 AUTH_URL="http://localhost:3000"
 ```
 
 ## Prisma migration and seed
 
+The initial migration is already in `prisma/migrations`. On a fresh local database:
+
 ```bash
 npx prisma generate
-npx prisma migrate dev --name init
+npx prisma migrate deploy
 npx prisma db seed
 ```
 
-On a fresh environment that already has the migration committed:
+To create a new migration after schema changes:
 
 ```bash
-npx prisma migrate deploy
-npx prisma db seed
+npx prisma migrate dev --name describe_the_change
 ```
 
 Useful extras:
@@ -232,8 +259,11 @@ Tests cover immigration alert calculation, consecutive-absence detection, excuse
 
 ## Troubleshooting
 
+**Need a one-command reset of local setup**  
+Delete `.env` and `.env.local` only if you want new secrets, then rerun `npm run setup:local`. Use `npm run db:reset` to drop and reseed the database.
+
 **PostgreSQL is not running**  
-Start Docker (`docker compose up -d`) or your local Postgres service. Confirm with `pg_isready`.
+Run `npm run setup:local`, or start Docker (`docker compose up -d`) / your local Postgres service. Confirm with `pg_isready -h 127.0.0.1 -p 5432`.
 
 **`P1001: Can't reach database server`**  
 Check `DATABASE_URL`, host, port, username, and password. On some hosts use `127.0.0.1` instead of `localhost`.
