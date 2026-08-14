@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  COORDINATOR
+  ATTENDANCE_VOLUNTEER
+}
+
+enum Gender {
+  FEMALE
+  MALE
+  NON_BINARY
+  PREFER_NOT_TO_SAY
+  OTHER
+}
+
+enum AddressType {
+  CANADIAN
+  HOME_COUNTRY
+}
+
+enum ImmigrationStatus {
+  STUDENT
+  WORKER
+  PERMANENT_RESIDENT
+  CITIZEN
+  VISITOR
+  OTHER
+}
+
+enum ImmigrationDocumentType {
+  STUDY_PERMIT
+  WORK_PERMIT
+  PR_CARD
+  PASSPORT
+}
+
+enum EmploymentStatus {
+  EMPLOYED
+  UNEMPLOYED
+  SELF_EMPLOYED
+  STUDENT
+  OTHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+}
+
+enum FollowUpStatus {
+  PENDING
+  CONTACTED
+  COMPLETED
+  UNABLE_TO_REACH
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdById  String?
+  createdBy    User?    @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers User[]   @relation("UserCreatedBy")
+
+  membersCreated     Member[]      @relation("MemberCreatedBy")
+  meetupsCreated     Meetup[]      @relation("MeetupCreatedBy")
+  attendanceRecorded Attendance[]  @relation("AttendanceRecordedBy")
+  followUpsAssigned  FollowUp[]    @relation("FollowUpAssignedTo")
+  activityLogs       ActivityLog[]
+
+  @@index([role, active])
+  @@index([createdById])
+}
+
+model Member {
+  id          String    @id @default(cuid())
+  firstName   String
+  middleName  String?
+  lastName    String
+  dateOfBirth DateTime  @db.Date
+  gender      Gender
+  phone       String
+  email       String    @unique
+  bloodGroup  String?
+  referredBy  String?
+  dateJoined  DateTime  @db.Date
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  createdBy   User?     @relation("MemberCreatedBy", fields: [createdById], references: [id])
+
+  addresses          Address[]
+  emergencyContact   EmergencyContact?
+  education          Education[]
+  immigrationStatus  MemberImmigrationStatus?
+  documents          ImmigrationDocument[]
+  employment         Employment?
+  accommodation      AccommodationNeed?
+  attendance         Attendance[]
+  followUps          FollowUp[]
+
+  @@index([lastName, firstName])
+  @@index([active, dateJoined])
+  @@index([phone])
+}
+
+model Address {
+  id             String      @id @default(cuid())
+  memberId       String
+  member         Member      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  type           AddressType
+  addressLine1   String
+  addressLine2   String?
+  city           String
+  provinceState  String
+  postalCode     String
+  country        String
+
+  @@unique([memberId, type])
+  @@index([city])
+  @@index([country])
+}
+
+model EmergencyContact {
+  id             String @id @default(cuid())
+  memberId       String @unique
+  member         Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  name           String
+  relationship   String
+  phone          String
+  alternatePhone String?
+}
+
+model Education {
+  id                String    @id @default(cuid())
+  memberId          String
+  member            Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  country           String
+  institution       String
+  program           String
+  fieldOfStudy      String
+  startDate         DateTime  @db.Date
+  endDate           DateTime? @db.Date
+  currentlyStudying Boolean   @default(false)
+
+  @@index([memberId])
+  @@index([institution])
+}
+
+model MemberImmigrationStatus {
+  id             String            @id @default(cuid())
+  memberId       String            @unique
+  member         Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  status         ImmigrationStatus
+  college        String?
+  program        String?
+  workPermitType String?
+  notes          String?
+  updatedAt      DateTime          @updatedAt
+}
+
+model ImmigrationDocument {
+  id             String                    @id @default(cuid())
+  memberId       String
+  member         Member                    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  documentType   ImmigrationDocumentType
+  documentNumber String?
+  expiryDate     DateTime                  @db.Date
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  @@index([expiryDate])
+  @@index([documentType, expiryDate])
+  @@index([memberId])
+}
+
+model Employment {
+  id               String            @id @default(cuid())
+  memberId         String            @unique
+  member           Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  employmentStatus EmploymentStatus
+  employer         String?
+  jobTitle         String?
+  fieldRelated     Boolean           @default(false)
+  lookingForJob    Boolean           @default(false)
+  desiredField     String?
+  notes            String?
+
+  @@index([employer])
+}
+
+model AccommodationNeed {
+  id                 String    @id @default(cuid())
+  memberId           String    @unique
+  member             Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  looking            Boolean   @default(false)
+  preferredLocation  String?
+  moveInDate         DateTime? @db.Date
+  budget             String?
+  notes              String?
+}
+
+model Meetup {
+  id          String   @id @default(cuid())
+  meetupDate  DateTime @db.Date
+  title       String
+  location    String
+  active      Boolean  @default(true)
+  createdById String?
+  createdBy   User?    @relation("MeetupCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  attendance Attendance[]
+
+  @@index([meetupDate])
+  @@index([active, meetupDate])
+}
+
+model Attendance {
+  id          String           @id @default(cuid())
+  meetupId    String
+  meetup      Meetup           @relation(fields: [meetupId], references: [id], onDelete: Cascade)
+  memberId    String
+  member      Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  status      AttendanceStatus
+  recordedById String?
+  recordedBy  User?            @relation("AttendanceRecordedBy", fields: [recordedById], references: [id])
+  recordedAt  DateTime         @default(now())
+
+  @@unique([meetupId, memberId])
+  @@index([memberId, status])
+  @@index([meetupId, status])
+}
+
+model FollowUp {
+  id           String         @id @default(cuid())
+  memberId     String
+  member       Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  reason       String
+  assignedToId String?
+  assignedTo   User?          @relation("FollowUpAssignedTo", fields: [assignedToId], references: [id])
+  status       FollowUpStatus @default(PENDING)
+  notes        String?
+  createdAt    DateTime       @default(now())
+  completedAt  DateTime?
+
+  @@index([status, createdAt])
+  @@index([memberId, reason, status])
+  @@index([assignedToId])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String?
+  entityId   String?
+  message    String
+  timestamp  DateTime @default(now())
+  metadata   Json?
+
+  @@index([timestamp])
+  @@index([userId, timestamp])
+  @@index([action])
+  @@index([entityType, entityId])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

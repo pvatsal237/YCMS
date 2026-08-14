@@ -1,0 +1,89 @@
+import NextAuth, { CredentialsSignin } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import { authConfig } from "@/auth.config";
+import { prisma } from "@/lib/prisma";
+import { verifyPassword } from "@/lib/passwords";
+import { logActivity } from "@/lib/activity-log";
+
+class InvalidCredentialsError extends CredentialsSignin {
+  code = "invalid_credentials";
+}
+
+class DisabledAccountError extends CredentialsSignin {
+  code = "disabled";
+}
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
+  ...authConfig,
+  providers: [
+    Credentials({
+      name: "credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        const email =
+          typeof credentials?.email === "string"
+            ? credentials.email.trim().toLowerCase()
+            : "";
+        const password =
+          typeof credentials?.password === "string" ? credentials.password : "";
+
+        if (!email || !password) {
+          throw new InvalidCredentialsError();
+        }
+
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) {
+          await logActivity({
+            action: "LOGIN_FAILED",
+            message: `Failed login attempt for ${email}`,
+            metadata: { email },
+          });
+          throw new InvalidCredentialsError();
+        }
+
+        const valid = await verifyPassword(password, user.passwordHash);
+        if (!valid) {
+          await logActivity({
+            userId: user.id,
+            action: "LOGIN_FAILED",
+            entityType: "User",
+            entityId: user.id,
+            message: `Failed login attempt for ${email}`,
+          });
+          throw new InvalidCredentialsError();
+        }
+
+        if (!user.active) {
+          await logActivity({
+            userId: user.id,
+            action: "LOGIN_DISABLED",
+            entityType: "User",
+            entityId: user.id,
+            message: `Disabled account login blocked for ${email}`,
+          });
+          throw new DisabledAccountError();
+        }
+
+        await logActivity({
+          userId: user.id,
+          action: "LOGIN",
+          entityType: "User",
+          entityId: user.id,
+          message: `${user.name} signed in`,
+        });
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          active: user.active,
+        };
+      },
+    }),
+  ],
+});
