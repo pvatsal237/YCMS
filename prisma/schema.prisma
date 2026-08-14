@@ -63,6 +63,17 @@ enum FollowUpStatus {
   UNABLE_TO_REACH
 }
 
+enum FollowUpOutcome {
+  CALLED_SPOKE
+  CALLED_NO_ANSWER
+  CALLED_BUSY_CALLBACK
+  CALLED_IN_HURRY_CALLBACK
+  MESSAGE_SENT
+  WILL_ATTEND
+  COMPLETED
+  UNABLE_TO_REACH
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -79,7 +90,8 @@ model User {
   membersCreated     Member[]      @relation("MemberCreatedBy")
   meetupsCreated     Meetup[]      @relation("MeetupCreatedBy")
   attendanceRecorded Attendance[]  @relation("AttendanceRecordedBy")
-  followUpsAssigned  FollowUp[]    @relation("FollowUpAssignedTo")
+  followUpsAssigned  FollowUp[]        @relation("FollowUpAssignedTo")
+  followUpAttempts   FollowUpAttempt[] @relation("FollowUpAttemptCreatedBy")
   activityLogs       ActivityLog[]
 
   @@index([role, active])
@@ -248,20 +260,39 @@ model Attendance {
 }
 
 model FollowUp {
-  id           String         @id @default(cuid())
-  memberId     String
-  member       Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  reason       String
-  assignedToId String?
-  assignedTo   User?          @relation("FollowUpAssignedTo", fields: [assignedToId], references: [id])
-  status       FollowUpStatus @default(PENDING)
-  notes        String?
-  createdAt    DateTime       @default(now())
-  completedAt  DateTime?
+  id             String            @id @default(cuid())
+  memberId       String
+  member         Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  reason         String
+  assignedToId   String?
+  assignedTo     User?             @relation("FollowUpAssignedTo", fields: [assignedToId], references: [id])
+  status         FollowUpStatus    @default(PENDING)
+  lastOutcome    FollowUpOutcome?
+  notes          String?
+  nextFollowUpAt DateTime?
+  lastContactedAt DateTime?
+  createdAt      DateTime          @default(now())
+  completedAt    DateTime?
+  attempts       FollowUpAttempt[]
 
   @@index([status, createdAt])
   @@index([memberId, reason, status])
   @@index([assignedToId])
+  @@index([nextFollowUpAt])
+}
+
+model FollowUpAttempt {
+  id             String           @id @default(cuid())
+  followUpId     String
+  followUp       FollowUp         @relation(fields: [followUpId], references: [id], onDelete: Cascade)
+  outcome        FollowUpOutcome
+  notes          String?
+  nextFollowUpAt DateTime?
+  createdById    String?
+  createdBy      User?            @relation("FollowUpAttemptCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime         @default(now())
+
+  @@index([followUpId, createdAt])
 }
 
 model ActivityLog {
