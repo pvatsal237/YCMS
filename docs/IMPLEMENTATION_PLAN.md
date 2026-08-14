@@ -6,7 +6,7 @@ Youth Community Management System — a database-driven Next.js application for 
 
 Implementation is in place: Next.js App Router, PostgreSQL/Prisma, Auth.js, RBAC, member CRUD, attendance, immigration alerts, automated follow-ups, reports, user management, activity logs, seed data, and unit tests.
 
-Work stays local until you ask to push to GitHub.
+Run the app on a laptop with `npm run setup:local` then `npm run dev`.
 
 ## Stack decisions
 
