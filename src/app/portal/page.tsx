@@ -5,11 +5,13 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table } from "@/components/ui/Table";
 import { formatDate } from "@/lib/dates";
-import { documentTypeLabel, fullName } from "@/utils/format";
+import { documentTypeLabel, fullName, assistanceCategoryLabel, assistanceStatusLabel } from "@/utils/format";
 import { ProfileChangeRequestForm } from "@/components/members/ProfileChangeRequestForm";
 import { DocumentRenewalActions } from "@/components/members/DocumentRenewalActions";
+import { AssistanceRequestForm } from "@/components/assistance/AssistanceRequestForm";
 import { followUpOutcomeLabel } from "@/utils/follow-up-outcomes";
 import { getAlertPresentation } from "@/utils/immigration-alerts";
+import { listMemberAssistanceRequests, listStaffContactsByRole } from "@/services/assistance";
 
 const NOTICE_TONES = {
   green: "border-emerald-200 bg-emerald-50 text-emerald-900",
@@ -23,9 +25,21 @@ export default async function MemberPortalPage() {
   const user = await requireMemberSession();
   const { member, upcomingMeetup, pendingRequests, staffContacts } =
     await getMemberPortalData(user);
+  const [coordinators, administrators, assistanceRequests] = await Promise.all([
+    listStaffContactsByRole("COORDINATOR"),
+    listStaffContactsByRole("ADMIN"),
+    listMemberAssistanceRequests(member.id),
+  ]);
   const documentNotices = member.documents
     .map((doc) => ({ doc, alert: getAlertPresentation(doc.expiryDate) }))
     .filter((item) => item.alert.level !== "VALID");
+  const eligibleDocuments = documentNotices.map(({ doc, alert }) => ({
+    id: doc.id,
+    documentType: doc.documentType,
+    expiryDateLabel: formatDate(doc.expiryDate),
+    daysRemaining: alert.daysRemaining,
+    alertLabel: alert.label,
+  }));
 
   return (
     <div className="space-y-6">
@@ -69,6 +83,39 @@ export default async function MemberPortalPage() {
             );
           })}
         </div>
+      ) : null}
+
+      <Card>
+        <CardHeader
+          title="Request assistance"
+          description="Ask an administrator or a coordinator for help. You can choose a specific person or anyone available in that role."
+        />
+        <CardBody>
+          <AssistanceRequestForm
+            coordinators={coordinators}
+            administrators={administrators}
+            eligibleDocuments={eligibleDocuments}
+          />
+        </CardBody>
+      </Card>
+
+      {assistanceRequests.length > 0 ? (
+        <Card>
+          <CardHeader title="Your assistance requests" />
+          <Table headers={["Category", "Speak to", "Status", "Created"]}>
+            {assistanceRequests.map((item) => (
+              <tr key={item.id}>
+                <td className="px-4 py-3">{assistanceCategoryLabel(item.category)}</td>
+                <td className="px-4 py-3">
+                  {item.requestedUser?.name ??
+                    (item.requestedRole === "ADMIN" ? "Any administrator" : "Any coordinator")}
+                </td>
+                <td className="px-4 py-3">{assistanceStatusLabel(item.status)}</td>
+                <td className="px-4 py-3">{formatDate(item.createdAt)}</td>
+              </tr>
+            ))}
+          </Table>
+        </Card>
       ) : null}
 
       <Card>

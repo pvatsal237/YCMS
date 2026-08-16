@@ -27,8 +27,11 @@ describe("role authorization", () => {
     expect(canAccessSystemSettings("COORDINATOR")).toBe(false);
     expect(isPathAllowed("/admin/logs", "COORDINATOR")).toBe(false);
     expect(isPathAllowed("/settings", "COORDINATOR")).toBe(false);
-    expect(isPathAllowed("/admin/users", "COORDINATOR")).toBe(true);
-    expect(isPathAllowed("/members", "COORDINATOR")).toBe(true);
+    expect(isPathAllowed("/follow-ups", "COORDINATOR")).toBe(true);
+    expect(isPathAllowed("/assistance", "COORDINATOR")).toBe(true);
+    expect(isPathAllowed("/assistance", "ADMIN")).toBe(true);
+    expect(isPathAllowed("/assistance", "ATTENDANCE_VOLUNTEER")).toBe(false);
+    expect(isPathAllowed("/assistance", "MEMBER")).toBe(false);
   });
 
   it("restricts attendance volunteers from sensitive data and admin pages", () => {

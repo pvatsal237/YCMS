@@ -75,6 +75,31 @@ export function followUpStatusLabel(status: string): string {
   return labels[status] ?? status;
 }
 
+export function assistanceCategoryLabel(category: string): string {
+  const labels: Record<string, string> = {
+    IMMIGRATION_DOCUMENT: "Immigration document",
+    EDUCATION: "Education",
+    EMPLOYMENT: "Employment",
+    ACCOMMODATION: "Accommodation",
+    MEETUP: "Meetup",
+    PERSONAL: "Personal / general",
+    OTHER: "Other",
+  };
+  return labels[category] ?? category;
+}
+
+export function assistanceStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    NEW: "New",
+    ASSIGNED: "Assigned",
+    IN_PROGRESS: "In progress",
+    WAITING_FOR_MEMBER: "Waiting for member",
+    RESOLVED: "Resolved",
+    CLOSED: "Closed",
+  };
+  return labels[status] ?? status;
+}
+
 export function employmentSummary(employment?: {
   employmentStatus: string;
   employer?: string | null;

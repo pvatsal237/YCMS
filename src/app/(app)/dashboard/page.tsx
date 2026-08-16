@@ -8,7 +8,7 @@ import { Table } from "@/components/ui/Table";
 import { AttendanceChart } from "@/components/dashboard/AttendanceChart";
 import { formatDate } from "@/lib/dates";
 import { fullName, immigrationStatusLabel } from "@/utils/format";
-import { canViewImmigration, canViewFollowUps } from "@/lib/authorization";
+import { canViewImmigration, canViewFollowUps, canViewAssistance } from "@/lib/authorization";
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
@@ -23,7 +23,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
 
 export default async function DashboardPage() {
   const user = await requireStaffSession();
-  const data = await getDashboardData(user.role);
+  const data = await getDashboardData(user);
   const showSensitive = canViewImmigration(user.role);
 
   return (
@@ -47,6 +47,15 @@ export default async function DashboardPage() {
           </>
         ) : null}
       </div>
+
+      {canViewAssistance(user.role) ? (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="New assistance requests" value={data.stats.assistance.newRequests} />
+          <StatCard label="High urgency" value={data.stats.assistance.highUrgency} />
+          <StatCard label="Overdue assistance" value={data.stats.assistance.overdue} />
+          <StatCard label="Assistance assigned to me" value={data.stats.assistance.assignedToMe} />
+        </div>
+      ) : null}
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
         <Card>

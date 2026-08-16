@@ -75,6 +75,31 @@ enum FollowUpOutcome {
   UNABLE_TO_REACH
 }
 
+enum AssistanceCategory {
+  IMMIGRATION_DOCUMENT
+  EDUCATION
+  EMPLOYMENT
+  ACCOMMODATION
+  MEETUP
+  PERSONAL
+  OTHER
+}
+
+enum AssistancePriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AssistanceStatus {
+  NEW
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_FOR_MEMBER
+  RESOLVED
+  CLOSED
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -97,6 +122,9 @@ model User {
   followUpAttempts   FollowUpAttempt[] @relation("FollowUpAttemptCreatedBy")
   activityLogs       ActivityLog[]
   emailOtps          EmailOtp[]
+  assistanceRequested AssistanceRequest[] @relation("AssistanceRequestedUser")
+  assistanceAssigned  AssistanceRequest[] @relation("AssistanceAssignedTo")
+  assistanceUpdates   AssistanceRequestUpdate[]
 
   @@index([role, active])
   @@index([createdById])
@@ -131,6 +159,7 @@ model Member {
   attendance         Attendance[]
   followUps          FollowUp[]
   profileChangeRequests MemberProfileChangeRequest[]
+  assistanceRequests    AssistanceRequest[]
 
   @@index([lastName, firstName])
   @@index([active, dateJoined])
@@ -201,6 +230,7 @@ model ImmigrationDocument {
   expiryDate     DateTime                  @db.Date
   createdAt      DateTime                  @default(now())
   updatedAt      DateTime                  @updatedAt
+  assistanceRequests AssistanceRequest[]
 
   @@index([expiryDate])
   @@index([documentType, expiryDate])
@@ -331,6 +361,50 @@ model EmailOtp {
 
   @@index([email, createdAt])
   @@index([email, consumedAt])
+}
+
+model AssistanceRequest {
+  id                   String               @id @default(cuid())
+  memberId             String
+  member               Member               @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  category             AssistanceCategory
+  documentId           String?
+  document             ImmigrationDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  requestedRole        UserRole
+  requestedUserId      String?
+  requestedUser        User?                @relation("AssistanceRequestedUser", fields: [requestedUserId], references: [id], onDelete: SetNull)
+  urgency              AssistancePriority
+  impact               AssistancePriority
+  memberNote           String?
+  preferredResponseBy  DateTime?            @db.Date
+  assignedToId         String?
+  assignedTo           User?                @relation("AssistanceAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  status               AssistanceStatus     @default(NEW)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  resolvedAt           DateTime?
+  updates              AssistanceRequestUpdate[]
+
+  @@index([status, createdAt])
+  @@index([memberId, createdAt])
+  @@index([requestedRole, status])
+  @@index([assignedToId, status])
+  @@index([urgency, status])
+  @@index([category, status])
+}
+
+model AssistanceRequestUpdate {
+  id             String              @id @default(cuid())
+  requestId      String
+  request        AssistanceRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  status         AssistanceStatus?
+  assignedToId   String?
+  internalNote   String?
+  createdById    String?
+  createdBy      User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime            @default(now())
+
+  @@index([requestId, createdAt])
 }
 
 model MemberProfileChangeRequest {

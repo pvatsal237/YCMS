@@ -1,12 +1,13 @@
+import { getAssistanceDashboardStats } from "@/services/assistance";
 import { prisma } from "@/lib/prisma";
 import { currentMonthRange } from "@/lib/dates";
 import { listExpiringSoon } from "@/services/immigration";
 import { listOpenAbsenceFollowUps } from "@/services/follow-ups";
 import { countUnreadStaffNotifications } from "@/services/staff-notifications";
-import type { UserRole } from "@prisma/client";
 import type { SessionUser } from "@/types";
 
-export async function getDashboardData(role: UserRole) {
+export async function getDashboardData(user: SessionUser) {
+  const role = user.role;
   const { start, end } = currentMonthRange();
   const latestMeetup = await prisma.meetup.findFirst({
     where: { active: true },
@@ -57,6 +58,9 @@ export async function getDashboardData(role: UserRole) {
   const sensitive = role === "ADMIN" || role === "COORDINATOR";
   const immigrationAlerts = sensitive ? await listExpiringSoon(180, 8) : [];
   const followUps = sensitive ? await listOpenAbsenceFollowUps(8) : [];
+  const assistance = sensitive
+    ? await getAssistanceDashboardStats(user)
+    : { newRequests: 0, highUrgency: 0, overdue: 0, assignedToMe: 0 };
 
   const attendanceTrend = recentMeetups.map((meetup) => {
     const recorded = meetup.attendance.length || 1;
@@ -77,6 +81,7 @@ export async function getDashboardData(role: UserRole) {
       newMembersThisMonth,
       immigrationExpiringSoon: immigrationAlerts.length,
       followUpsRequired,
+      assistance,
     },
     latestMeetup,
     immigrationAlerts,

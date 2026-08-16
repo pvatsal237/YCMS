@@ -42,6 +42,10 @@ export function canViewFollowUps(role: UserRole): boolean {
   return role === "ADMIN" || role === "COORDINATOR";
 }
 
+export function canViewAssistance(role: UserRole): boolean {
+  return role === "ADMIN" || role === "COORDINATOR";
+}
+
 export function canViewReports(role: UserRole): boolean {
   return role === "ADMIN" || role === "COORDINATOR";
 }
@@ -108,6 +112,11 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Follow-Ups",
     roles: ["ADMIN", "COORDINATOR"],
   },
+  {
+    href: "/assistance",
+    label: "Assistance Requests",
+    roles: ["ADMIN", "COORDINATOR"],
+  },
   { href: "/reports", label: "Reports", roles: ["ADMIN", "COORDINATOR"] },
   { href: "/admin/users", label: "User Management", roles: ["ADMIN", "COORDINATOR"] },
   { href: "/admin/logs", label: "Activity Logs", roles: ["ADMIN"] },
@@ -142,6 +151,7 @@ export function isPathAllowed(pathname: string, role: UserRole): boolean {
   if (pathname.startsWith("/notifications")) return canViewImmigration(role);
   if (pathname.startsWith("/immigration")) return canViewImmigration(role);
   if (pathname.startsWith("/follow-ups")) return canViewFollowUps(role);
+  if (pathname.startsWith("/assistance")) return canViewAssistance(role);
   if (pathname.startsWith("/reports")) return canViewReports(role);
   if (pathname.startsWith("/admin/logs")) return canViewActivityLogs(role);
   if (pathname.startsWith("/admin/users")) {
