@@ -14,6 +14,17 @@ export async function getMemberPortalData(actor: SessionUser) {
   }
 
   await connectPrisma();
+  try {
+    return await loadMemberPortalData(actor);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("not yet connected")) throw error;
+    await connectPrisma();
+    return loadMemberPortalData(actor);
+  }
+}
+
+async function loadMemberPortalData(actor: SessionUser) {
   const member = await prisma.member.findFirst({
     where: {
       active: true,
