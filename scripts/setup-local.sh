@@ -27,6 +27,18 @@ if [ "$NODE_MAJOR" -lt 20 ]; then
   exit 1
 fi
 
+add_postgres_to_path() {
+  if [ -d /opt/homebrew/opt/postgresql@16/bin ]; then
+    export PATH="/opt/homebrew/opt/postgresql@16/bin:/opt/homebrew/bin:$PATH"
+  elif [ -d /usr/local/opt/postgresql@16/bin ]; then
+    export PATH="/usr/local/opt/postgresql@16/bin:/usr/local/bin:$PATH"
+  elif [ -d /opt/homebrew/bin ]; then
+    export PATH="/opt/homebrew/bin:$PATH"
+  fi
+}
+
+add_postgres_to_path
+
 wait_for_postgres() {
   local tries=0
   until node -e "
