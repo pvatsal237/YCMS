@@ -1,19 +1,10 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/auth.config";
-import { isPathAllowed } from "@/lib/authorization";
+import { isPathAllowed, isPublicPath } from "@/lib/authorization";
 import type { UserRole } from "@/types/roles";
 
 const { auth } = NextAuth(authConfig);
-
-function isPublicPath(pathname: string) {
-  return (
-    pathname === "/login" ||
-    pathname.startsWith("/login/") ||
-    pathname.startsWith("/api/auth") ||
-    pathname === "/unauthorized"
-  );
-}
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
@@ -24,7 +15,7 @@ export default auth((req) => {
   const role = req.auth?.user?.role as UserRole | undefined;
   if (!req.auth?.user || !role) {
     const url = req.nextUrl.clone();
-    url.pathname = pathname.startsWith("/portal") ? "/login/member" : "/login";
+    url.pathname = pathname.startsWith("/portal") ? "/member-login" : "/";
     if (pathname !== "/") {
       url.searchParams.set("error", "session");
     }

@@ -76,6 +76,8 @@ describe("role authorization", () => {
     expect(canTakeAttendance("MEMBER")).toBe(false);
     expect(canViewImmigration("MEMBER")).toBe(false);
     expect(canCreateRole("MEMBER", "ATTENDANCE_VOLUNTEER")).toBe(false);
+    expect(isPathAllowed("/member-login", "MEMBER")).toBe(true);
+    expect(isPathAllowed("/", "MEMBER")).toBe(true);
     expect(isPathAllowed("/portal", "MEMBER")).toBe(true);
     expect(isPathAllowed("/dashboard", "MEMBER")).toBe(false);
     expect(isPathAllowed("/members", "MEMBER")).toBe(false);

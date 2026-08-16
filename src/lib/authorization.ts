@@ -113,14 +113,19 @@ export function navItemsForRole(role: UserRole): NavItem[] {
   return NAV_ITEMS.filter((item) => item.roles.includes(role));
 }
 
-export function isPathAllowed(pathname: string, role: UserRole): boolean {
-  if (
+export function isPublicPath(pathname: string): boolean {
+  return (
+    pathname === "/" ||
     pathname === "/unauthorized" ||
     pathname === "/login" ||
-    pathname.startsWith("/login/")
-  ) {
-    return true;
-  }
+    pathname.startsWith("/login/") ||
+    pathname === "/member-login" ||
+    pathname.startsWith("/api/auth")
+  );
+}
+
+export function isPathAllowed(pathname: string, role: UserRole): boolean {
+  if (isPublicPath(pathname)) return true;
   if (role === "MEMBER") {
     return pathname.startsWith("/portal");
   }

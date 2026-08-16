@@ -1,5 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
-import { isPathAllowed } from "@/lib/authorization";
+import { isPathAllowed, isPublicPath } from "@/lib/authorization";
 import { STAFF_SESSION_SECONDS, TRUSTED_MEMBER_SESSION_SECONDS } from "@/lib/session-ttl";
 import type { UserRole } from "@/types/roles";
 
@@ -8,7 +8,7 @@ import type { UserRole } from "@/types/roles";
  */
 export const authConfig = {
   pages: {
-    signIn: "/login",
+    signIn: "/",
   },
   session: {
     strategy: "jwt",
@@ -18,12 +18,7 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
-      if (
-        pathname === "/login" ||
-        pathname.startsWith("/login/") ||
-        pathname.startsWith("/api/auth") ||
-        pathname === "/unauthorized"
-      ) {
+      if (isPublicPath(pathname)) {
         return true;
       }
 

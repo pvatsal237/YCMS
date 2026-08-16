@@ -81,7 +81,7 @@ Set the values in `.env` (Prisma) and `.env.local` (Next.js):
 | `SMTP_SECURE` | Set `true` for TLS on port 465 |
 | `SMTP_USER` / `SMTP_PASSWORD` | Optional SMTP credentials |
 | `SMTP_FROM` | Optional From address |
-| `DEV_SHOW_OTP` | Development only: show the OTP on `/login/member` after requesting a code |
+| `DEV_SHOW_OTP` | Development only: show the OTP on `/member-login` after requesting a code |
 
 Never commit real secrets. `.env` and `.env.local` are gitignored. `.env.example` is safe to commit.
 
@@ -121,7 +121,7 @@ npm run db:reset   # drops data, reapplies migrations, seeds
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Unauthenticated users are sent to `/login`.
+Open [http://localhost:3000](http://localhost:3000). Choose Member, Administrator, Youth Coordinator, or Attendance Volunteer.
 
 Production-style local run:
 
@@ -144,7 +144,7 @@ These accounts are created by the seed script. **Do not use these passwords in p
 
 Members cannot create their own profile. An Administrator or Youth Coordinator must register them first. Attendance Volunteers cannot create full member profiles.
 
-1. Open [http://localhost:3000/login/member](http://localhost:3000/login/member).
+1. Open [http://localhost:3000](http://localhost:3000) and choose **Member**, or go to [http://localhost:3000/member-login](http://localhost:3000/member-login).
 2. Enter a registered member email, for example `hetvi.patel@example.test`.
 3. Request a code. The same generic message is shown whether or not the email exists.
 4. Enter the 6-digit code (expires in about 10 minutes, single use).
@@ -182,7 +182,7 @@ Members sign in with an email one-time code only. They can open `/portal` and se
 | Route | Purpose |
 | --- | --- |
 | `/login` | Staff sign in |
-| `/login/member` | Member OTP sign in |
+| `/member-login` | Member OTP sign in |
 | `/portal` | Member-only portal |
 | `/dashboard` | Live statistics from PostgreSQL |
 | `/members` | Searchable member directory |

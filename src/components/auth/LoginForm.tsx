@@ -45,9 +45,8 @@ export function LoginForm({ errorFromQuery }: { errorFromQuery?: string }) {
         {pending ? "Signing in..." : "Sign in"}
       </Button>
       <p className="text-center text-sm text-slate-500">
-        Community member?{" "}
-        <Link href="/login/member" className="font-medium text-teal-700">
-          Sign in with email code
+        <Link href="/" className="font-medium text-teal-700">
+          Back to sign-in options
         </Link>
       </p>
     </form>

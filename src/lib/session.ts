@@ -13,7 +13,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 export async function requireSession(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) {
-    redirect("/login");
+    redirect("/");
   }
   if (!user.active) {
     redirect("/login?error=disabled");
@@ -22,7 +22,13 @@ export async function requireSession(): Promise<SessionUser> {
 }
 
 export async function requireMemberSession(): Promise<SessionUser> {
-  const user = await requireSession();
+  const user = await getSessionUser();
+  if (!user) {
+    redirect("/member-login");
+  }
+  if (!user.active) {
+    redirect("/member-login?error=session");
+  }
   if (user.role !== "MEMBER") {
     redirect(defaultHomePath(user.role));
   }

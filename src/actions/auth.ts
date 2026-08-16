@@ -85,7 +85,7 @@ export async function verifyMemberOtpAction(
 
 export async function logoutAction() {
   const user = await getSessionUser();
-  const redirectTo = user?.role === "MEMBER" ? "/login/member" : "/login";
+  const redirectTo = user?.role === "MEMBER" ? "/member-login" : "/login";
   if (user) {
     await logActivity({
       userId: user.id,

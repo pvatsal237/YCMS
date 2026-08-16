@@ -91,9 +91,8 @@ export function MemberLoginForm({ errorFromQuery }: { errorFromQuery?: string })
         </form>
       )}
       <p className="text-center text-sm text-slate-500">
-        Staff member?{" "}
-        <Link href="/login" className="font-medium text-teal-700">
-          Sign in with password
+        <Link href="/" className="font-medium text-teal-700">
+          Back to sign-in options
         </Link>
       </p>
     </div>
