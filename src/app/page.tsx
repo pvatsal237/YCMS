@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { defaultHomePath } from "@/lib/authorization";
 
 export default async function HomePage() {
   const session = await auth();
-  redirect(session?.user ? "/dashboard" : "/login");
+  if (!session?.user) {
+    redirect("/login");
+  }
+  redirect(defaultHomePath(session.user.role));
 }

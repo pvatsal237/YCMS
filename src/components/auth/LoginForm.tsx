@@ -5,6 +5,7 @@ import { loginAction } from "@/actions/auth";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
+import Link from "next/link";
 import type { ActionResult } from "@/types";
 
 const initial: ActionResult = { ok: true };
@@ -43,6 +44,12 @@ export function LoginForm({ errorFromQuery }: { errorFromQuery?: string }) {
       <Button type="submit" disabled={pending} className="w-full">
         {pending ? "Signing in..." : "Sign in"}
       </Button>
+      <p className="text-center text-sm text-slate-500">
+        Community member?{" "}
+        <Link href="/login/member" className="font-medium text-teal-700">
+          Sign in with email code
+        </Link>
+      </p>
     </form>
   );
 }

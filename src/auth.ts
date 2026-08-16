@@ -4,6 +4,7 @@ import { authConfig } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/passwords";
 import { logActivity } from "@/lib/activity-log";
+import { consumeMemberOtp } from "@/services/member-auth";
 
 class InvalidCredentialsError extends CredentialsSignin {
   code = "invalid_credentials";
@@ -36,7 +37,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) {
+        if (!user || user.role === "MEMBER" || !user.passwordHash) {
           await logActivity({
             action: "LOGIN_FAILED",
             message: `Failed login attempt for ${email}`,
@@ -83,6 +84,47 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           role: user.role,
           active: user.active,
         };
+      },
+    }),
+    Credentials({
+      id: "member-otp",
+      name: "member-otp",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        otp: { label: "Code", type: "text" },
+        trustDevice: { label: "Trust device", type: "text" },
+      },
+      async authorize(credentials) {
+        const email =
+          typeof credentials?.email === "string"
+            ? credentials.email.trim().toLowerCase()
+            : "";
+        const otp = typeof credentials?.otp === "string" ? credentials.otp : "";
+        const trustDevice = credentials?.trustDevice === "true";
+        if (!email || !otp) {
+          throw new InvalidCredentialsError();
+        }
+        try {
+          const user = await consumeMemberOtp(email, otp);
+          await logActivity({
+            userId: user.id,
+            action: "MEMBER_LOGIN",
+            entityType: "User",
+            entityId: user.id,
+            message: `${user.name} signed in with email code`,
+          });
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            active: user.active,
+            memberId: user.memberId,
+            trustDevice,
+          };
+        } catch {
+          throw new InvalidCredentialsError();
+        }
       },
     }),
   ],

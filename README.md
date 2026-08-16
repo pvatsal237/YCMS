@@ -76,6 +76,12 @@ Set the values in `.env` (Prisma) and `.env.local` (Next.js):
 | `DATABASE_URL` | PostgreSQL connection string used by Prisma |
 | `AUTH_SECRET` | Auth.js session signing secret |
 | `AUTH_URL` | Application URL, e.g. `http://localhost:3000` |
+| `SMTP_HOST` | Optional SMTP host for member OTP email. If unset, codes are logged to the server console |
+| `SMTP_PORT` | Optional SMTP port (default `587`) |
+| `SMTP_SECURE` | Set `true` for TLS on port 465 |
+| `SMTP_USER` / `SMTP_PASSWORD` | Optional SMTP credentials |
+| `SMTP_FROM` | Optional From address |
+| `DEV_SHOW_OTP` | Development only: show the OTP on `/login/member` after requesting a code |
 
 Never commit real secrets. `.env` and `.env.local` are gitignored. `.env.example` is safe to commit.
 
@@ -134,7 +140,24 @@ These accounts are created by the seed script. **Do not use these passwords in p
 | Youth Coordinator | `coordinator@ycms.local` | `YcmsDemo123!` |
 | Attendance Volunteer | `volunteer@ycms.local` | `YcmsDemo123!` |
 
-The seed also creates about 25 fictional members, 6 weekly meetups, attendance history, immigration documents with mixed expiry dates, and follow-ups for members with three consecutive absences.
+### Member OTP login (no password)
+
+Members cannot create their own profile. An Administrator or Youth Coordinator must register them first. Attendance Volunteers cannot create full member profiles.
+
+1. Open [http://localhost:3000/login/member](http://localhost:3000/login/member).
+2. Enter a registered member email, for example `hetvi.patel@example.test`.
+3. Request a code. The same generic message is shown whether or not the email exists.
+4. Enter the 6-digit code (expires in about 10 minutes, single use).
+5. Optionally check **Trust this browser for 14 days**. If you do not, the session is shorter and a new code is needed next time.
+
+**How to see the code in development**
+
+- Add `DEV_SHOW_OTP=true` to `.env.local` and restart `npm run dev`. The code appears on the member login page after you request it.
+- If SMTP is not configured, the code is also printed in the terminal as `[YCMS email:console]`.
+
+Staff continue to sign in at `/login` with email and password. Member accounts have no password.
+
+The seed also creates about 25 fictional members, 6 weekly meetups, attendance history, immigration documents with mixed expiry dates, follow-ups for members with three consecutive absences, and a `MEMBER` login user for each seeded member.
 
 ## User roles
 
@@ -150,11 +173,17 @@ Dashboard, members, attendance, immigration, follow-ups, reports, and volunteer 
 
 Sign in, view the current meetup, search members by name, and mark Present / Absent / Excused. Volunteers cannot view immigration details, passport numbers, addresses, emergency contacts, employment information, or administration screens. Those restrictions are enforced in middleware, page-level `requireRole` checks, and server actions — not only by hiding buttons.
 
+### Member
+
+Members sign in with an email one-time code only. They can open `/portal` and see their own contact details, attendance, immigration document type and expiry, upcoming meetup, and follow-up status. They cannot view other members, staff dashboards, user management, activity logs, or create users. They cannot overwrite their profile; they can submit a change request for a coordinator to review later.
+
 ## Main routes
 
 | Route | Purpose |
 | --- | --- |
-| `/login` | Sign in |
+| `/login` | Staff sign in |
+| `/login/member` | Member OTP sign in |
+| `/portal` | Member-only portal |
 | `/dashboard` | Live statistics from PostgreSQL |
 | `/members` | Searchable member directory |
 | `/members/new` | Multi-section registration |
@@ -207,7 +236,9 @@ docs/
 8. Three consecutive `ABSENT` records open a follow-up.
 9. `EXCUSED` does not count as an absence.
 10. Duplicate attendance for the same member and meetup is rejected (`@@unique([meetupId, memberId])`).
-11. Duplicate open follow-ups for “3 consecutive meetup absences” are not created.
+12. Members cannot self-register. Only Administrator and Youth Coordinator can create member profiles.
+13. Member login uses hashed, single-use, short-lived email OTPs. Error messages do not reveal whether an email is registered.
+14. A trusted member browser session lasts up to 14 days; otherwise a shorter session is used.
 
 ## Tests, lint, and build
 

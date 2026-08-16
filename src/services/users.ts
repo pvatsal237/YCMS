@@ -10,6 +10,7 @@ import type { SessionUser } from "@/types";
 export async function listUsers(actor: SessionUser) {
   if (actor.role === "ADMIN") {
     return prisma.user.findMany({
+      where: { role: { not: "MEMBER" } },
       orderBy: [{ role: "asc" }, { name: "asc" }],
       select: {
         id: true,

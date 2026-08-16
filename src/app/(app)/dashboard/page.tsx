@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/session";
+import { requireStaffSession } from "@/lib/session";
 import { getDashboardData } from "@/services/dashboard";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -22,7 +22,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
 }
 
 export default async function DashboardPage() {
-  const user = await requireSession();
+  const user = await requireStaffSession();
   const data = await getDashboardData(user.role);
   const showSensitive = canViewImmigration(user.role);
 

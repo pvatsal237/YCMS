@@ -8,8 +8,8 @@ export default function UnauthorizedPage() {
         <p className="mt-2 text-sm text-slate-600">
           You do not have permission to perform this action.
         </p>
-        <Link href="/dashboard" className="mt-4 inline-block text-sm font-medium text-teal-700">
-          Return to dashboard
+        <Link href="/" className="mt-4 inline-block text-sm font-medium text-teal-700">
+          Return home
         </Link>
       </div>
     </div>

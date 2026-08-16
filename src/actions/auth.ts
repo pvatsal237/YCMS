@@ -2,9 +2,11 @@
 
 import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/auth";
-import { loginSchema } from "@/validations/auth";
+import { loginSchema, memberOtpRequestSchema, memberOtpVerifySchema } from "@/validations/auth";
 import { logActivity } from "@/lib/activity-log";
 import { getSessionUser } from "@/lib/session";
+import { requestMemberOtp } from "@/services/member-auth";
+import { OTP_GENERIC_INVALID_MESSAGE } from "@/lib/otp";
 import type { ActionResult } from "@/types";
 
 export async function loginAction(
@@ -38,8 +40,52 @@ export async function loginAction(
   }
 }
 
+export async function requestMemberOtpAction(
+  _prev: ActionResult<{ devOtp?: string }>,
+  formData: FormData,
+): Promise<ActionResult<{ devOtp?: string }>> {
+  const parsed = memberOtpRequestSchema.safeParse({
+    email: formData.get("email"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+  const result = await requestMemberOtp(parsed.data.email);
+  return { ok: true, message: result.message, data: { devOtp: result.devOtp } };
+}
+
+export async function verifyMemberOtpAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = memberOtpVerifySchema.safeParse({
+    email: formData.get("email"),
+    otp: formData.get("otp"),
+    trustDevice: formData.get("trustDevice") === "on" || formData.get("trustDevice") === "true",
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  try {
+    await signIn("member-otp", {
+      email: parsed.data.email,
+      otp: parsed.data.otp,
+      trustDevice: parsed.data.trustDevice ? "true" : "false",
+      redirectTo: "/portal",
+    });
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return { ok: false, error: OTP_GENERIC_INVALID_MESSAGE };
+    }
+    throw error;
+  }
+}
+
 export async function logoutAction() {
   const user = await getSessionUser();
+  const redirectTo = user?.role === "MEMBER" ? "/login/member" : "/login";
   if (user) {
     await logActivity({
       userId: user.id,
@@ -49,5 +95,5 @@ export async function logoutAction() {
       message: `${user.name} signed out`,
     });
   }
-  await signOut({ redirectTo: "/login" });
+  await signOut({ redirectTo });
 }

@@ -8,6 +8,7 @@ export type SessionUser = {
   email: string;
   role: UserRole;
   active: boolean;
+  memberId?: string | null;
 };
 
 export type ActionResult<T = unknown> =
@@ -36,6 +37,8 @@ declare module "next-auth" {
     id: string;
     role: UserRole;
     active: boolean;
+    memberId?: string | null;
+    trustDevice?: boolean;
   }
 }
 
@@ -44,5 +47,6 @@ declare module "next-auth/jwt" {
     id: string;
     role: UserRole;
     active: boolean;
+    memberId?: string | null;
   }
 }

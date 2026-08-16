@@ -316,6 +316,8 @@ export async function createMember(input: MemberFormInput, actor: SessionUser) {
     const member = await prisma.member.create({
       data: memberWriteData(input, actor.id),
     });
+    const { ensureMemberLoginUser } = await import("@/services/member-auth");
+    await ensureMemberLoginUser(member);
     await logActivity({
       userId: actor.id,
       action: "MEMBER_CREATED",
@@ -381,6 +383,9 @@ export async function updateMember(
       });
     });
 
+    const { ensureMemberLoginUser } = await import("@/services/member-auth");
+    await ensureMemberLoginUser(member);
+
     await logActivity({
       userId: actor.id,
       action: "MEMBER_UPDATED",
@@ -407,6 +412,10 @@ export async function deactivateMember(id: string, actor: SessionUser) {
   }
   const updated = await prisma.member.update({
     where: { id },
+    data: { active: false },
+  });
+  await prisma.user.updateMany({
+    where: { memberId: id, role: "MEMBER" },
     data: { active: false },
   });
   await logActivity({

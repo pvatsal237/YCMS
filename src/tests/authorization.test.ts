@@ -70,4 +70,17 @@ describe("role authorization", () => {
       canManageUser(coordinator, { id: "a1", role: "ADMIN", createdById: null }),
     ).toBe(false);
   });
+
+  it("restricts members to their own portal", () => {
+    expect(canAccessMembers("MEMBER")).toBe(false);
+    expect(canTakeAttendance("MEMBER")).toBe(false);
+    expect(canViewImmigration("MEMBER")).toBe(false);
+    expect(canCreateRole("MEMBER", "ATTENDANCE_VOLUNTEER")).toBe(false);
+    expect(isPathAllowed("/portal", "MEMBER")).toBe(true);
+    expect(isPathAllowed("/dashboard", "MEMBER")).toBe(false);
+    expect(isPathAllowed("/members", "MEMBER")).toBe(false);
+    expect(isPathAllowed("/admin/users", "MEMBER")).toBe(false);
+    expect(isPathAllowed("/admin/logs", "MEMBER")).toBe(false);
+    expect(isPathAllowed("/portal", "ADMIN")).toBe(false);
+  });
 });

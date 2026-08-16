@@ -85,7 +85,7 @@ export async function getDashboardData(role: UserRole) {
 }
 
 export async function getNotificationCounts(role: UserRole) {
-  if (role === "ATTENDANCE_VOLUNTEER") {
+  if (role === "ATTENDANCE_VOLUNTEER" || role === "MEMBER") {
     return { total: 0, immigration: 0, followUps: 0 };
   }
   const [immigration, followUps] = await Promise.all([

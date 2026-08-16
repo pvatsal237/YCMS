@@ -17,6 +17,8 @@ function addDays(base: Date, days: number) {
 }
 
 async function main() {
+  await prisma.emailOtp.deleteMany();
+  await prisma.memberProfileChangeRequest.deleteMany();
   await prisma.attendance.deleteMany();
   await prisma.followUp.deleteMany();
   await prisma.activityLog.deleteMany();
@@ -28,6 +30,7 @@ async function main() {
   await prisma.employment.deleteMany();
   await prisma.accommodationNeed.deleteMany();
   await prisma.meetup.deleteMany();
+  await prisma.user.deleteMany({ where: { role: "MEMBER" } });
   await prisma.member.deleteMany();
   await prisma.user.deleteMany();
   await prisma.systemSetting.deleteMany();
@@ -227,6 +230,15 @@ async function main() {
       },
     });
     createdMembers.push({ ...created, absencePattern: item.absencePattern });
+    await prisma.user.create({
+      data: {
+        name: `${created.firstName} ${created.lastName}`,
+        email: created.email,
+        role: "MEMBER",
+        active: created.active,
+        memberId: created.id,
+      },
+    });
   }
 
   const meetupDates = [
@@ -305,6 +317,8 @@ async function main() {
   console.log("  admin@ycms.local / YcmsDemo123!");
   console.log("  coordinator@ycms.local / YcmsDemo123!");
   console.log("  volunteer@ycms.local / YcmsDemo123!");
+  console.log("Member OTP login (no password): hetvi.patel@example.test");
+  console.log("Set DEV_SHOW_OTP=true in .env.local to display the code on the login page.");
 }
 
 main()

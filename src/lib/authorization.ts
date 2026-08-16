@@ -2,11 +2,17 @@ import type { SessionUser } from "@/types";
 import type { UserRole } from "@/types/roles";
 export type { UserRole } from "@/types/roles";
 
-export const ALL_ROLES: UserRole[] = [
+export const STAFF_ROLES: UserRole[] = [
   "ADMIN",
   "COORDINATOR",
   "ATTENDANCE_VOLUNTEER",
 ];
+
+export const ALL_ROLES: UserRole[] = [...STAFF_ROLES, "MEMBER"];
+
+export function defaultHomePath(role: UserRole): string {
+  return role === "MEMBER" ? "/portal" : "/dashboard";
+}
 
 export function canAccessMembers(role: UserRole): boolean {
   return role === "ADMIN" || role === "COORDINATOR";
@@ -25,7 +31,7 @@ export function canCreateMeetup(role: UserRole): boolean {
 }
 
 export function canTakeAttendance(role: UserRole): boolean {
-  return ALL_ROLES.includes(role);
+  return STAFF_ROLES.includes(role);
 }
 
 export function canViewImmigration(role: UserRole): boolean {
@@ -84,9 +90,9 @@ export type NavItem = {
 };
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", roles: ALL_ROLES },
+  { href: "/dashboard", label: "Dashboard", roles: STAFF_ROLES },
   { href: "/members", label: "Members", roles: ["ADMIN", "COORDINATOR"] },
-  { href: "/attendance", label: "Attendance", roles: ALL_ROLES },
+  { href: "/attendance", label: "Attendance", roles: STAFF_ROLES },
   {
     href: "/immigration",
     label: "Immigration",
@@ -108,8 +114,18 @@ export function navItemsForRole(role: UserRole): NavItem[] {
 }
 
 export function isPathAllowed(pathname: string, role: UserRole): boolean {
-  if (pathname === "/unauthorized" || pathname === "/login") return true;
-  if (pathname.startsWith("/dashboard")) return true;
+  if (
+    pathname === "/unauthorized" ||
+    pathname === "/login" ||
+    pathname.startsWith("/login/")
+  ) {
+    return true;
+  }
+  if (role === "MEMBER") {
+    return pathname.startsWith("/portal");
+  }
+  if (pathname.startsWith("/portal")) return false;
+  if (pathname.startsWith("/dashboard")) return STAFF_ROLES.includes(role);
   if (pathname.startsWith("/attendance/new")) return canCreateMeetup(role);
   if (pathname.startsWith("/attendance")) return canTakeAttendance(role);
   if (pathname.startsWith("/members")) return canAccessMembers(role);

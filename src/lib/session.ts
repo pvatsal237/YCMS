@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AppError } from "@/lib/errors";
+import { defaultHomePath } from "@/lib/authorization";
 import type { UserRole } from "@/types/roles";
 import type { SessionUser } from "@/types";
 
@@ -16,6 +17,22 @@ export async function requireSession(): Promise<SessionUser> {
   }
   if (!user.active) {
     redirect("/login?error=disabled");
+  }
+  return user;
+}
+
+export async function requireMemberSession(): Promise<SessionUser> {
+  const user = await requireSession();
+  if (user.role !== "MEMBER") {
+    redirect(defaultHomePath(user.role));
+  }
+  return user;
+}
+
+export async function requireStaffSession(): Promise<SessionUser> {
+  const user = await requireSession();
+  if (user.role === "MEMBER") {
+    redirect("/portal");
   }
   return user;
 }

@@ -6,20 +6,25 @@ import type { UserRole } from "@/types/roles";
 
 const { auth } = NextAuth(authConfig);
 
-export default auth((req) => {
-  const { pathname } = req.nextUrl;
-  if (
+function isPublicPath(pathname: string) {
+  return (
     pathname === "/login" ||
+    pathname.startsWith("/login/") ||
     pathname.startsWith("/api/auth") ||
     pathname === "/unauthorized"
-  ) {
+  );
+}
+
+export default auth((req) => {
+  const { pathname } = req.nextUrl;
+  if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
   const role = req.auth?.user?.role as UserRole | undefined;
   if (!req.auth?.user || !role) {
     const url = req.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = pathname.startsWith("/portal") ? "/login/member" : "/login";
     if (pathname !== "/") {
       url.searchParams.set("error", "session");
     }

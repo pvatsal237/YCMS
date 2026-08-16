@@ -1,5 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
 import { isPathAllowed } from "@/lib/authorization";
+import { STAFF_SESSION_SECONDS, TRUSTED_MEMBER_SESSION_SECONDS } from "@/lib/session-ttl";
 import type { UserRole } from "@/types/roles";
 
 /**
@@ -11,7 +12,7 @@ export const authConfig = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 60 * 60 * 8,
+    maxAge: TRUSTED_MEMBER_SESSION_SECONDS,
   },
   providers: [],
   callbacks: {
@@ -19,6 +20,7 @@ export const authConfig = {
       const { pathname } = request.nextUrl;
       if (
         pathname === "/login" ||
+        pathname.startsWith("/login/") ||
         pathname.startsWith("/api/auth") ||
         pathname === "/unauthorized"
       ) {
@@ -37,6 +39,10 @@ export const authConfig = {
         token.id = user.id;
         token.role = user.role;
         token.active = user.active;
+        token.memberId = user.memberId ?? null;
+        const now = Math.floor(Date.now() / 1000);
+        const trusted = user.role === "MEMBER" && Boolean(user.trustDevice);
+        token.exp = now + (trusted ? TRUSTED_MEMBER_SESSION_SECONDS : STAFF_SESSION_SECONDS);
       }
       return token;
     },
@@ -45,6 +51,7 @@ export const authConfig = {
         session.user.id = token.id as string;
         session.user.role = token.role as UserRole;
         session.user.active = Boolean(token.active);
+        session.user.memberId = (token.memberId as string | null | undefined) ?? null;
       }
       return session;
     },

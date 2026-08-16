@@ -19,6 +19,8 @@ export function roleLabel(role: UserRole): string {
       return "Youth Coordinator";
     case "ATTENDANCE_VOLUNTEER":
       return "Attendance Volunteer";
+    case "MEMBER":
+      return "Member";
   }
 }
 

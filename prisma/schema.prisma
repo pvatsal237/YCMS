@@ -11,6 +11,7 @@ enum UserRole {
   ADMIN
   COORDINATOR
   ATTENDANCE_VOLUNTEER
+  MEMBER
 }
 
 enum Gender {
@@ -78,7 +79,7 @@ model User {
   id           String   @id @default(cuid())
   name         String
   email        String   @unique
-  passwordHash String
+  passwordHash String?
   role         UserRole
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
@@ -86,6 +87,8 @@ model User {
   createdById  String?
   createdBy    User?    @relation("UserCreatedBy", fields: [createdById], references: [id])
   createdUsers User[]   @relation("UserCreatedBy")
+  memberId     String?  @unique
+  member       Member?  @relation("MemberLoginUser", fields: [memberId], references: [id], onDelete: SetNull)
 
   membersCreated     Member[]      @relation("MemberCreatedBy")
   meetupsCreated     Meetup[]      @relation("MeetupCreatedBy")
@@ -93,6 +96,7 @@ model User {
   followUpsAssigned  FollowUp[]        @relation("FollowUpAssignedTo")
   followUpAttempts   FollowUpAttempt[] @relation("FollowUpAttemptCreatedBy")
   activityLogs       ActivityLog[]
+  emailOtps          EmailOtp[]
 
   @@index([role, active])
   @@index([createdById])
@@ -115,6 +119,7 @@ model Member {
   updatedAt   DateTime  @updatedAt
   createdById String?
   createdBy   User?     @relation("MemberCreatedBy", fields: [createdById], references: [id])
+  loginUser   User?     @relation("MemberLoginUser")
 
   addresses          Address[]
   emergencyContact   EmergencyContact?
@@ -125,6 +130,7 @@ model Member {
   accommodation      AccommodationNeed?
   attendance         Attendance[]
   followUps          FollowUp[]
+  profileChangeRequests MemberProfileChangeRequest[]
 
   @@index([lastName, firstName])
   @@index([active, dateJoined])
@@ -310,6 +316,32 @@ model ActivityLog {
   @@index([userId, timestamp])
   @@index([action])
   @@index([entityType, entityId])
+}
+
+model EmailOtp {
+  id         String    @id @default(cuid())
+  email      String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email, createdAt])
+  @@index([email, consumedAt])
+}
+
+model MemberProfileChangeRequest {
+  id        String   @id @default(cuid())
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  message   String
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+
+  @@index([memberId, createdAt])
 }
 
 model SystemSetting {

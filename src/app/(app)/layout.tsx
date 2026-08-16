@@ -1,9 +1,9 @@
 import { AppShell } from "@/components/layout/AppShell";
-import { requireSession } from "@/lib/session";
+import { requireStaffSession } from "@/lib/session";
 import { getNotificationCounts } from "@/services/dashboard";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireSession();
+  const user = await requireStaffSession();
   const notifications = await getNotificationCounts(user.role);
   return (
     <AppShell user={user} notificationCount={notifications.total}>
