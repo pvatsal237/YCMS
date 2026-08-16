@@ -72,6 +72,9 @@ export function MemberLoginForm({ errorFromQuery }: { errorFromQuery?: string })
               inputMode="numeric"
               autoComplete="one-time-code"
               required
+              defaultValue={
+                requestState.ok && requestState.data?.devOtp ? requestState.data.devOtp : ""
+              }
             />
           </Field>
           <label className="flex items-start gap-2 text-sm text-slate-700">

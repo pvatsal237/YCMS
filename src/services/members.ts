@@ -414,10 +414,10 @@ export async function deactivateMember(id: string, actor: SessionUser) {
     where: { id },
     data: { active: false },
   });
-  await prisma.user.updateMany({
-    where: { memberId: id, role: "MEMBER" },
-    data: { active: false },
-  });
+  await prisma.$executeRaw`
+    UPDATE "User" SET active = false, "updatedAt" = NOW()
+    WHERE email = ${member.email} AND role::text = 'MEMBER'
+  `;
   await logActivity({
     userId: actor.id,
     action: "MEMBER_DEACTIVATED",

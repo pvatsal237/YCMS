@@ -112,6 +112,7 @@ Useful extras:
 
 ```bash
 npm run db:studio
+npm run db:setup   # generate Prisma client, apply migrations, seed
 npm run db:reset   # drops data, reapplies migrations, seeds
 ```
 
