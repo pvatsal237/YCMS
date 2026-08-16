@@ -36,6 +36,16 @@ export function immigrationStatusLabel(status: string): string {
   return labels[status] ?? status;
 }
 
+export function documentRequestTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    NEED_ASSISTANCE: "Needs to speak with staff",
+    RENEWAL_REQUESTED: "Applied for renewal",
+    RENEWED: "Already renewed",
+    IRCC_QUERY: "Has a query (for example IRCC)",
+  };
+  return labels[type] ?? type;
+}
+
 export function documentTypeLabel(type: string): string {
   const labels: Record<string, string> = {
     STUDY_PERMIT: "Study Permit",

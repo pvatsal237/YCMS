@@ -2,7 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { currentMonthRange } from "@/lib/dates";
 import { listExpiringSoon } from "@/services/immigration";
 import { listOpenAbsenceFollowUps } from "@/services/follow-ups";
+import { countUnreadStaffNotifications } from "@/services/staff-notifications";
 import type { UserRole } from "@prisma/client";
+import type { SessionUser } from "@/types";
 
 export async function getDashboardData(role: UserRole) {
   const { start, end } = currentMonthRange();
@@ -84,15 +86,16 @@ export async function getDashboardData(role: UserRole) {
   };
 }
 
-export async function getNotificationCounts(role: UserRole) {
-  if (role === "ATTENDANCE_VOLUNTEER" || role === "MEMBER") {
-    return { total: 0, immigration: 0, followUps: 0 };
+export async function getNotificationCounts(user: SessionUser) {
+  if (user.role === "ATTENDANCE_VOLUNTEER" || user.role === "MEMBER") {
+    return { total: 0, immigration: 0, followUps: 0, inbox: 0 };
   }
-  const [immigration, followUps] = await Promise.all([
+  const [immigration, followUps, inbox] = await Promise.all([
     listExpiringSoon(90, 50),
     prisma.followUp.count({
       where: { status: { in: ["PENDING", "CONTACTED"] } },
     }),
+    countUnreadStaffNotifications(user.id),
   ]);
   const immigrationCount = immigration.filter(
     (row) => row.level === "EXPIRED" || row.level === "EXPIRING_3_MONTHS",
@@ -100,6 +103,7 @@ export async function getNotificationCounts(role: UserRole) {
   return {
     immigration: immigrationCount,
     followUps,
-    total: immigrationCount + followUps,
+    inbox,
+    total: immigrationCount + followUps + inbox,
   };
 }

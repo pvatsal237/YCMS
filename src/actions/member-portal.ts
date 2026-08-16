@@ -40,20 +40,33 @@ export async function requestDocumentRenewalAction(
     const actor = await requireMemberSession();
     const documentId = String(formData.get("documentId") ?? "");
     const requestType = String(formData.get("requestType") ?? "");
+    const assignedToUserId = String(formData.get("assignedToUserId") ?? "");
     const proposedExpiry = String(formData.get("proposedExpiry") ?? "").trim();
-    if (requestType !== "RENEWAL_REQUESTED" && requestType !== "RENEWED") {
-      return { ok: false, error: "Choose how you want to notify coordinators." };
+    const allowed = [
+      "NEED_ASSISTANCE",
+      "RENEWAL_REQUESTED",
+      "RENEWED",
+      "IRCC_QUERY",
+    ] as const;
+    if (!allowed.includes(requestType as (typeof allowed)[number])) {
+      return { ok: false, error: "Choose a status from the list." };
+    }
+    if (!assignedToUserId) {
+      return { ok: false, error: "Select who you want to speak with." };
     }
     await createDocumentRenewalRequest(actor, {
       documentId,
-      requestType,
+      requestType: requestType as (typeof allowed)[number],
+      assignedToUserId,
       proposedExpiry: requestType === "RENEWED" ? proposedExpiry : undefined,
     });
     revalidatePath("/portal");
+    revalidatePath("/notifications");
+    revalidatePath("/immigration");
     return {
       ok: true,
       message:
-        "Coordinators have been notified. This is pending approval and does not change your record yet.",
+        "Your update was saved. The person you selected was notified in YCMS and by email. You can change this later if you picked the wrong option.",
     };
   } catch (error) {
     logServerError("requestDocumentRenewalAction", error);

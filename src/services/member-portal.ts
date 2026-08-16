@@ -1,8 +1,22 @@
 import { randomUUID } from "node:crypto";
 import { prisma, connectPrisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
+import { sendEmail } from "@/lib/email";
+import { formatDate } from "@/lib/dates";
 import { ensureMemberAuthSchema } from "@/lib/member-auth-schema";
+import { createStaffNotification } from "@/services/staff-notifications";
+import { documentRequestTypeLabel, documentTypeLabel, fullName } from "@/utils/format";
 import type { SessionUser } from "@/types";
+import type { UserRole } from "@/types/roles";
+
+const DOCUMENT_REQUEST_TYPES = [
+  "NEED_ASSISTANCE",
+  "RENEWAL_REQUESTED",
+  "RENEWED",
+  "IRCC_QUERY",
+] as const;
+
+type DocumentRequestType = (typeof DOCUMENT_REQUEST_TYPES)[number];
 
 export async function getMemberPortalData(actor: SessionUser) {
   if (actor.role !== "MEMBER") {
@@ -84,17 +98,27 @@ async function loadMemberPortalData(actor: SessionUser) {
       requestType: string | null;
       documentId: string | null;
       proposedExpiry: Date | null;
+      assignedToUserId: string | null;
       status: string;
       createdAt: Date;
     }[]
   >`
-    SELECT id, "requestType", "documentId", "proposedExpiry", status, "createdAt"
+    SELECT id, "requestType", "documentId", "proposedExpiry", "assignedToUserId", status, "createdAt"
     FROM "MemberProfileChangeRequest"
     WHERE "memberId" = ${member.id} AND status = 'PENDING'
     ORDER BY "createdAt" DESC
   `;
 
-  return { member, upcomingMeetup, pendingRequests };
+  const staffContacts = await prisma.$queryRaw<
+    { id: string; name: string; email: string; role: UserRole }[]
+  >`
+    SELECT id, name, email, role::text AS role
+    FROM "User"
+    WHERE active = true AND role IN ('ADMIN'::"UserRole", 'COORDINATOR'::"UserRole")
+    ORDER BY name ASC
+  `;
+
+  return { member, upcomingMeetup, pendingRequests, staffContacts };
 }
 
 export async function createProfileChangeRequest(actor: SessionUser, message: string) {
@@ -110,7 +134,8 @@ export async function createDocumentRenewalRequest(
   actor: SessionUser,
   input: {
     documentId: string;
-    requestType: "RENEWAL_REQUESTED" | "RENEWED";
+    requestType: DocumentRequestType;
+    assignedToUserId: string;
     proposedExpiry?: string;
   },
 ) {
@@ -120,27 +145,85 @@ export async function createDocumentRenewalRequest(
   if (!document) {
     throw new AppError("Document not found.", 404, "NOT_FOUND");
   }
+  if (!DOCUMENT_REQUEST_TYPES.includes(input.requestType)) {
+    throw new AppError("Choose a status.", 400);
+  }
   if (input.requestType === "RENEWED" && !input.proposedExpiry) {
     throw new AppError("Select the new expiry date.", 400);
   }
-  const message =
-    input.requestType === "RENEWED"
-      ? `Member reports this document is already renewed. Proposed new expiry: ${input.proposedExpiry}.`
-      : "Member reports they have requested a renewal. Please follow up.";
-  await prisma.$executeRaw`
-    INSERT INTO "MemberProfileChangeRequest"
-      (id, "memberId", message, status, "requestType", "documentId", "proposedExpiry", "createdAt")
-    VALUES (
-      ${randomUUID()},
-      ${data.member.id},
-      ${message},
-      'PENDING',
-      ${input.requestType},
-      ${input.documentId},
-      ${input.proposedExpiry ? new Date(`${input.proposedExpiry}T00:00:00.000Z`) : null},
-      NOW()
-    )
+  const staff = data.staffContacts.find((person) => person.id === input.assignedToUserId);
+  if (!staff) {
+    throw new AppError("Select an administrator or coordinator.", 400);
+  }
+
+  const memberName = fullName(data.member);
+  const docLabel = documentTypeLabel(document.documentType);
+  const expiryLabel = formatDate(document.expiryDate);
+  const statusLabel = documentRequestTypeLabel(input.requestType);
+  const message = [
+    `${memberName} requested assistance regarding their ${docLabel} expiring on ${expiryLabel}.`,
+    `Selected status: ${statusLabel}.`,
+    input.proposedExpiry ? `Proposed new expiry: ${input.proposedExpiry}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const existing = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id
+    FROM "MemberProfileChangeRequest"
+    WHERE "memberId" = ${data.member.id}
+      AND "documentId" = ${input.documentId}
+      AND status = 'PENDING'
+    ORDER BY "createdAt" DESC
+    LIMIT 1
   `;
+
+  const requestId = existing[0]?.id ?? randomUUID();
+  const proposed = input.proposedExpiry
+    ? new Date(`${input.proposedExpiry}T00:00:00.000Z`)
+    : null;
+
+  if (existing[0]) {
+    await prisma.$executeRaw`
+      UPDATE "MemberProfileChangeRequest"
+      SET
+        message = ${message},
+        "requestType" = ${input.requestType},
+        "proposedExpiry" = ${proposed},
+        "assignedToUserId" = ${staff.id}
+      WHERE id = ${requestId}
+    `;
+  } else {
+    await prisma.$executeRaw`
+      INSERT INTO "MemberProfileChangeRequest"
+        (id, "memberId", message, status, "requestType", "documentId", "proposedExpiry", "assignedToUserId", "createdAt")
+      VALUES (
+        ${requestId},
+        ${data.member.id},
+        ${message},
+        'PENDING',
+        ${input.requestType},
+        ${input.documentId},
+        ${proposed},
+        ${staff.id},
+        NOW()
+      )
+    `;
+  }
+
+  const title = `${memberName} needs help with a ${docLabel}`;
+  await createStaffNotification({
+    userId: staff.id,
+    memberId: data.member.id,
+    requestId,
+    title,
+    message,
+  });
+  await sendEmail({
+    to: staff.email,
+    subject: title,
+    text: `${message}\n\nOpen YCMS to follow up with this member.`,
+  });
 }
 
 export async function listPendingDocumentRequests() {
@@ -157,6 +240,7 @@ export async function listPendingDocumentRequests() {
       proposedExpiry: Date | null;
       message: string;
       createdAt: Date;
+      assignedToName: string | null;
     }[]
   >`
     SELECT
@@ -169,12 +253,14 @@ export async function listPendingDocumentRequests() {
       d."documentType"::text AS "documentType",
       r."proposedExpiry",
       r.message,
-      r."createdAt"
+      r."createdAt",
+      u.name AS "assignedToName"
     FROM "MemberProfileChangeRequest" r
     JOIN "Member" m ON m.id = r."memberId"
     LEFT JOIN "ImmigrationDocument" d ON d.id = r."documentId"
+    LEFT JOIN "User" u ON u.id = r."assignedToUserId"
     WHERE r.status = 'PENDING'
-      AND r."requestType" IN ('RENEWAL_REQUESTED', 'RENEWED')
+      AND r."requestType" IN ('NEED_ASSISTANCE', 'RENEWAL_REQUESTED', 'RENEWED', 'IRCC_QUERY')
     ORDER BY r."createdAt" DESC
   `;
 }
@@ -214,4 +300,3 @@ export async function reviewDocumentRequest(
     WHERE id = ${requestId}
   `;
 }
-

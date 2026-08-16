@@ -72,6 +72,26 @@ export async function ensureMemberAuthSchema() {
     ALTER TABLE "MemberProfileChangeRequest" ADD COLUMN IF NOT EXISTS "proposedExpiry" DATE
   `);
 
+  await exec(`
+    ALTER TABLE "MemberProfileChangeRequest" ADD COLUMN IF NOT EXISTS "assignedToUserId" TEXT
+  `);
+  await exec(`
+    CREATE TABLE IF NOT EXISTS "StaffNotification" (
+      "id" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "memberId" TEXT,
+      "requestId" TEXT,
+      "title" TEXT NOT NULL,
+      "message" TEXT NOT NULL,
+      "readAt" TIMESTAMP(3),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "StaffNotification_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await exec(
+    `CREATE INDEX IF NOT EXISTS "StaffNotification_userId_createdAt_idx" ON "StaffNotification"("userId", "createdAt")`,
+  );
+
   ensured = true;
 }
 

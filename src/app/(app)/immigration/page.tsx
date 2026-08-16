@@ -7,7 +7,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table } from "@/components/ui/Table";
 import { formatDate } from "@/lib/dates";
-import { documentTypeLabel, fullName } from "@/utils/format";
+import { documentRequestTypeLabel, documentTypeLabel, fullName } from "@/utils/format";
 import { ReviewRenewalButtons } from "@/components/immigration/ReviewRenewalButtons";
 import type { AlertLevel } from "@/utils/immigration-alerts";
 import type { ImmigrationDocumentType, ImmigrationStatus } from "@prisma/client";
@@ -43,7 +43,7 @@ export default async function ImmigrationPage({
             description="Members reported a renewal request or a new expiry. Approving a renewed date updates the stored expiry."
           />
           <CardBody className="p-0">
-            <Table headers={["Member", "Document", "Notice", "Proposed expiry", ""]}>
+            <Table headers={["Member", "Document", "Notice", "Assigned to", "Proposed expiry", ""]}>
               {pending.map((item) => (
                 <tr key={item.id}>
                   <td className="px-4 py-3">
@@ -55,10 +55,9 @@ export default async function ImmigrationPage({
                     {item.documentType ? documentTypeLabel(item.documentType) : "—"}
                   </td>
                   <td className="px-4 py-3">
-                    {item.requestType === "RENEWED"
-                      ? "Already renewed"
-                      : "Requested renewal"}
+                    {item.requestType ? documentRequestTypeLabel(item.requestType) : "—"}
                   </td>
+                  <td className="px-4 py-3">{item.assignedToName ?? "—"}</td>
                   <td className="px-4 py-3">{formatDate(item.proposedExpiry)}</td>
                   <td className="px-4 py-3">
                     <ReviewRenewalButtons requestId={item.id} />

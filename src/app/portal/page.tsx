@@ -21,7 +21,8 @@ const NOTICE_TONES = {
 
 export default async function MemberPortalPage() {
   const user = await requireMemberSession();
-  const { member, upcomingMeetup, pendingRequests } = await getMemberPortalData(user);
+  const { member, upcomingMeetup, pendingRequests, staffContacts } =
+    await getMemberPortalData(user);
   const documentNotices = member.documents
     .map((doc) => ({ doc, alert: getAlertPresentation(doc.expiryDate) }))
     .filter((item) => item.alert.level !== "VALID");
@@ -51,13 +52,19 @@ export default async function MemberPortalPage() {
                       : ` (${alert.daysRemaining} days remaining).`}
                   </p>
                 </div>
-                {pending ? (
-                  <p className="mt-2 text-sm">
-                    A coordinator has been notified. Status: pending approval.
-                  </p>
-                ) : (
-                  <DocumentRenewalActions documentId={doc.id} />
-                )}
+                <DocumentRenewalActions
+                  documentId={doc.id}
+                  staffContacts={staffContacts}
+                  current={
+                    pending
+                      ? {
+                          requestType: pending.requestType ?? "NEED_ASSISTANCE",
+                          assignedToUserId: pending.assignedToUserId,
+                          proposedExpiry: pending.proposedExpiry,
+                        }
+                      : undefined
+                  }
+                />
               </div>
             );
           })}
@@ -75,19 +82,39 @@ export default async function MemberPortalPage() {
       </Card>
 
       <Card>
-        <CardHeader title="Immigration documents" description="Type and expiry only. Alert colours match coordinator tracking." />
+        <CardHeader
+          title="Immigration documents"
+          description="Type and expiry only. You can change a status here if you selected the wrong option."
+        />
         {member.documents.length === 0 ? (
           <p className="px-5 py-6 text-sm text-slate-500">No documents on file.</p>
         ) : (
-          <Table headers={["Type", "Expiry", "Status"]}>
+          <Table headers={["Type", "Expiry", "Status", "Your response"]}>
             {member.documents.map((doc) => {
               const alert = getAlertPresentation(doc.expiryDate);
+              const pending = pendingRequests.find((item) => item.documentId === doc.id);
               return (
                 <tr key={doc.id}>
-                  <td className="px-4 py-3">{documentTypeLabel(doc.documentType)}</td>
-                  <td className="px-4 py-3">{formatDate(doc.expiryDate)}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 align-top">{documentTypeLabel(doc.documentType)}</td>
+                  <td className="px-4 py-3 align-top">{formatDate(doc.expiryDate)}</td>
+                  <td className="px-4 py-3 align-top">
                     <Badge tone={alert.tone}>{alert.label}</Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <DocumentRenewalActions
+                      compact
+                      documentId={doc.id}
+                      staffContacts={staffContacts}
+                      current={
+                        pending
+                          ? {
+                              requestType: pending.requestType ?? "NEED_ASSISTANCE",
+                              assignedToUserId: pending.assignedToUserId,
+                              proposedExpiry: pending.proposedExpiry,
+                            }
+                          : undefined
+                      }
+                    />
                   </td>
                 </tr>
               );

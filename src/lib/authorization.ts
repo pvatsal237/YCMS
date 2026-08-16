@@ -94,6 +94,11 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/members", label: "Members", roles: ["ADMIN", "COORDINATOR"] },
   { href: "/attendance", label: "Attendance", roles: STAFF_ROLES },
   {
+    href: "/notifications",
+    label: "Notifications",
+    roles: ["ADMIN", "COORDINATOR"],
+  },
+  {
     href: "/immigration",
     label: "Immigration",
     roles: ["ADMIN", "COORDINATOR"],
@@ -134,6 +139,7 @@ export function isPathAllowed(pathname: string, role: UserRole): boolean {
   if (pathname.startsWith("/attendance/new")) return canCreateMeetup(role);
   if (pathname.startsWith("/attendance")) return canTakeAttendance(role);
   if (pathname.startsWith("/members")) return canAccessMembers(role);
+  if (pathname.startsWith("/notifications")) return canViewImmigration(role);
   if (pathname.startsWith("/immigration")) return canViewImmigration(role);
   if (pathname.startsWith("/follow-ups")) return canViewFollowUps(role);
   if (pathname.startsWith("/reports")) return canViewReports(role);
