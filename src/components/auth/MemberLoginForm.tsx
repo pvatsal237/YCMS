@@ -59,7 +59,7 @@ export function MemberLoginForm({ errorFromQuery }: { errorFromQuery?: string })
             <p className="text-sm text-slate-600">{requestState.message}</p>
           ) : null}
           {requestState.ok && requestState.data?.devOtp ? (
-            <Alert>
+            <Alert tone="info">
               Development code: <strong>{requestState.data.devOtp}</strong>
             </Alert>
           ) : null}

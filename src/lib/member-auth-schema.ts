@@ -79,12 +79,11 @@ export async function countRecentOtps(email: string, since: Date) {
 export async function insertOtp(data: {
   email: string;
   codeHash: string;
-  expiresAt: Date;
   userId: string | null;
 }) {
   await prisma.$executeRaw`
     INSERT INTO "EmailOtp" (id, email, "codeHash", "expiresAt", attempts, "createdAt", "userId")
-    VALUES (${randomUUID()}, ${data.email}, ${data.codeHash}, ${data.expiresAt}, 0, NOW(), ${data.userId})
+    VALUES (${randomUUID()}, ${data.email}, ${data.codeHash}, NOW() + interval '10 minutes', 0, NOW(), ${data.userId})
   `;
 }
 
@@ -93,18 +92,20 @@ export async function findLatestOpenOtp(email: string) {
     {
       id: string;
       codeHash: string;
-      expiresAt: Date;
-      consumedAt: Date | null;
       attempts: number;
     }[]
   >`
-    SELECT id, "codeHash", "expiresAt", "consumedAt", attempts
+    SELECT id, "codeHash", attempts
     FROM "EmailOtp"
-    WHERE email = ${email} AND "consumedAt" IS NULL
+    WHERE email = ${email}
+      AND "consumedAt" IS NULL
+      AND "expiresAt" > NOW()
     ORDER BY "createdAt" DESC
     LIMIT 1
   `;
-  return rows[0] ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  return { ...row, attempts: Number(row.attempts) };
 }
 
 export async function updateOtp(

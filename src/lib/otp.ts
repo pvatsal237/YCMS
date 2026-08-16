@@ -19,8 +19,8 @@ export function hashOtp(code: string, secret: string): string {
 }
 
 export function otpHashesMatch(a: string, b: string): boolean {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
+  const left = Buffer.from(a.trim().toLowerCase());
+  const right = Buffer.from(b.trim().toLowerCase());
   if (left.length !== right.length) return false;
   return timingSafeEqual(left, right);
 }

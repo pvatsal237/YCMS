@@ -7,9 +7,7 @@ import {
   OTP_REQUEST_WINDOW_MS_VALUE,
   generateOtpCode,
   hashOtp,
-  isOtpExpired,
   otpHashesMatch,
-  otpExpiryDate,
   tooManyOtpRequests,
   tooManyVerifyAttempts,
 } from "@/lib/otp";
@@ -93,7 +91,6 @@ export async function requestMemberOtp(emailRaw: string) {
   await insertOtp({
     email,
     codeHash: hashOtp(code, otpSecret()),
-    expiresAt: otpExpiryDate(),
     userId: user.id,
   });
 
@@ -123,18 +120,11 @@ export async function consumeMemberOtp(emailRaw: string, codeRaw: string) {
   const email = emailRaw.trim().toLowerCase();
   const code = codeRaw.trim();
   const otp = await findLatestOpenOtp(email);
-  if (!otp || isOtpExpired(otp.expiresAt) || tooManyVerifyAttempts(otp.attempts)) {
-    if (otp && !otp.consumedAt) {
-      const attempts = otp.attempts + 1;
-      await updateOtp(otp.id, {
-        attempts,
-        consumedAt: tooManyVerifyAttempts(attempts) ? new Date() : null,
-      });
-    }
+  if (!otp || tooManyVerifyAttempts(otp.attempts)) {
     throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
   }
 
-  const matches = otpHashesMatch(otp.codeHash, hashOtp(code, otpSecret()));
+  const matches = otpHashesMatch(String(otp.codeHash).trim(), hashOtp(code, otpSecret()));
   if (!matches) {
     const attempts = otp.attempts + 1;
     await updateOtp(otp.id, {
@@ -144,11 +134,11 @@ export async function consumeMemberOtp(emailRaw: string, codeRaw: string) {
     throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
   }
 
-  await updateOtp(otp.id, { attempts: otp.attempts, consumedAt: new Date() });
-
   const user = await findActiveMemberUser(email);
   if (!user) {
     throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
   }
+
+  await updateOtp(otp.id, { attempts: otp.attempts, consumedAt: new Date() });
   return user;
 }

@@ -91,6 +91,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       name: "member-otp",
       credentials: {
         email: { label: "Email", type: "email" },
+        password: { label: "Code", type: "text" },
         otp: { label: "Code", type: "text" },
         trustDevice: { label: "Trust device", type: "text" },
       },
@@ -99,7 +100,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           typeof credentials?.email === "string"
             ? credentials.email.trim().toLowerCase()
             : "";
-        const otp = typeof credentials?.otp === "string" ? credentials.otp : "";
+        const otp =
+          (typeof credentials?.otp === "string" && credentials.otp) ||
+          (typeof credentials?.password === "string" && credentials.password) ||
+          "";
         const trustDevice = credentials?.trustDevice === "true";
         if (!email || !otp) {
           throw new InvalidCredentialsError();

@@ -82,6 +82,7 @@ export async function verifyMemberOtpAction(
   try {
     await signIn("member-otp", {
       email: parsed.data.email,
+      password: parsed.data.otp,
       otp: parsed.data.otp,
       trustDevice: parsed.data.trustDevice ? "true" : "false",
       redirectTo: "/portal",
