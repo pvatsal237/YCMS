@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
+import { ensureMemberAuthSchema } from "@/lib/member-auth-schema";
 import type { SessionUser } from "@/types";
 
 export async function getMemberPortalData(actor: SessionUser) {
@@ -10,17 +12,11 @@ export async function getMemberPortalData(actor: SessionUser) {
       "FORBIDDEN",
     );
   }
-  const user = await prisma.user.findUnique({
-    where: { id: actor.id },
-    select: { memberId: true, email: true },
-  });
+
   const member = await prisma.member.findFirst({
     where: {
       active: true,
-      OR: [
-        user?.memberId ? { id: user.memberId } : undefined,
-        { email: actor.email },
-      ].filter(Boolean) as Array<{ id: string } | { email: string }>,
+      email: actor.email,
     },
     select: {
       id: true,
@@ -58,7 +54,7 @@ export async function getMemberPortalData(actor: SessionUser) {
       },
     },
   });
-  if (!member || (user?.memberId && member.id !== user.memberId)) {
+  if (!member) {
     throw new AppError("You do not have permission to perform this action.", 403);
   }
 
@@ -72,11 +68,10 @@ export async function getMemberPortalData(actor: SessionUser) {
 }
 
 export async function createProfileChangeRequest(actor: SessionUser, message: string) {
+  await ensureMemberAuthSchema();
   const data = await getMemberPortalData(actor);
-  await prisma.memberProfileChangeRequest.create({
-    data: {
-      memberId: data.member.id,
-      message: message.trim(),
-    },
-  });
+  await prisma.$executeRaw`
+    INSERT INTO "MemberProfileChangeRequest" (id, "memberId", message, status, "createdAt")
+    VALUES (${randomUUID()}, ${data.member.id}, ${message.trim()}, 'PENDING', NOW())
+  `;
 }
