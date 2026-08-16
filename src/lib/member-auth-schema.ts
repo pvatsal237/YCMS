@@ -64,6 +64,16 @@ export async function ensureMemberAuthSchema() {
     )
   `);
 
+  await exec(`
+    ALTER TABLE "MemberProfileChangeRequest" ADD COLUMN IF NOT EXISTS "requestType" TEXT NOT NULL DEFAULT 'PROFILE'
+  `);
+  await exec(`
+    ALTER TABLE "MemberProfileChangeRequest" ADD COLUMN IF NOT EXISTS "documentId" TEXT
+  `);
+  await exec(`
+    ALTER TABLE "MemberProfileChangeRequest" ADD COLUMN IF NOT EXISTS "proposedExpiry" DATE
+  `);
+
   ensured = true;
 }
 

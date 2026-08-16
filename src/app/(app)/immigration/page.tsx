@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/session";
 import { listImmigrationDocuments } from "@/services/immigration";
+import { listPendingDocumentRequests } from "@/services/member-portal";
 import { PageHeader, EmptyState } from "@/components/ui/Feedback";
-import { Card } from "@/components/ui/Card";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table } from "@/components/ui/Table";
 import { formatDate } from "@/lib/dates";
+import { documentTypeLabel, fullName } from "@/utils/format";
+import { ReviewRenewalButtons } from "@/components/immigration/ReviewRenewalButtons";
 import type { AlertLevel } from "@/utils/immigration-alerts";
 import type { ImmigrationDocumentType, ImmigrationStatus } from "@prisma/client";
 
@@ -16,13 +19,16 @@ export default async function ImmigrationPage({
 }) {
   await requireRole(["ADMIN", "COORDINATOR"]);
   const params = await searchParams;
-  const rows = await listImmigrationDocuments({
-    documentType: params.documentType as ImmigrationDocumentType | undefined,
-    alertLevel: params.alertLevel as AlertLevel | undefined,
-    immigrationStatus: params.immigrationStatus as ImmigrationStatus | undefined,
-    expiryFrom: params.expiryFrom,
-    expiryTo: params.expiryTo,
-  });
+  const [rows, pending] = await Promise.all([
+    listImmigrationDocuments({
+      documentType: params.documentType as ImmigrationDocumentType | undefined,
+      alertLevel: params.alertLevel as AlertLevel | undefined,
+      immigrationStatus: params.immigrationStatus as ImmigrationStatus | undefined,
+      expiryFrom: params.expiryFrom,
+      expiryTo: params.expiryTo,
+    }),
+    listPendingDocumentRequests(),
+  ]);
 
   return (
     <div>
@@ -30,6 +36,39 @@ export default async function ImmigrationPage({
         title="Immigration tracking"
         description="Alert levels are calculated from expiry dates and are not stored."
       />
+      {pending.length > 0 ? (
+        <Card className="mb-4">
+          <CardHeader
+            title="Member renewal requests"
+            description="Members reported a renewal request or a new expiry. Approving a renewed date updates the stored expiry."
+          />
+          <CardBody className="p-0">
+            <Table headers={["Member", "Document", "Notice", "Proposed expiry", ""]}>
+              {pending.map((item) => (
+                <tr key={item.id}>
+                  <td className="px-4 py-3">
+                    <Link href={`/members/${item.memberId}`} className="font-medium text-teal-800">
+                      {fullName({ firstName: item.firstName, lastName: item.lastName })}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    {item.documentType ? documentTypeLabel(item.documentType) : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {item.requestType === "RENEWED"
+                      ? "Already renewed"
+                      : "Requested renewal"}
+                  </td>
+                  <td className="px-4 py-3">{formatDate(item.proposedExpiry)}</td>
+                  <td className="px-4 py-3">
+                    <ReviewRenewalButtons requestId={item.id} />
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          </CardBody>
+        </Card>
+      ) : null}
       <Card className="mb-4 p-4">
         <form className="grid gap-3 md:grid-cols-5">
           <select name="documentType" defaultValue={params.documentType ?? ""} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
