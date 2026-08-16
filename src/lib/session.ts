@@ -13,7 +13,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 export async function requireSession(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) {
-    redirect("/");
+    redirect("/login");
   }
   if (!user.active) {
     redirect("/login?error=disabled");
