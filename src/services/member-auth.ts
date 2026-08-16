@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity-log";
 import { sendEmail } from "@/lib/email";
@@ -17,14 +18,34 @@ import { AppError } from "@/lib/errors";
 import { fullName } from "@/utils/format";
 
 const SCHEMA_MESSAGE =
-  "Member login needs a database update. Stop the app, run npx prisma generate && npx prisma migrate deploy && npx prisma db seed, then npm run dev.";
+  "Stop the running app (Ctrl+C), then run: npm install && npm run db:setup && npm run dev";
 
-function otpDelegate() {
-  const model = prisma.emailOtp;
-  if (!model) {
+function rethrowIfSchemaMissing(error: unknown): never {
+  const message = error instanceof Error ? error.message : String(error);
+  const missingTable =
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    (error.code === "P2021" || error.code === "P2010");
+  if (
+    error instanceof TypeError ||
+    missingTable ||
+    message.includes("EmailOtp") ||
+    message.includes("emailOtp")
+  ) {
     throw new AppError(SCHEMA_MESSAGE, 503, "SCHEMA");
   }
-  return model;
+  throw error;
+}
+
+function otpDelegate() {
+  try {
+    const model = prisma.emailOtp;
+    if (!model) {
+      throw new AppError(SCHEMA_MESSAGE, 503, "SCHEMA");
+    }
+    return model;
+  } catch (error) {
+    rethrowIfSchemaMissing(error);
+  }
 }
 
 function otpSecret() {

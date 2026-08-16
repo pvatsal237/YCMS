@@ -60,7 +60,7 @@ export async function requestMemberOtpAction(
       ok: false,
       error: toUserMessage(
         error,
-        "Unable to send a sign-in code. Run prisma generate and prisma migrate deploy, then try again.",
+        "Unable to send a sign-in code. Stop the app, then run npm install && npm run db:setup && npm run dev.",
       ),
     };
   }

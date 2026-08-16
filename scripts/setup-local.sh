@@ -110,9 +110,9 @@ npx prisma db seed
 
 echo
 echo "Setup complete."
-echo "Starting the app at http://localhost:3000"
-echo "Login: admin@ycms.local"
-echo "Password: YcmsDemo123!"
+echo "Open http://localhost:3000/login"
+echo "Staff: admin@ycms.local / YcmsDemo123!"
+echo "Member OTP: hetvi.patel@example.test (set DEV_SHOW_OTP=true in .env.local)"
 echo
 
 npm run dev
