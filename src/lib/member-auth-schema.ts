@@ -163,14 +163,18 @@ export async function findActiveMemberUser(email: string) {
   >`
     SELECT id, name, email, role::text AS role, active, "memberId"
     FROM "User"
-    WHERE email = ${email} AND role = 'MEMBER'::"UserRole" AND active = true
+    WHERE email = ${email} AND active = true
     LIMIT 1
   `;
   const user = users[0];
-  if (!user?.memberId) return null;
+  if (!user) return null;
   const members = await prisma.member.findFirst({
-    where: { id: user.memberId, active: true },
+    where: {
+      active: true,
+      OR: [{ email }, ...(user.memberId ? [{ id: user.memberId }] : [])],
+    },
   });
   if (!members) return null;
-  return { ...user, member: members };
+  if (user.role !== "MEMBER" && user.role !== "member") return null;
+  return { ...user, memberId: user.memberId ?? members.id, member: members };
 }

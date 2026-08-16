@@ -26,6 +26,7 @@ export async function loginAction(
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
+      loginType: "staff",
       redirectTo: "/dashboard",
     });
     return { ok: true };
@@ -80,10 +81,10 @@ export async function verifyMemberOtpAction(
   }
 
   try {
-    await signIn("member-otp", {
+    await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.otp,
-      otp: parsed.data.otp,
+      loginType: "member",
       trustDevice: parsed.data.trustDevice ? "true" : "false",
       redirectTo: "/portal",
     });

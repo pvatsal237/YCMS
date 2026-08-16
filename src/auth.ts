@@ -4,6 +4,7 @@ import { authConfig } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/passwords";
 import { logActivity } from "@/lib/activity-log";
+import { consumeMemberOtp } from "@/services/member-auth";
 import type { UserRole } from "@/types/roles";
 
 class InvalidCredentialsError extends CredentialsSignin {
@@ -19,10 +20,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
     Credentials({
-      name: "credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        loginType: { label: "Type", type: "text" },
+        trustDevice: { label: "Trust device", type: "text" },
       },
       async authorize(credentials) {
         const email =
@@ -31,9 +33,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             : "";
         const password =
           typeof credentials?.password === "string" ? credentials.password : "";
+        const loginType =
+          typeof credentials?.loginType === "string" ? credentials.loginType : "staff";
+        const trustDevice = credentials?.trustDevice === "true";
 
         if (!email || !password) {
           throw new InvalidCredentialsError();
+        }
+
+        if (loginType === "member") {
+          const user = await consumeMemberOtp(email, password);
+          await logActivity({
+            userId: user.id,
+            action: "MEMBER_LOGIN",
+            entityType: "User",
+            entityId: user.id,
+            message: `${user.name} signed in with email code`,
+          });
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: "MEMBER" as UserRole,
+            active: user.active,
+            memberId: user.memberId,
+            trustDevice,
+          };
         }
 
         const user = await prisma.user.findUnique({ where: { email } });
@@ -84,51 +109,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           role: user.role,
           active: user.active,
         };
-      },
-    }),
-    Credentials({
-      id: "member-otp",
-      name: "member-otp",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Code", type: "text" },
-        otp: { label: "Code", type: "text" },
-        trustDevice: { label: "Trust device", type: "text" },
-      },
-      async authorize(credentials) {
-        const email =
-          typeof credentials?.email === "string"
-            ? credentials.email.trim().toLowerCase()
-            : "";
-        const otp =
-          (typeof credentials?.otp === "string" && credentials.otp) ||
-          (typeof credentials?.password === "string" && credentials.password) ||
-          "";
-        const trustDevice = credentials?.trustDevice === "true";
-        if (!email || !otp) {
-          throw new InvalidCredentialsError();
-        }
-        try {
-          const user = await consumeMemberOtp(email, otp);
-          await logActivity({
-            userId: user.id,
-            action: "MEMBER_LOGIN",
-            entityType: "User",
-            entityId: user.id,
-            message: `${user.name} signed in with email code`,
-          });
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role as UserRole,
-            active: user.active,
-            memberId: user.memberId,
-            trustDevice,
-          };
-        } catch {
-          throw new InvalidCredentialsError();
-        }
       },
     }),
   ],
