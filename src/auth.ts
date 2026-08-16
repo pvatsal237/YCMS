@@ -4,7 +4,7 @@ import { authConfig } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/passwords";
 import { logActivity } from "@/lib/activity-log";
-import { consumeMemberOtp } from "@/services/member-auth";
+import type { UserRole } from "@/types/roles";
 
 class InvalidCredentialsError extends CredentialsSignin {
   code = "invalid_credentials";
@@ -117,7 +117,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             id: user.id,
             name: user.name,
             email: user.email,
-            role: user.role,
+            role: user.role as UserRole,
             active: user.active,
             memberId: user.memberId,
             trustDevice,

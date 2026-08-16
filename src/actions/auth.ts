@@ -60,7 +60,7 @@ export async function requestMemberOtpAction(
       ok: false,
       error: toUserMessage(
         error,
-        "Unable to send a sign-in code. Stop the app, then run npm install && npm run db:setup && npm run dev.",
+        "Unable to send a sign-in code. Check that PostgreSQL is running and try again.",
       ),
     };
   }
