@@ -15,7 +15,7 @@ export default auth((req) => {
   const role = req.auth?.user?.role as UserRole | undefined;
   if (!req.auth?.user || !role) {
     const url = req.nextUrl.clone();
-    url.pathname = pathname.startsWith("/portal") ? "/member-login" : "/";
+    url.pathname = pathname.startsWith("/portal") ? "/member-login" : "/login";
     if (pathname !== "/") {
       url.searchParams.set("error", "session");
     }

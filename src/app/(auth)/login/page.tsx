@@ -1,19 +1,20 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { SignInChooser } from "@/components/auth/SignInChooser";
 import { defaultHomePath } from "@/lib/authorization";
 
 const ROLE_COPY: Record<string, { title: string; description: string }> = {
   admin: {
-    title: "Administrator sign in",
+    title: "Administrator login",
     description: "Use your administrator email and password.",
   },
   coordinator: {
-    title: "Youth Coordinator sign in",
+    title: "Youth Coordinator login",
     description: "Use your coordinator email and password.",
   },
   volunteer: {
-    title: "Attendance Volunteer sign in",
+    title: "Attendance Volunteer login",
     description: "Use your volunteer email and password.",
   },
 };
@@ -28,10 +29,10 @@ export default async function LoginPage({
     redirect(defaultHomePath(session.user.role));
   }
   const params = await searchParams;
-  const copy = ROLE_COPY[params.role ?? ""] ?? {
-    title: "Staff sign in",
-    description: "Use your YCMS email and password.",
-  };
+  const copy = ROLE_COPY[params.role ?? ""];
+  if (!copy) {
+    return <SignInChooser />;
+  }
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 shadow-sm">

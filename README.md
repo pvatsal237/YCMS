@@ -121,7 +121,7 @@ npm run db:reset   # drops data, reapplies migrations, seeds
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Choose Member, Administrator, Youth Coordinator, or Attendance Volunteer.
+Open [http://localhost:3000/login](http://localhost:3000/login). You will see buttons for Member, Administrator, Youth Coordinator, and Attendance Volunteer.
 
 Production-style local run:
 
