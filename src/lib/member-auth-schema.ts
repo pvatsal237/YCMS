@@ -23,8 +23,6 @@ export async function ensureMemberAuthSchema() {
   if (ensured) return;
 
   await exec(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'MEMBER'`);
-  await prisma.$disconnect();
-  await prisma.$connect();
   await exec(`ALTER TABLE "User" ALTER COLUMN "passwordHash" DROP NOT NULL`);
   await exec(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "memberId" TEXT`);
   await exec(

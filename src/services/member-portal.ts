@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { prisma } from "@/lib/prisma";
+import { prisma, connectPrisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { ensureMemberAuthSchema } from "@/lib/member-auth-schema";
 import type { SessionUser } from "@/types";
@@ -13,6 +13,7 @@ export async function getMemberPortalData(actor: SessionUser) {
     );
   }
 
+  await connectPrisma();
   const member = await prisma.member.findFirst({
     where: {
       active: true,
