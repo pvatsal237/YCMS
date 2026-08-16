@@ -16,6 +16,17 @@ import {
 import { AppError } from "@/lib/errors";
 import { fullName } from "@/utils/format";
 
+const SCHEMA_MESSAGE =
+  "Member login needs a database update. Stop the app, run npx prisma generate && npx prisma migrate deploy && npx prisma db seed, then npm run dev.";
+
+function otpDelegate() {
+  const model = prisma.emailOtp;
+  if (!model) {
+    throw new AppError(SCHEMA_MESSAGE, 503, "SCHEMA");
+  }
+  return model;
+}
+
 function otpSecret() {
   return process.env.AUTH_SECRET ?? "ycms-dev-otp-secret";
 }
@@ -76,7 +87,7 @@ export async function ensureMemberLoginUser(member: {
 export async function requestMemberOtp(emailRaw: string) {
   const email = emailRaw.trim().toLowerCase();
   const since = new Date(Date.now() - OTP_REQUEST_WINDOW_MS_VALUE);
-  const recent = await prisma.emailOtp.count({
+  const recent = await otpDelegate().count({
     where: { email, createdAt: { gte: since } },
   });
   if (tooManyOtpRequests(recent)) {
@@ -111,7 +122,7 @@ export async function requestMemberOtp(emailRaw: string) {
   }
 
   const code = generateOtpCode();
-  await prisma.emailOtp.create({
+  await otpDelegate().create({
     data: {
       email,
       codeHash: hashOtp(code, otpSecret()),
@@ -145,13 +156,13 @@ export async function requestMemberOtp(emailRaw: string) {
 export async function consumeMemberOtp(emailRaw: string, codeRaw: string) {
   const email = emailRaw.trim().toLowerCase();
   const code = codeRaw.trim();
-  const otp = await prisma.emailOtp.findFirst({
+  const otp = await otpDelegate().findFirst({
     where: { email, consumedAt: null },
     orderBy: { createdAt: "desc" },
   });
   if (!otp || isOtpExpired(otp.expiresAt) || tooManyVerifyAttempts(otp.attempts)) {
     if (otp && !otp.consumedAt) {
-      await prisma.emailOtp.update({
+      await otpDelegate().update({
         where: { id: otp.id },
         data: {
           attempts: { increment: 1 },
@@ -165,7 +176,7 @@ export async function consumeMemberOtp(emailRaw: string, codeRaw: string) {
   const matches = otpHashesMatch(otp.codeHash, hashOtp(code, otpSecret()));
   if (!matches) {
     const attempts = otp.attempts + 1;
-    await prisma.emailOtp.update({
+    await otpDelegate().update({
       where: { id: otp.id },
       data: {
         attempts,
@@ -175,7 +186,7 @@ export async function consumeMemberOtp(emailRaw: string, codeRaw: string) {
     throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
   }
 
-  await prisma.emailOtp.update({
+  await otpDelegate().update({
     where: { id: otp.id },
     data: { consumedAt: new Date() },
   });

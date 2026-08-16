@@ -7,6 +7,7 @@ import { logActivity } from "@/lib/activity-log";
 import { getSessionUser } from "@/lib/session";
 import { requestMemberOtp } from "@/services/member-auth";
 import { OTP_GENERIC_INVALID_MESSAGE } from "@/lib/otp";
+import { logServerError, toUserMessage } from "@/lib/errors";
 import type { ActionResult } from "@/types";
 
 export async function loginAction(
@@ -50,8 +51,19 @@ export async function requestMemberOtpAction(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const result = await requestMemberOtp(parsed.data.email);
-  return { ok: true, message: result.message, data: { devOtp: result.devOtp } };
+  try {
+    const result = await requestMemberOtp(parsed.data.email);
+    return { ok: true, message: result.message, data: { devOtp: result.devOtp } };
+  } catch (error) {
+    logServerError("requestMemberOtpAction", error);
+    return {
+      ok: false,
+      error: toUserMessage(
+        error,
+        "Unable to send a sign-in code. Run prisma generate and prisma migrate deploy, then try again.",
+      ),
+    };
+  }
 }
 
 export async function verifyMemberOtpAction(
