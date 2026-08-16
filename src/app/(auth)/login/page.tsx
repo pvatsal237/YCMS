@@ -36,7 +36,7 @@ export default async function LoginPage({
   }
   return (
     <AuthBackdrop>
-      <div className="mx-auto max-w-md rounded-2xl border border-slate-200/80 bg-white/90 p-8 shadow-lg shadow-slate-200/70 backdrop-blur">
+      <div className="mx-auto max-w-md rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
         <AuthBrand />
         <h1 className="text-2xl font-semibold text-slate-900">{copy.title}</h1>
         <p className="mt-1 mb-6 text-sm text-slate-500">{copy.description}</p>
