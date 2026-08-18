@@ -6,12 +6,20 @@ import { Button } from "@/components/ui/Button";
 export function ReviewRenewalButtons({ requestId }: { requestId: string }) {
   return (
     <div className="flex gap-2">
-      <form action={reviewDocumentRequestAction.bind(null, requestId, "APPROVED")}>
+      <form
+        action={async () => {
+          await reviewDocumentRequestAction(requestId, "APPROVED");
+        }}
+      >
         <Button type="submit" size="sm">
           Approve
         </Button>
       </form>
-      <form action={reviewDocumentRequestAction.bind(null, requestId, "REJECTED")}>
+      <form
+        action={async () => {
+          await reviewDocumentRequestAction(requestId, "REJECTED");
+        }}
+      >
         <Button type="submit" size="sm" variant="secondary">
           Reject
         </Button>
