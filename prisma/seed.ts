@@ -101,18 +101,24 @@ async function main() {
     "Foram Jani", "Manan Acharya", "Hiral Choksi", "Darsh Kapadia", "Kruti Mistry", "Veer Gajjar",
     "Jinal Buch", "Om Oza", "Maitri Vora", "Shivam Rawal", "Diya Upadhyay", "Aayush Shukla",
   ];
+  const leadEmails: Record<number, string> = {
+    0: "volunteer@ycms.local",
+    1: "jenil.shah@ycms.local",
+    8: "isha.modi@ycms.local",
+    14: "bansari.gandhi@ycms.local",
+    19: "manan.acharya@ycms.local",
+    23: "veer.gajjar@ycms.local",
+    26: "maitri.vora@ycms.local",
+    28: "diya.upadhyay@ycms.local",
+    29: "aayush.shukla@ycms.local",
+  };
   const volunteers = [];
   for (const [index, name] of volunteerNames.entries()) {
     volunteers.push(
       await prisma.user.create({
         data: {
           name,
-          email:
-            index === 0
-              ? "volunteer@ycms.local"
-              : index === 8
-                ? "isha.modi@ycms.local"
-                : `volunteer${index + 1}@ycms.local`,
+          email: leadEmails[index] ?? `volunteer${index + 1}@ycms.local`,
           passwordHash,
           role: "ATTENDANCE_VOLUNTEER",
           phone: `647-555-${2000 + index}`,
@@ -138,8 +144,8 @@ async function main() {
     { code: "TRANSPORTATION", leads: [8], members: [9, 10, 11, 12, 13] },
     { code: "SEATING_SETUP", leads: [19], members: [15, 20, 21, 22] },
     { code: "AUDIO_VIDEO", leads: [23], members: [16, 24, 25] },
-    { code: "RECREATION", leads: [26], members: [0, 27] },
-    { code: "RISEUP_SUPPORT", leads: [28], members: [1, 4] },
+    { code: "RECREATION", leads: [26], members: [27] },
+    { code: "RISEUP_SUPPORT", leads: [28], members: [4] },
     { code: "GENERAL_EVENT_SUPPORT", leads: [29], members: [3] },
   ];
   for (const row of roster) {
@@ -168,19 +174,32 @@ async function main() {
     });
   }
 
-  const isha = volunteers[8];
-  const transportDept = deptByCode.TRANSPORTATION;
-  await prisma.volunteerDepartmentMembership.deleteMany({ where: { userId: isha.id } });
-  await prisma.volunteerDepartmentMembership.create({
-    data: {
-      userId: isha.id,
-      departmentId: transportDept.id,
-      responsibility: "LEAD",
-    },
+  const leadHomes: Array<{ index: number; code: (typeof DEPARTMENT_CODES)[number]["code"] }> = [
+    { index: 0, code: "KITCHEN" },
+    { index: 1, code: "KITCHEN" },
+    { index: 8, code: "TRANSPORTATION" },
+    { index: 14, code: "GROCERIES" },
+    { index: 19, code: "SEATING_SETUP" },
+    { index: 23, code: "AUDIO_VIDEO" },
+    { index: 26, code: "RECREATION" },
+    { index: 28, code: "RISEUP_SUPPORT" },
+    { index: 29, code: "GENERAL_EVENT_SUPPORT" },
+  ];
+  for (const home of leadHomes) {
+    const userId = volunteers[home.index].id;
+    const departmentId = deptByCode[home.code].id;
+    await prisma.volunteerDepartmentMembership.deleteMany({ where: { userId } });
+    await prisma.volunteerDepartmentMembership.create({
+      data: { userId, departmentId, responsibility: "LEAD" },
+    });
+  }
+  await prisma.volunteerDepartment.update({
+    where: { id: deptByCode.TRANSPORTATION.id },
+    data: { leadUserId: volunteers[8].id },
   });
   await prisma.volunteerDepartment.update({
-    where: { id: transportDept.id },
-    data: { leadUserId: isha.id },
+    where: { id: deptByCode.KITCHEN.id },
+    data: { leadUserId: volunteers[0].id },
   });
 
   await prisma.systemSetting.createMany({
@@ -591,8 +610,16 @@ async function main() {
   }
 
   await prisma.activityLog.create({ data: { userId: admin.id, action: "SEED", message: "Development seed data loaded" } });
-  console.log("Seed complete. Demo: admin@ycms.local / coordinator@ycms.local / volunteer@ycms.local / YcmsDemo123!");
-  console.log("Transportation lead: isha.modi@ycms.local / YcmsDemo123!");
+  console.log("Seed complete. Password for all demo staff: YcmsDemo123!");
+  console.log("Admin: admin@ycms.local · Coordinator: coordinator@ycms.local");
+  console.log("Kitchen lead: volunteer@ycms.local (Hetvi Patel) · jenil.shah@ycms.local (Jenil Shah)");
+  console.log("Groceries lead: bansari.gandhi@ycms.local");
+  console.log("Transportation lead: isha.modi@ycms.local");
+  console.log("Seating & Setup lead: manan.acharya@ycms.local");
+  console.log("Audio / Video lead: veer.gajjar@ycms.local");
+  console.log("Recreation lead: maitri.vora@ycms.local");
+  console.log("RiseUp lead: diya.upadhyay@ycms.local");
+  console.log("General Event Support lead: aayush.shukla@ycms.local");
   console.log("Member OTP: hetvi.patel@example.test");
 }
 
