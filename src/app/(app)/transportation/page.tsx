@@ -1,9 +1,14 @@
 import { requireStaffSession } from "@/lib/session";
-import { listEligibleRideDrivers, listRideRequestsForStaff, listUpcomingEvents } from "@/services/events";
+import {
+  getTransportAvailability,
+  listEligibleRideDrivers,
+  listRideRequestsForStaff,
+  listUpcomingEvents,
+} from "@/services/events";
 import { isTransportationAssignee, isTransportationLead } from "@/services/volunteer";
 import { reviewRideAction } from "@/actions/events";
 import { PageHeader } from "@/components/ui/Feedback";
-import { Card, CardBody } from "@/components/ui/Card";
+import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatDate } from "@/lib/dates";
@@ -51,6 +56,10 @@ export default async function TransportationPage() {
     rows = [];
   }
   const nextEvent = upcoming[0];
+  const myAvailability =
+    nextEvent && user.role === "ATTENDANCE_VOLUNTEER"
+      ? await getTransportAvailability(user.id, nextEvent.id)
+      : null;
   const meetupIds = [...new Set(rows.map((row) => row.meetupId))];
   let driversByMeetup = new Map<string, Awaited<ReturnType<typeof listEligibleRideDrivers>>>();
   if (canManage) {
@@ -78,8 +87,16 @@ export default async function TransportationPage() {
       />
       {nextEvent && transportVolunteer && user.role === "ATTENDANCE_VOLUNTEER" ? (
         <Card>
+          <CardHeader
+            title="Your availability"
+            description="Transportation volunteers and the Transportation department lead use this to say whether they can drive for the next event."
+          />
           <CardBody>
-            <TransportAvailabilityForm meetupId={nextEvent.id} eventTitle={nextEvent.title} />
+            <TransportAvailabilityForm
+              meetupId={nextEvent.id}
+              eventTitle={nextEvent.title}
+              initial={myAvailability}
+            />
           </CardBody>
         </Card>
       ) : null}

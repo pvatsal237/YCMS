@@ -45,8 +45,16 @@ export default async function VolunteerHomePage() {
 
       {data.nextEvent && data.memberships.some((row) => row.department.code === "TRANSPORTATION") ? (
         <Card>
+          <CardHeader
+            title="Your transportation availability"
+            description="As a Transportation volunteer or department lead, save whether you can drive for the next event. You can change this anytime."
+          />
           <CardBody>
-            <TransportAvailabilityForm meetupId={data.nextEvent.id} eventTitle={data.nextEvent.title} />
+            <TransportAvailabilityForm
+              meetupId={data.nextEvent.id}
+              eventTitle={data.nextEvent.title}
+              initial={data.transportAvailability}
+            />
           </CardBody>
         </Card>
       ) : null}

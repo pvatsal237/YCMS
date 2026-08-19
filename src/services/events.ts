@@ -366,6 +366,16 @@ export async function assignRideToDriver(actor: SessionUser, rideId: string, dri
   return updated;
 }
 
+export async function getTransportAvailability(userId: string, meetupId: string) {
+  try {
+    return await prisma.transportEventAvailability.findUnique({
+      where: { userId_meetupId: { userId, meetupId } },
+    });
+  } catch {
+    return null;
+  }
+}
+
 export async function saveTransportAvailability(
   actor: SessionUser,
   input: {
