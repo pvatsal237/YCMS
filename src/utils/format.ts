@@ -124,6 +124,17 @@ export function departmentLabel(code: string): string {
   return labels[code] ?? code;
 }
 
+export function departmentPlanStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    DRAFT: "Draft",
+    PENDING_APPROVAL: "Pending approval",
+    APPROVED: "Approved",
+    CHANGES_REQUESTED: "Changes requested",
+    CLOSED: "Closed",
+  };
+  return labels[status] ?? status;
+}
+
 export function employmentSummary(employment?: {
   employmentStatus: string;
   employer?: string | null;

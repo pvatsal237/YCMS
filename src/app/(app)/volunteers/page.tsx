@@ -1,24 +1,47 @@
 import { requireRole } from "@/lib/session";
-import { listDepartments, listPendingStaffingForReview, listVolunteersForManage } from "@/services/volunteer";
+import { listDepartments, listPendingPlansForReview, listPendingStaffingForReview, listVolunteersForManage } from "@/services/volunteer";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { departmentLabel } from "@/utils/format";
-import { assignVolunteerDepartmentsAction, reviewStaffingRequestAction } from "@/actions/volunteer";
+import { assignVolunteerDepartmentsAction, reviewDepartmentPlanAction, reviewStaffingRequestAction } from "@/actions/volunteer";
 import { formatDate } from "@/lib/dates";
 
 export default async function VolunteersPage() {
   await requireRole(["ADMIN", "COORDINATOR"]);
-  const [volunteers, departments, pending] = await Promise.all([
+  const [volunteers, departments, pending, pendingPlans] = await Promise.all([
     listVolunteersForManage(),
     listDepartments(),
     listPendingStaffingForReview(),
+    listPendingPlansForReview(),
   ]);
 
   return (
     <div className="space-y-6">
       <PageHeader title="Volunteers" description="Assign departments and department leads." />
+      {pendingPlans.length > 0 ? (
+        <Card>
+          <CardHeader title="Department plans to review" />
+          <CardBody className="space-y-3 text-sm">
+            {pendingPlans.map((row) => (
+              <div key={row.id} className="flex flex-wrap justify-between gap-2 rounded-md border p-3">
+                <span>
+                  {departmentLabel(row.department.code)} · {row.meetup.title} · {row.staffingRequests.length} requirements
+                </span>
+                <div className="flex gap-2">
+                  <form action={async () => { await reviewDepartmentPlanAction(row.id, "APPROVED"); }}>
+                    <Button type="submit" size="sm">Approve</Button>
+                  </form>
+                  <form action={async () => { await reviewDepartmentPlanAction(row.id, "CHANGES_REQUESTED"); }}>
+                    <Button type="submit" size="sm" variant="secondary">Request changes</Button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </CardBody>
+        </Card>
+      ) : null}
       {pending.length > 0 ? (
         <Card>
           <CardHeader title="Staffing requests to review" />

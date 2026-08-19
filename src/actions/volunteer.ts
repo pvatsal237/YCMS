@@ -7,7 +7,11 @@ import {
   assignVolunteerToRequest,
   createStaffingRequest,
   respondToStaffingRequest,
+  reviewDepartmentPlan,
   reviewStaffingRequest,
+  saveDepartmentPlan,
+  type KnownAssignment,
+  type StaffingRequirementInput,
 } from "@/services/volunteer";
 import { logServerError, toUserMessage } from "@/lib/errors";
 import { parseDateOnly } from "@/lib/dates";
@@ -58,7 +62,6 @@ export async function createStaffingRequestAction(
 
 export async function reviewStaffingRequestAction(id: string, status: "APPROVED" | "REJECTED") {
   try {
-    await requireRoleAction(["ADMIN", "COORDINATOR"]);
     const actor = await requireRoleAction(["ADMIN", "COORDINATOR"]);
     await reviewStaffingRequest(actor, id, status);
     revalidatePath("/volunteers");
@@ -70,7 +73,10 @@ export async function reviewStaffingRequestAction(id: string, status: "APPROVED"
   }
 }
 
-export async function respondStaffingAction(formData: FormData) {
+export async function respondStaffingAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
   try {
     const actor = await requireRoleAction(["ATTENDANCE_VOLUNTEER"]);
     await respondToStaffingRequest(actor, {
@@ -82,8 +88,10 @@ export async function respondStaffingAction(formData: FormData) {
     });
     revalidatePath("/volunteer");
     revalidatePath("/volunteer/availability");
+    return { ok: true, message: "Availability saved." };
   } catch (error) {
     logServerError("respondStaffingAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to save availability.") };
   }
 }
 
@@ -92,9 +100,71 @@ export async function assignToStaffingAction(requestId: string, userId: string) 
     const actor = await requireStaffSession();
     await assignVolunteerToRequest(actor, requestId, userId);
     revalidatePath("/volunteers");
+    revalidatePath("/volunteer");
     return { ok: true, message: "Volunteer assigned." } satisfies ActionResult;
   } catch (error) {
     logServerError("assignToStaffingAction", error);
     return { ok: false, error: toUserMessage(error, "Unable to assign volunteer.") } satisfies ActionResult;
+  }
+}
+
+export async function saveDepartmentPlanAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const actor = await requireStaffSession();
+    const knownAssignments = JSON.parse(String(formData.get("knownAssignments") ?? "[]")) as KnownAssignment[];
+    const requirements = (JSON.parse(String(formData.get("requirements") ?? "[]")) as Array<Record<string, string>>).map(
+      (row) =>
+        ({
+          task: row.task,
+          neededCount: Number(row.neededCount ?? 0),
+          requestDate: parseDateOnly(String(row.requestDate ?? "")),
+          startTime: row.startTime,
+          endTime: row.endTime,
+          notes: row.notes || undefined,
+          preAssignedUserId: row.preAssignedUserId || undefined,
+        }) satisfies StaffingRequirementInput,
+    );
+    await saveDepartmentPlan(actor, {
+      meetupId: String(formData.get("meetupId") ?? ""),
+      departmentId: String(formData.get("departmentId") ?? ""),
+      submit: String(formData.get("submit") ?? "") === "1",
+      cuisine: String(formData.get("cuisine") ?? "") || undefined,
+      sponsorName: String(formData.get("sponsorName") ?? "") || undefined,
+      preparationLocation: String(formData.get("preparationLocation") ?? "") || undefined,
+      kitchenNotes: String(formData.get("kitchenNotes") ?? "") || undefined,
+      knownAssignments,
+      requirements,
+    });
+    revalidatePath("/volunteer");
+    revalidatePath("/volunteer/plan");
+    revalidatePath("/volunteers");
+    revalidatePath("/events");
+    return {
+      ok: true,
+      message: String(formData.get("submit") ?? "") === "1" ? "Plan submitted for approval." : "Draft saved.",
+    };
+  } catch (error) {
+    logServerError("saveDepartmentPlanAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to save department plan.") };
+  }
+}
+
+export async function reviewDepartmentPlanAction(
+  planId: string,
+  decision: "APPROVED" | "CHANGES_REQUESTED" | "CLOSED",
+) {
+  try {
+    const actor = await requireRoleAction(["ADMIN", "COORDINATOR"]);
+    await reviewDepartmentPlan(actor, planId, decision);
+    revalidatePath("/volunteers");
+    revalidatePath("/events");
+    revalidatePath("/volunteer");
+    return { ok: true, message: "Plan updated." } satisfies ActionResult;
+  } catch (error) {
+    logServerError("reviewDepartmentPlanAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to review plan.") } satisfies ActionResult;
   }
 }

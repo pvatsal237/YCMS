@@ -161,7 +161,10 @@ export async function reviewRideRequest(actor: SessionUser, id: string, status: 
 }
 
 export async function acceptRideRequest(actor: SessionUser, id: string) {
-  const existing = await prisma.rideRequest.findUnique({ where: { id } });
+  const existing = await prisma.rideRequest.findUnique({
+    where: { id },
+    include: { meetup: true },
+  });
   if (!existing || existing.status !== "APPROVED") {
     throw new AppError("This ride is not available to accept.", 400);
   }
@@ -174,6 +177,8 @@ export async function acceptRideRequest(actor: SessionUser, id: string) {
   if (!membership && actor.role !== "ADMIN" && actor.role !== "COORDINATOR") {
     throw new AppError("You do not have permission to perform this action.", 403);
   }
+  const { assertRideAcceptAllowed } = await import("@/services/volunteer");
+  await assertRideAcceptAllowed(actor.id, existing.meetup);
   const updated = await prisma.rideRequest.update({
     where: { id },
     data: { status: "ASSIGNED", driverUserId: actor.id },

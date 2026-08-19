@@ -133,6 +133,14 @@ enum StaffingRequestStatus {
   CLOSED
 }
 
+enum DepartmentPlanStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  CHANGES_REQUESTED
+  CLOSED
+}
+
 enum VolunteerResponseStatus {
   AVAILABLE
   PARTIAL
@@ -176,9 +184,12 @@ model User {
   volunteerMemberships VolunteerDepartmentMembership[]
   departmentsLed       VolunteerDepartment[] @relation("DepartmentLead")
   staffingCreated      VolunteerStaffingRequest[] @relation("StaffingCreatedBy")
+  staffingPreAssigned  VolunteerStaffingRequest[] @relation("StaffingPreAssigned")
   staffingResponses    VolunteerStaffingResponse[]
   volunteerAssignments VolunteerAssignment[]
   ridesDriving         RideRequest[] @relation("RideDriver")
+  departmentPlansCreated EventDepartmentPlan[] @relation("DepartmentPlanCreatedBy")
+  departmentPlansReviewed EventDepartmentPlan[] @relation("DepartmentPlanReviewedBy")
 
   @@index([role, active])
   @@index([createdById])
@@ -342,6 +353,7 @@ model Meetup {
   attendance       Attendance[]
   staffingRequests VolunteerStaffingRequest[]
   rideRequests     RideRequest[]
+  departmentPlans  EventDepartmentPlan[]
 
   @@index([meetupDate])
   @@index([active, meetupDate])
@@ -440,6 +452,7 @@ model VolunteerDepartment {
   lead       User?                    @relation("DepartmentLead", fields: [leadUserId], references: [id], onDelete: SetNull)
   members    VolunteerDepartmentMembership[]
   staffingRequests VolunteerStaffingRequest[]
+  departmentPlans  EventDepartmentPlan[]
 
   @@index([leadUserId])
 }
@@ -457,12 +470,41 @@ model VolunteerDepartmentMembership {
   @@index([departmentId])
 }
 
+model EventDepartmentPlan {
+  id                    String                 @id @default(cuid())
+  meetupId              String
+  meetup                Meetup                 @relation(fields: [meetupId], references: [id], onDelete: Cascade)
+  departmentId          String
+  department            VolunteerDepartment    @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  status                DepartmentPlanStatus   @default(DRAFT)
+  cuisine               String?
+  sponsorName           String?
+  preparationLocation   String?
+  kitchenNotes          String?
+  reviewNote            String?
+  knownAssignments      Json?
+  submittedAt           DateTime?
+  reviewedAt            DateTime?
+  createdById           String?
+  createdBy             User?                  @relation("DepartmentPlanCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  reviewedById          String?
+  reviewedBy            User?                  @relation("DepartmentPlanReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  staffingRequests      VolunteerStaffingRequest[]
+
+  @@unique([meetupId, departmentId])
+  @@index([status, meetupId])
+}
+
 model VolunteerStaffingRequest {
   id           String                 @id @default(cuid())
   meetupId     String
   meetup       Meetup                 @relation(fields: [meetupId], references: [id], onDelete: Cascade)
   departmentId String
   department   VolunteerDepartment    @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  planId       String?
+  plan         EventDepartmentPlan?   @relation(fields: [planId], references: [id], onDelete: Cascade)
   task         String
   neededCount  Int
   requestDate  DateTime               @db.Date
@@ -471,7 +513,9 @@ model VolunteerStaffingRequest {
   notes        String?
   createdById  String?
   createdBy    User?                  @relation("StaffingCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  status       StaffingRequestStatus  @default(PENDING_APPROVAL)
+  preAssignedUserId String?
+  preAssignedUser   User?             @relation("StaffingPreAssigned", fields: [preAssignedUserId], references: [id], onDelete: SetNull)
+  status       StaffingRequestStatus  @default(DRAFT)
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
   responses    VolunteerStaffingResponse[]

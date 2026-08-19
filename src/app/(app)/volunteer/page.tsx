@@ -3,10 +3,11 @@ import { getVolunteerHomeData } from "@/services/volunteer";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { formatDate } from "@/lib/dates";
-import { departmentLabel, eventTypeLabel } from "@/utils/format";
-import { respondStaffingAction } from "@/actions/volunteer";
 import { Button } from "@/components/ui/Button";
+import { formatDate, formatTime12h } from "@/lib/dates";
+import { departmentLabel, departmentPlanStatusLabel } from "@/utils/format";
+import { StaffingResponseForm } from "@/components/volunteer/StaffingResponseForm";
+import Link from "next/link";
 
 export default async function VolunteerHomePage() {
   const user = await requireRole(["ATTENDANCE_VOLUNTEER"]);
@@ -15,6 +16,83 @@ export default async function VolunteerHomePage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Home" description="Your departments, events, and assignments." />
+
+      {data.leadDashboards.map((lead) => (
+        <Card key={lead.department.id}>
+          <CardHeader
+            title={lead.event ? lead.event.title : "No upcoming event"}
+            description={departmentLabel(lead.department.code)}
+            action={
+              lead.event ? (
+                <Link href={`/volunteer/plan?meetupId=${lead.event.id}&departmentId=${lead.department.id}`}>
+                  <Button size="sm">Plan Department Requirements</Button>
+                </Link>
+              ) : null
+            }
+          />
+          <CardBody className="space-y-3 text-sm">
+            {lead.event ? (
+              <>
+                <p>
+                  <span className="font-medium">Date:</span> {formatDate(lead.event.meetupDate)}
+                </p>
+                <p>
+                  <span className="font-medium">Time:</span>{" "}
+                  {lead.event.startTime && lead.event.endTime
+                    ? `${formatTime12h(lead.event.startTime)} – ${formatTime12h(lead.event.endTime)}`
+                    : "—"}
+                </p>
+                <p>
+                  <span className="font-medium">Venue:</span> {lead.event.location}
+                </p>
+                <p>
+                  <span className="font-medium">Expected attendance:</span>{" "}
+                  {lead.event.expectedAttendance ?? "—"}
+                </p>
+                {lead.plan ? <Badge>{departmentPlanStatusLabel(lead.plan.status)}</Badge> : <Badge>No plan yet</Badge>}
+              </>
+            ) : (
+              <p className="text-slate-500">There is no upcoming event to plan.</p>
+            )}
+            {lead.summary.needed > 0 ? (
+              <div className="rounded-md bg-slate-50 p-3">
+                <p>
+                  Volunteers needed {lead.summary.needed} · confirmed {lead.summary.confirmed} · remaining{" "}
+                  {lead.summary.remaining}
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {lead.summary.tasks.map((task) => (
+                    <li key={task.id}>
+                      <span className={task.remaining > 0 ? "text-amber-800" : "text-slate-700"}>
+                        {task.task}: {task.confirmed} / {task.needed}
+                        {task.remaining > 0 ? " — shortage" : ""}
+                      </span>
+                      {task.volunteers.length > 0 ? (
+                        <span className="block text-slate-500">
+                          {task.volunteers.map((person) => `${person.name}${person.phone ? ` · ${person.phone}` : ""}`).join("; ")}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {lead.transport ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <p>Total ride requests: {lead.transport.total}</p>
+                <p>Assigned: {lead.transport.assigned}</p>
+                <p>Unassigned: {lead.transport.unassigned}</p>
+                <p>Pickup areas: {lead.transport.pickupAreas.join(", ") || "—"}</p>
+                <p className="sm:col-span-2">
+                  Available drivers:{" "}
+                  {lead.transport.drivers.map((driver) => `${driver.name}${driver.phone ? ` · ${driver.phone}` : ""}`).join("; ") || "—"}
+                </p>
+              </div>
+            ) : null}
+          </CardBody>
+        </Card>
+      ))}
+
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader title="My departments" />
@@ -41,8 +119,8 @@ export default async function VolunteerHomePage() {
                 <div key={event.id}>
                   <p className="font-medium">{event.title}</p>
                   <p className="text-slate-500">
-                    {eventTypeLabel(event.eventType)} · {formatDate(event.meetupDate)}
-                    {event.startTime ? ` · ${event.startTime}` : ""} · {event.location}
+                    {formatDate(event.meetupDate)}
+                    {event.startTime ? ` · ${formatTime12h(event.startTime)}` : ""} · {event.location}
                   </p>
                 </div>
               ))
@@ -58,7 +136,8 @@ export default async function VolunteerHomePage() {
           ) : (
             data.assignments.map((row) => (
               <p key={row.id}>
-                {row.request.task} · {row.request.meetup.title} · {formatDate(row.request.requestDate)}
+                {row.request.task} · {row.request.meetup.title} · {formatDate(row.request.requestDate)} ·{" "}
+                {formatTime12h(row.request.startTime)}–{formatTime12h(row.request.endTime)}
               </p>
             ))
           )}
@@ -71,25 +150,15 @@ export default async function VolunteerHomePage() {
             <p className="text-sm text-slate-500">No open requests for your departments.</p>
           ) : (
             data.openRequests.map((request) => (
-              <form key={request.id} action={respondStaffingAction} className="rounded-md border border-slate-200 p-3 text-sm">
-                <input type="hidden" name="requestId" value={request.id} />
+              <div key={request.id} className="rounded-md border border-slate-200 p-3 text-sm">
                 <p className="font-medium">{request.task}</p>
                 <p className="text-slate-500">
                   {request.meetup.title} · {departmentLabel(request.department.code)} · needed {request.neededCount} ·{" "}
-                  {formatDate(request.requestDate)} · {request.startTime}–{request.endTime}
+                  {formatDate(request.requestDate)} · {formatTime12h(request.startTime)}–{formatTime12h(request.endTime)}
                 </p>
                 {request.notes ? <p className="mt-1">{request.notes}</p> : null}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <select name="status" className="rounded-md border border-slate-300 px-2 py-1" defaultValue="AVAILABLE">
-                    <option value="AVAILABLE">Available</option>
-                    <option value="PARTIAL">Partially available</option>
-                    <option value="NOT_AVAILABLE">Not available</option>
-                  </select>
-                  <input name="startTime" placeholder="From" className="w-24 rounded-md border px-2 py-1" />
-                  <input name="endTime" placeholder="To" className="w-24 rounded-md border px-2 py-1" />
-                  <Button type="submit" size="sm">Save</Button>
-                </div>
-              </form>
+                <StaffingResponseForm requestId={request.id} />
+              </div>
             ))
           )}
         </CardBody>

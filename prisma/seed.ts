@@ -21,19 +21,23 @@ function addDays(base: Date, days: number) {
 }
 
 const FIRST = [
-  "Aarav", "Anaya", "Dev", "Isha", "Kabir", "Meera", "Rohan", "Sara", "Vihaan", "Zara",
-  "Aisha", "Bilal", "Chen", "Diana", "Eli", "Fatima", "Grace", "Hassan", "Ines", "Jamal",
-  "Keiko", "Liam", "Maya", "Noah", "Omar", "Priya", "Quinn", "Ravi", "Sofia", "Tara",
+  "Harsh", "Dhruv", "Krisha", "Riya", "Meet", "Hetvi", "Devansh", "Mansi", "Parth", "Khushi",
+  "Jay", "Nirali", "Karan", "Pooja", "Yash", "Jahnvi", "Tirth", "Disha", "Aryan", "Kavya",
+  "Mihir", "Isha", "Vivek", "Nidhi", "Kunal", "Twisha", "Hiten", "Bansari", "Rushi", "Dhwani",
+  "Smit", "Foram", "Manan", "Hiral", "Darsh", "Kruti", "Veer", "Jinal", "Om", "Maitri",
+  "Shivam", "Diya", "Aayush", "Prisha", "Keyur", "Vrushti", "Neel", "Tanvi", "Jenil", "Yesha",
 ];
 const LAST = [
-  "Patel", "Shah", "Nguyen", "Kim", "Singh", "Chen", "Ali", "Garcia", "Mensah", "Okonkwo",
-  "Rahman", "Santos", "Khan", "Lee", "Brown", "Silva", "Ahmed", "Costa", "Park", "Wright",
+  "Patel", "Shah", "Mehta", "Desai", "Trivedi", "Bhatt", "Joshi", "Vyas", "Modi", "Dave",
+  "Pandya", "Raval", "Thakkar", "Parikh", "Gandhi", "Amin", "Panchal", "Soni", "Jani", "Acharya",
+  "Choksi", "Kapadia", "Mistry", "Gajjar", "Buch", "Oza", "Vora", "Rawal", "Upadhyay", "Shukla",
 ];
 
 async function main() {
   await prisma.volunteerAssignment.deleteMany();
   await prisma.volunteerStaffingResponse.deleteMany();
   await prisma.volunteerStaffingRequest.deleteMany();
+  await prisma.eventDepartmentPlan.deleteMany();
   await prisma.volunteerDepartmentMembership.deleteMany();
   await prisma.rideRequest.deleteMany();
   await prisma.assistanceRequestUpdate.deleteMany();
@@ -60,15 +64,15 @@ async function main() {
   const passwordHash = await hash(DEMO_PASSWORD, 12);
 
   const admin = await prisma.user.create({
-    data: { name: "Amina Okonkwo", email: "admin@ycms.local", passwordHash, role: "ADMIN", phone: "416-555-1001", active: true },
+    data: { name: "Harsh Patel", email: "admin@ycms.local", passwordHash, role: "ADMIN", phone: "416-555-1001", active: true },
   });
   await prisma.user.create({
-    data: { name: "James Whitfield", email: "admin2@ycms.local", passwordHash, role: "ADMIN", phone: "416-555-1002", active: true },
+    data: { name: "Dhruv Shah", email: "admin2@ycms.local", passwordHash, role: "ADMIN", phone: "416-555-1002", active: true },
   });
 
   const coordinatorNames = [
-    "Daniel Chen", "Priya Nair", "Omar Haddad", "Elena Rossi", "Kwame Boateng", "Hana Suzuki",
-    "Lucas Ferreira", "Nadia Rahman", "Michael Okafor", "Sofia Alvarez", "Arjun Mehta", "Claire Dubois",
+    "Krisha Mehta", "Riya Desai", "Meet Trivedi", "Devansh Bhatt", "Mansi Joshi", "Parth Vyas",
+    "Khushi Modi", "Jay Dave", "Nirali Pandya", "Karan Raval", "Pooja Thakkar", "Yash Parikh",
   ];
   const coordinators = [];
   for (const [index, name] of coordinatorNames.entries()) {
@@ -89,11 +93,11 @@ async function main() {
   const coordinator = coordinators[0];
 
   const volunteerNames = [
-    "Sofia Alvarez", "Ben Carter", "Maya Kapoor", "Theo Laurent", "Nina Volkov", "Samir Qureshi",
-    "Hannah Brooks", "Diego Morales", "Leila Hassan", "Peter Novak", "Amara Diallo", "Chris Young",
-    "Yuki Tanaka", "Rosa Marino", "Isaac Cohen", "Nora Berg", "Farid Aziz", "Emily Walsh",
-    "Jonas Berg", "Aaliyah Grant", "Kenji Sato", "Marta Silva", "Owen Blake", "Tara Singh",
-    "Hugo Martin", "Imani Cole", "Victor Lopez", "Sana Malik", "Paul Nguyen", "Rita Gomes",
+    "Hetvi Patel", "Jenil Shah", "Yesha Mehta", "Tirth Desai", "Disha Trivedi", "Aryan Bhatt",
+    "Kavya Joshi", "Mihir Vyas", "Isha Modi", "Vivek Dave", "Nidhi Pandya", "Kunal Raval",
+    "Twisha Thakkar", "Hiten Parikh", "Bansari Gandhi", "Rushi Amin", "Dhwani Panchal", "Smit Soni",
+    "Foram Jani", "Manan Acharya", "Hiral Choksi", "Darsh Kapadia", "Kruti Mistry", "Veer Gajjar",
+    "Jinal Buch", "Om Oza", "Maitri Vora", "Shivam Rawal", "Diya Upadhyay", "Aayush Shukla",
   ];
   const volunteers = [];
   for (const [index, name] of volunteerNames.entries()) {
@@ -148,7 +152,7 @@ async function main() {
   const createdMembers = [];
   for (let i = 0; i < 180; i++) {
     const firstName = i === 0 ? "Hetvi" : FIRST[i % FIRST.length];
-    const lastName = i === 0 ? "Patel" : LAST[Math.floor(i / FIRST.length) % LAST.length];
+    const lastName = i === 0 ? "Patel" : LAST[(i + Math.floor(i / FIRST.length)) % LAST.length];
     const email = i === 0 ? "hetvi.patel@example.test" : `member${i + 1}@example.test`;
     const status = statuses[i % statuses.length];
     const expiryOffsetDays = i % 17 === 0 ? 40 : 200 + (i % 400);
@@ -171,7 +175,7 @@ async function main() {
             { type: "HOME_COUNTRY", addressLine1: `${i + 1} Home Street`, city: "Ahmedabad", provinceState: "Gujarat", postalCode: "380001", country: "India" },
           ],
         },
-        emergencyContact: { create: { name: "Emergency Contact", relationship: "Parent", phone: "416-555-0199" } },
+        emergencyContact: { create: { name: `${LAST[(i + 3) % LAST.length]} family`, relationship: "Parent", phone: "416-555-0199" } },
         immigrationStatus: { create: { status, college: status === "STUDENT" ? "University of Toronto" : undefined, program: status === "STUDENT" ? "General Studies" : undefined } },
         documents: {
           create: [
@@ -261,7 +265,7 @@ async function main() {
       startTime: "17:00",
       endTime: "20:00",
       topic: "Artificial Intelligence",
-      speakerName: "Dr. Laila Rahman",
+      speakerName: "Dr. Nirav Patel",
       speakerOrganization: "Northern Tech Institute",
       speakerPosition: "Research Lead",
       careerSkillArea: "Technology",
@@ -325,42 +329,137 @@ async function main() {
   });
 
   const kitchen = departments.find((d) => d.code === "KITCHEN")!;
-  const groceries = departments.find((d) => d.code === "GROCERIES")!;
   const transport = departments.find((d) => d.code === "TRANSPORTATION")!;
   const setup = departments.find((d) => d.code === "SEATING_SETUP")!;
   const av = departments.find((d) => d.code === "AUDIO_VIDEO")!;
 
-  await prisma.volunteerStaffingRequest.create({
+  const kitchenPlan = await prisma.eventDepartmentPlan.create({
     data: {
       meetupId: upcoming.id,
       departmentId: kitchen.id,
-      task: "Food Preparation",
-      neededCount: 10,
-      requestDate: utcDate(2026, 9, 12),
-      startTime: "15:00",
-      endTime: "18:30",
-      notes: "Pav Bhaji preparation",
-      createdById: volunteers[0].id,
       status: "APPROVED",
+      cuisine: "Punjabi vegetarian",
+      sponsorName: "Mehta Family",
+      preparationLocation: "Community kitchen, Unit 4",
+      kitchenNotes: "Prep starts mid-afternoon; serving at 8:00 PM.",
+      knownAssignments: [
+        { label: "Grocery Person", userId: volunteers[8].id },
+        { label: "Food Delivery Person", userId: volunteers[16].id },
+      ],
+      createdById: volunteers[0].id,
+      submittedAt: new Date(),
+      reviewedAt: new Date(),
+      reviewedById: coordinator.id,
+    },
+  });
+  const kitchenTasks = [
+    { task: "Chopping", neededCount: 10, requestDate: utcDate(2026, 8, 21), startTime: "15:00", endTime: "17:00", assign: [8, 16, 24, 5] },
+    { task: "Groceries", neededCount: 3, requestDate: utcDate(2026, 8, 20), startTime: "18:00", endTime: "20:00", assign: [8, 16, 24] },
+    { task: "Cooking / Food Preparation", neededCount: 8, requestDate: utcDate(2026, 8, 21), startTime: "15:00", endTime: "19:00", assign: [0, 13, 21, 29] },
+    { task: "Dishes / Cleanup", neededCount: 4, requestDate: utcDate(2026, 8, 21), startTime: "20:30", endTime: "22:00", assign: [8, 16, 24, 5] },
+    { task: "Food Delivery to Venue", neededCount: 1, requestDate: utcDate(2026, 8, 21), startTime: "17:30", endTime: "18:15", assign: [16] },
+  ];
+  for (const task of kitchenTasks) {
+    const request = await prisma.volunteerStaffingRequest.create({
+      data: {
+        meetupId: upcoming.id,
+        departmentId: kitchen.id,
+        planId: kitchenPlan.id,
+        task: task.task,
+        neededCount: task.neededCount,
+        requestDate: task.requestDate,
+        startTime: task.startTime,
+        endTime: task.endTime,
+        createdById: volunteers[0].id,
+        status: "APPROVED",
+      },
+    });
+    for (const index of task.assign) {
+      await prisma.volunteerAssignment.create({
+        data: { requestId: request.id, userId: volunteers[index].id },
+      });
+    }
+  }
+
+  const transportPlan = await prisma.eventDepartmentPlan.create({
+    data: {
+      meetupId: upcoming.id,
+      departmentId: transport.id,
+      status: "APPROVED",
+      createdById: volunteers[2].id,
+      submittedAt: new Date(),
+      reviewedAt: new Date(),
+      reviewedById: coordinator.id,
+      knownAssignments: [{ label: "Known driver", userId: volunteers[10].id }],
+    },
+  });
+  for (const route of [
+    { task: "Markham", neededCount: 3, assign: [10] },
+    { task: "Brampton", neededCount: 4, assign: [18, 26] },
+    { task: "Mississauga", neededCount: 2, assign: [] },
+    { task: "Flexible / General", neededCount: 2, assign: [2] },
+  ]) {
+    const request = await prisma.volunteerStaffingRequest.create({
+      data: {
+        meetupId: upcoming.id,
+        departmentId: transport.id,
+        planId: transportPlan.id,
+        task: route.task,
+        neededCount: route.neededCount,
+        requestDate: utcDate(2026, 8, 21),
+        startTime: "18:30",
+        endTime: "22:00",
+        createdById: volunteers[2].id,
+        status: "APPROVED",
+      },
+    });
+    for (const index of route.assign) {
+      await prisma.volunteerAssignment.create({
+        data: { requestId: request.id, userId: volunteers[index].id },
+      });
+    }
+  }
+
+  const setupPlan = await prisma.eventDepartmentPlan.create({
+    data: {
+      meetupId: riseup.id,
+      departmentId: setup.id,
+      status: "PENDING_APPROVAL",
+      createdById: volunteers[3].id,
+      submittedAt: new Date(),
     },
   });
   await prisma.volunteerStaffingRequest.create({
     data: {
-      meetupId: upcoming.id,
-      departmentId: groceries.id,
-      task: "Grocery run",
-      neededCount: 3,
-      requestDate: utcDate(2026, 9, 11),
-      startTime: "18:00",
-      endTime: "20:00",
-      createdById: volunteers[1].id,
+      meetupId: riseup.id,
+      departmentId: setup.id,
+      planId: setupPlan.id,
+      task: "Hall setup",
+      neededCount: 4,
+      requestDate: utcDate(2026, 9, 20),
+      startTime: "15:00",
+      endTime: "17:00",
+      createdById: volunteers[3].id,
+      status: "PENDING_APPROVAL",
+    },
+  });
+
+  const avPlan = await prisma.eventDepartmentPlan.create({
+    data: {
+      meetupId: riseup.id,
+      departmentId: av.id,
       status: "APPROVED",
+      createdById: coordinator.id,
+      submittedAt: new Date(),
+      reviewedAt: new Date(),
+      reviewedById: coordinator.id,
     },
   });
   await prisma.volunteerStaffingRequest.create({
     data: {
       meetupId: riseup.id,
       departmentId: av.id,
+      planId: avPlan.id,
       task: "AV support",
       neededCount: 2,
       requestDate: utcDate(2026, 9, 20),
@@ -370,29 +469,37 @@ async function main() {
       status: "APPROVED",
     },
   });
-  await prisma.volunteerStaffingRequest.create({
-    data: {
-      meetupId: riseup.id,
-      departmentId: setup.id,
-      task: "Hall setup",
-      neededCount: 4,
-      requestDate: utcDate(2026, 9, 20),
-      startTime: "15:00",
-      endTime: "17:00",
-      createdById: coordinator.id,
-      status: "PENDING_APPROVAL",
-    },
-  });
 
   await prisma.rideRequest.create({
     data: {
       memberId: createdMembers[0].id,
       meetupId: upcoming.id,
-      pickupArea: "North York / Finch",
-      availableAfter: "After 7:00 PM",
+      pickupArea: "Markham",
+      availableAfter: "After 6:30 PM",
       passengerCount: 2,
       note: "Near Finch station",
       status: "APPROVED",
+    },
+  });
+  await prisma.rideRequest.create({
+    data: {
+      memberId: createdMembers[1].id,
+      meetupId: upcoming.id,
+      pickupArea: "Brampton",
+      availableAfter: "After 6:00 PM",
+      passengerCount: 1,
+      status: "REQUESTED",
+    },
+  });
+  await prisma.rideRequest.create({
+    data: {
+      memberId: createdMembers[2].id,
+      meetupId: upcoming.id,
+      pickupArea: "Mississauga",
+      availableAfter: "After 7:00 PM",
+      passengerCount: 3,
+      status: "ASSIGNED",
+      driverUserId: volunteers[10].id,
     },
   });
 
