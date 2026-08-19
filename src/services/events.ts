@@ -124,6 +124,51 @@ export async function createRideRequest(
   return request;
 }
 
+export async function cancelOwnRideRequest(actor: SessionUser, rideId: string) {
+  if (actor.role !== "MEMBER") throw new AppError("You do not have permission to perform this action.", 403);
+  const member = await prisma.member.findFirst({ where: { email: actor.email, active: true } });
+  if (!member) throw new AppError("You do not have permission to perform this action.", 403);
+  const existing = await prisma.rideRequest.findFirst({
+    where: { id: rideId, memberId: member.id },
+    include: { meetup: true, driver: true },
+  });
+  if (!existing) throw new AppError("Ride request not found.", 404);
+  if (!["REQUESTED", "APPROVED", "ASSIGNED"].includes(existing.status)) {
+    throw new AppError("This ride request can no longer be cancelled.", 400);
+  }
+  const updated = await prisma.rideRequest.update({
+    where: { id: rideId },
+    data: { status: "CANCELLED", driverUserId: null },
+  });
+  const transport = await prisma.volunteerDepartment.findFirst({
+    where: { code: "TRANSPORTATION" },
+    include: { members: true },
+  });
+  const leadIds = transport?.members.filter((row) => row.responsibility === "LEAD").map((row) => row.userId) ?? [];
+  const notifyIds = [
+    ...leadIds,
+    ...(existing.driverUserId ? [existing.driverUserId] : []),
+    ...(
+      await prisma.user.findMany({
+        where: { role: { in: ["ADMIN", "COORDINATOR"] }, active: true },
+        select: { id: true },
+      })
+    ).map((row) => row.id),
+  ];
+  await Promise.all(
+    [...new Set(notifyIds)].map((userId) =>
+      createStaffNotification({
+        userId,
+        memberId: member.id,
+        requestId: existing.id,
+        title: "Ride request cancelled",
+        message: `${member.firstName} ${member.lastName} cancelled their ride request for ${existing.meetup.title}.`,
+      }),
+    ),
+  );
+  return updated;
+}
+
 export async function listMemberRideRequests(memberId: string) {
   return prisma.rideRequest.findMany({
     where: { memberId },

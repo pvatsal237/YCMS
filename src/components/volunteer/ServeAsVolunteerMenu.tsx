@@ -32,7 +32,18 @@ export function ServeAsVolunteerMenu() {
   const [open, setOpen] = useState(false);
   const [availability, setAvailability] = useState("AVAILABLE");
   const [selected, setSelected] = useState<string[]>([]);
-  const [state, action, pending] = useActionState(submitVolunteerInterestAction, { ok: true } as ActionResult);
+  const [state, action, pending] = useActionState(
+    async (prev: ActionResult, formData: FormData) => {
+      const result = await submitVolunteerInterestAction(prev, formData);
+      if (result.ok) {
+        setOpen(false);
+        setSelected([]);
+        setAvailability("AVAILABLE");
+      }
+      return result;
+    },
+    { ok: true } as ActionResult,
+  );
 
   return (
     <div className="relative shrink-0">
@@ -45,7 +56,6 @@ export function ServeAsVolunteerMenu() {
           <div className="fixed inset-x-0 bottom-0 z-50 max-h-[90vh] overflow-y-auto rounded-t-xl border bg-white p-4 shadow-xl md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-full md:mt-2 md:w-[22rem] md:rounded-lg">
             <form action={action} className="space-y-3">
               {!state.ok ? <Alert>{state.error}</Alert> : null}
-              {state.ok && state.message ? <Alert tone="success">{state.message}</Alert> : null}
               <p className="text-sm font-medium text-slate-900">Where would you enjoy serving?</p>
               <p className="text-xs text-slate-500">How would you like to help? You can choose more than one.</p>
               <div className="space-y-2 text-sm">

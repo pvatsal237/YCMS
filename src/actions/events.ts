@@ -5,6 +5,7 @@ import { requireMemberSession, requireStaffSession } from "@/lib/session";
 import {
   acceptRideRequest,
   assignRideToDriver,
+  cancelOwnRideRequest,
   createEvent,
   createRideRequest,
   reviewRideRequest,
@@ -64,6 +65,23 @@ export async function requestRideAction(
   } catch (error) {
     logServerError("requestRideAction", error);
     return { ok: false, error: toUserMessage(error, "Unable to submit ride request.") };
+  }
+}
+
+export async function cancelRideRequestAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const actor = await requireMemberSession();
+    await cancelOwnRideRequest(actor, String(formData.get("rideId") ?? ""));
+    revalidatePath("/portal");
+    revalidatePath("/transportation");
+    revalidatePath("/notifications");
+    return { ok: true, message: "Your ride request was cancelled." };
+  } catch (error) {
+    logServerError("cancelRideRequestAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to cancel this ride request.") };
   }
 }
 

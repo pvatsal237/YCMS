@@ -54,6 +54,12 @@ export default async function MemberPortalPage() {
     daysRemaining: alert.daysRemaining,
     alertLabel: alert.label,
   }));
+  const activeUpcomingRide = upcomingMeetup
+    ? rideRequests.find(
+        (item) =>
+          item.meetupId === upcomingMeetup.id && ["REQUESTED", "APPROVED", "ASSIGNED"].includes(item.status),
+      )
+    : undefined;
 
   return (
     <div className="space-y-6">
@@ -84,6 +90,17 @@ export default async function MemberPortalPage() {
             action={
               <RideRequestMenu
                 meetupId={upcomingMeetup.id}
+                existingRide={
+                  activeUpcomingRide
+                    ? {
+                        id: activeUpcomingRide.id,
+                        status: activeUpcomingRide.status,
+                        pickupArea: activeUpcomingRide.pickupArea,
+                        availableAfter: activeUpcomingRide.availableAfter,
+                        passengerCount: activeUpcomingRide.passengerCount,
+                      }
+                    : null
+                }
                 events={[
                   {
                     id: upcomingMeetup.id,
@@ -103,6 +120,30 @@ export default async function MemberPortalPage() {
               <span className="font-medium text-slate-900">Cuisine:</span>{" "}
               {upcomingMeetup.cuisine || "To be announced"}
             </p>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {activeUpcomingRide && upcomingMeetup ? (
+        <Card>
+          <CardHeader
+            title="Your ride request"
+            description={`${upcomingMeetup.title} · ${rideStatusLabel(activeUpcomingRide.status)}`}
+          />
+          <CardBody className="space-y-2 text-sm">
+            <p>
+              You already requested a ride
+              {activeUpcomingRide.status === "REQUESTED" ? " and it is still waiting for approval." : "."}
+            </p>
+            <p>Pickup: {activeUpcomingRide.pickupArea}</p>
+            <p>Available after: {activeUpcomingRide.availableAfter}</p>
+            <p>Passengers: {activeUpcomingRide.passengerCount}</p>
+            {activeUpcomingRide.driver ? (
+              <p>
+                Driver: {activeUpcomingRide.driver.name}
+                {activeUpcomingRide.driver.phone ? ` · ${activeUpcomingRide.driver.phone}` : ""}
+              </p>
+            ) : null}
           </CardBody>
         </Card>
       ) : null}
