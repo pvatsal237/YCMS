@@ -174,12 +174,12 @@ export function isPathAllowed(pathname: string, role: UserRole): boolean {
     return pathname.startsWith("/portal");
   }
   if (pathname.startsWith("/portal")) return false;
-  if (pathname.startsWith("/volunteer")) return role === "ATTENDANCE_VOLUNTEER";
-  if (pathname.startsWith("/dashboard")) return role === "ADMIN" || role === "COORDINATOR";
-  if (pathname.startsWith("/attendance/new")) return canCreateMeetup(role);
-  if (pathname.startsWith("/attendance")) return role === "ADMIN" || role === "COORDINATOR";
-  if (pathname.startsWith("/members")) return canAccessMembers(role);
-  if (pathname.startsWith("/volunteers")) return canManageVolunteers(role);
+  if (pathname === "/volunteers" || pathname.startsWith("/volunteers/")) {
+    return canManageVolunteers(role);
+  }
+  if (pathname === "/volunteer" || pathname.startsWith("/volunteer/")) {
+    return role === "ATTENDANCE_VOLUNTEER";
+  }
   if (pathname.startsWith("/events")) return canViewVolunteerOps(role);
   if (pathname.startsWith("/transportation")) return canViewVolunteerOps(role);
   if (pathname.startsWith("/notifications")) {

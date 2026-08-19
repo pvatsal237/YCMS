@@ -30,7 +30,10 @@ describe("role authorization", () => {
     expect(isPathAllowed("/admin/logs", "COORDINATOR")).toBe(false);
     expect(isPathAllowed("/settings", "COORDINATOR")).toBe(false);
     expect(isPathAllowed("/admin/users", "COORDINATOR")).toBe(false);
-    expect(isPathAllowed("/follow-ups", "COORDINATOR")).toBe(true);
+    expect(isPathAllowed("/volunteers", "COORDINATOR")).toBe(true);
+    expect(isPathAllowed("/volunteer", "COORDINATOR")).toBe(false);
+    expect(isPathAllowed("/volunteers", "ADMIN")).toBe(true);
+    expect(isPathAllowed("/volunteers", "ATTENDANCE_VOLUNTEER")).toBe(false);
     expect(isPathAllowed("/assistance", "COORDINATOR")).toBe(true);
     expect(isPathAllowed("/assistance", "ADMIN")).toBe(true);
     expect(isPathAllowed("/assistance", "ATTENDANCE_VOLUNTEER")).toBe(false);

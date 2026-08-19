@@ -2,13 +2,13 @@ import Link from "next/link";
 import { requireRole } from "@/lib/session";
 import {
   listStaffNotifications,
-  markStaffNotificationsRead,
 } from "@/services/staff-notifications";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, EmptyState } from "@/components/ui/Feedback";
 import { Card, CardBody } from "@/components/ui/Card";
 import { formatDate, formatTime12h } from "@/lib/dates";
 import { StaffingResponseForm } from "@/components/volunteer/StaffingResponseForm";
+import { MarkNotificationsSeen } from "@/components/notifications/MarkNotificationsSeen";
 
 export default async function NotificationsPage() {
   const user = await requireRole(["ADMIN", "COORDINATOR", "ATTENDANCE_VOLUNTEER"]);
@@ -21,13 +21,13 @@ export default async function NotificationsPage() {
       })
     : [];
   const staffingById = new Map(staffing.map((row) => [row.id, row]));
-  await markStaffNotificationsRead(user.id);
 
   return (
     <div>
+      <MarkNotificationsSeen />
       <PageHeader
         title="Notifications"
-        description="Volunteer opportunities and assistance requests appear here."
+        description="Open this page to review updates. Unread items show on the bell; they clear after you open them here."
       />
       <Card>
         {rows.length === 0 ? (
@@ -63,10 +63,17 @@ export default async function NotificationsPage() {
                   ) : null}
                   {row.memberId ? (
                     <Link
-                      href={`/members/${row.memberId}`}
+                      href={user.role === "ATTENDANCE_VOLUNTEER" ? "/volunteer" : `/members/${row.memberId}`}
                       className="mt-2 inline-block text-sm font-medium text-teal-800"
                     >
                       Open member record
+                    </Link>
+                  ) : null}
+                  {user.role !== "ATTENDANCE_VOLUNTEER" &&
+                  (row.title.toLowerCase().includes("would like to serve") ||
+                    row.title.toLowerCase().includes("someone would like")) ? (
+                    <Link href="/volunteers" className="mt-2 inline-block text-sm font-medium text-teal-800">
+                      Review serving request
                     </Link>
                   ) : null}
                 </div>

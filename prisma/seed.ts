@@ -7,6 +7,7 @@ import {
 import { hash, compare } from "bcryptjs";
 import { THREE_CONSECUTIVE_ABSENCE_REASON } from "../src/lib/constants";
 import { DEPARTMENT_CODES } from "../src/services/volunteer";
+import { createStaffNotification } from "../src/services/staff-notifications";
 
 const prisma = new PrismaClient();
 const DEMO_PASSWORD = "YcmsDemo123!";
@@ -606,7 +607,7 @@ async function main() {
 
   const memberLogin = await prisma.user.findFirst({ where: { email: "hetvi.patel@example.test" } });
   if (memberLogin) {
-    await prisma.volunteerEnrollmentRequest.create({
+    const enrollment = await prisma.volunteerEnrollmentRequest.create({
       data: {
         memberId: createdMembers[0].id,
         volunteerUserId: memberLogin.id,
@@ -617,6 +618,20 @@ async function main() {
         isNewVolunteer: true,
         status: "PENDING",
       },
+    });
+    await createStaffNotification({
+      userId: coordinator.id,
+      memberId: createdMembers[0].id,
+      requestId: enrollment.id,
+      title: "Someone would like to serve",
+      message: "Hetvi Patel would like to help with Kitchen / Food Preparation.",
+    });
+    await createStaffNotification({
+      userId: admin.id,
+      memberId: createdMembers[0].id,
+      requestId: enrollment.id,
+      title: "Someone would like to serve",
+      message: "Hetvi Patel would like to help with Kitchen / Food Preparation.",
     });
   }
 
