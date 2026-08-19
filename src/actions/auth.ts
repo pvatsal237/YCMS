@@ -1,6 +1,7 @@
 "use server";
 
 import { AuthError } from "next-auth";
+import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/auth";
 import { loginSchema, memberOtpRequestSchema, memberOtpVerifySchema } from "@/validations/auth";
 import { logActivity } from "@/lib/activity-log";
@@ -58,17 +59,20 @@ export async function loginAction(
   }
 
   try {
+    const email = parsed.data.email.trim().toLowerCase();
     const staffUser = await prisma.user.findUnique({
-      where: { email: parsed.data.email },
+      where: { email },
       select: { role: true },
     });
+    const home = staffUser ? defaultHomePath(staffUser.role) : "/";
     await signIn("credentials", {
-      email: parsed.data.email,
+      email,
       password: parsed.data.password,
       loginType: "staff",
-      redirectTo: staffUser ? defaultHomePath(staffUser.role) : "/",
+      redirect: false,
+      redirectTo: home,
     });
-    return { ok: true };
+    redirect(home);
   } catch (error) {
     if (error instanceof AuthError) {
       const code = "code" in error ? String(error.code) : error.type;
@@ -121,13 +125,14 @@ export async function verifyMemberOtpAction(
 
   try {
     await signIn("credentials", {
-      email: parsed.data.email,
+      email: parsed.data.email.trim().toLowerCase(),
       password: parsed.data.otp,
       loginType: "member",
       trustDevice: parsed.data.trustDevice ? "true" : "false",
+      redirect: false,
       redirectTo: "/portal",
     });
-    return { ok: true };
+    redirect("/portal");
   } catch (error) {
     if (error instanceof AuthError) {
       return { ok: false, error: OTP_GENERIC_INVALID_MESSAGE };

@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/auth.config";
-import { isPathAllowed, isPublicPath } from "@/lib/authorization";
+import { defaultHomePath, isPathAllowed, isPublicPath } from "@/lib/authorization";
 import type { UserRole } from "@/types/roles";
 
 const { auth } = NextAuth(authConfig);
@@ -23,6 +23,9 @@ export default auth((req) => {
   }
 
   if (!isPathAllowed(pathname, role)) {
+    if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
+      return NextResponse.redirect(new URL(defaultHomePath(role), req.nextUrl.origin));
+    }
     return NextResponse.redirect(new URL("/unauthorized", req.nextUrl.origin));
   }
 

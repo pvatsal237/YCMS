@@ -14,7 +14,7 @@ import {
   Settings,
   X,
 } from "lucide-react";
-import { navItemsForRole } from "@/lib/authorization";
+import { defaultHomePath, navItemsForRole } from "@/lib/authorization";
 import { cn } from "@/utils/format";
 import type { UserRole } from "@/types/roles";
 
@@ -57,7 +57,7 @@ export function Sidebar({
       )}
     >
       <div className="flex h-16 items-center justify-between px-5">
-        <Link href="/dashboard" className="font-semibold tracking-tight text-white">
+        <Link href={defaultHomePath(role)} className="font-semibold tracking-tight text-white">
           YCMS
         </Link>
         <button
