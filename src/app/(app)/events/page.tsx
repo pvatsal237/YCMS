@@ -33,8 +33,9 @@ export default async function EventsPage() {
               </select>
               <input type="date" name="meetupDate" className="rounded-md border px-3 py-2 text-sm" required />
               <input name="location" placeholder="Venue" className="rounded-md border px-3 py-2 text-sm" required />
-              <input name="startTime" placeholder="Start (e.g. 15:00)" className="rounded-md border px-3 py-2 text-sm" />
-              <input name="endTime" placeholder="End (e.g. 18:30)" className="rounded-md border px-3 py-2 text-sm" />
+              <input name="startTime" placeholder="Start (e.g. 20:00)" className="rounded-md border px-3 py-2 text-sm" />
+              <input name="endTime" placeholder="End (e.g. 22:00)" className="rounded-md border px-3 py-2 text-sm" />
+              <input name="cuisine" placeholder="Cuisine (weekly meetup)" className="rounded-md border px-3 py-2 text-sm sm:col-span-2" />
               <input name="topic" placeholder="Topic (RiseUp)" className="rounded-md border px-3 py-2 text-sm sm:col-span-2" />
               <input name="speakerName" placeholder="Speaker name" className="rounded-md border px-3 py-2 text-sm" />
               <input name="speakerOrganization" placeholder="Speaker organization" className="rounded-md border px-3 py-2 text-sm" />

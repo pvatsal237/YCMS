@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table } from "@/components/ui/Table";
-import { formatDate } from "@/lib/dates";
+import { formatDate, formatTime12h } from "@/lib/dates";
 import { documentTypeLabel, fullName } from "@/utils/format";
 import { ProfileChangeRequestForm } from "@/components/members/ProfileChangeRequestForm";
 import { DocumentRenewalActions } from "@/components/members/DocumentRenewalActions";
@@ -14,7 +14,6 @@ import { getAlertPresentation } from "@/utils/immigration-alerts";
 import { RideRequestMenu } from "@/components/rides/RideRequestMenu";
 import { listMemberAssistanceRequests, listStaffContactsByRole } from "@/services/assistance";
 import { listMemberRideRequests, listUpcomingEvents } from "@/services/events";
-import { eventTypeLabel } from "@/utils/format";
 
 const NOTICE_TONES = {
   green: "border-emerald-200 bg-emerald-50 text-emerald-900",
@@ -52,28 +51,45 @@ export default async function MemberPortalPage() {
         title="Home"
         description="Upcoming events, attendance, and your requests."
         action={
-          <div className="flex flex-wrap gap-2">
-            <RideRequestMenu events={upcomingEvents} />
-            <AssistanceRequestMenu
-              coordinators={coordinators}
-              administrators={administrators}
-              eligibleDocuments={eligibleDocuments}
-            />
-          </div>
+          <AssistanceRequestMenu
+            coordinators={coordinators}
+            administrators={administrators}
+            eligibleDocuments={eligibleDocuments}
+          />
         }
       />
 
       {upcomingMeetup ? (
         <Card>
-          <CardHeader title="Upcoming event" />
+          <CardHeader
+            title="Weekly Youth Meetup"
+            description={`${formatDate(upcomingMeetup.meetupDate)} · ${
+              upcomingMeetup.startTime && upcomingMeetup.endTime
+                ? `${formatTime12h(upcomingMeetup.startTime)} – ${formatTime12h(upcomingMeetup.endTime)}`
+                : "8:00 PM – 10:00 PM"
+            }`}
+            action={
+              <RideRequestMenu
+                meetupId={upcomingMeetup.id}
+                events={[
+                  {
+                    id: upcomingMeetup.id,
+                    title: upcomingMeetup.title,
+                    meetupDate: upcomingMeetup.meetupDate,
+                    eventType: upcomingMeetup.eventType,
+                    location: upcomingMeetup.location,
+                  },
+                ]}
+              />
+            }
+          />
           <CardBody className="text-sm">
             <p className="text-lg font-semibold text-slate-900">{upcomingMeetup.title}</p>
-            <p className="mt-1 text-slate-600">
-              {eventTypeLabel(upcomingMeetup.eventType)} · {formatDate(upcomingMeetup.meetupDate)}
-              {upcomingMeetup.startTime ? ` · ${upcomingMeetup.startTime}` : ""}
-              {upcomingMeetup.endTime ? `–${upcomingMeetup.endTime}` : ""}
+            <p className="mt-1 text-slate-600">{upcomingMeetup.location}</p>
+            <p className="mt-2 text-slate-700">
+              <span className="font-medium text-slate-900">Cuisine:</span>{" "}
+              {upcomingMeetup.cuisine || "To be announced"}
             </p>
-            <p className="text-slate-600">{upcomingMeetup.location}</p>
           </CardBody>
         </Card>
       ) : null}
@@ -181,7 +197,7 @@ export default async function MemberPortalPage() {
                 <td className="px-4 py-3">{event.title}</td>
                 <td className="px-4 py-3">
                   {formatDate(event.meetupDate)}
-                  {event.startTime ? ` · ${event.startTime}` : ""}
+                  {event.startTime ? ` · ${formatTime12h(event.startTime)}` : ""}
                 </td>
                 <td className="px-4 py-3">{event.location}</td>
               </tr>

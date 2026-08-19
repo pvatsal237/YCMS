@@ -22,6 +22,18 @@ export function toDateInputValue(date: Date | string | null | undefined): string
   return startOfUtcDay(d).toISOString().slice(0, 10);
 }
 
+export function formatTime12h(value: string | null | undefined): string {
+  if (!value) return "";
+  const match = /^(\d{1,2}):(\d{2})/.exec(value.trim());
+  if (!match) return value;
+  const hour24 = Number(match[1]);
+  const minutes = match[2];
+  if (hour24 < 0 || hour24 > 23) return value;
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 || 12;
+  return `${hour12}:${minutes} ${period}`;
+}
+
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "—";
   const d = typeof date === "string" ? new Date(date) : date;

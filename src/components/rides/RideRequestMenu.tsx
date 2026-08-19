@@ -10,18 +10,22 @@ import type { ActionResult } from "@/types";
 
 export function RideRequestMenu({
   events,
+  meetupId,
 }: {
   events: Array<{ id: string; title: string; meetupDate: Date; eventType: string; location: string }>;
+  meetupId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState(requestRideAction, { ok: true } as ActionResult);
+  const selectedId = meetupId ?? events[0]?.id;
+  const selected = events.find((event) => event.id === selectedId) ?? events[0];
 
   if (events.length === 0) return null;
 
   return (
-    <div className="relative">
+    <div className="relative shrink-0">
       <Button type="button" size="sm" variant="secondary" onClick={() => setOpen((v) => !v)}>
-        Request Ride
+        Request a Ride
       </Button>
       {open ? (
         <>
@@ -30,20 +34,29 @@ export function RideRequestMenu({
             <form action={action} className="space-y-3">
               {!state.ok ? <Alert>{state.error}</Alert> : null}
               {state.ok && state.message ? <Alert tone="success">{state.message}</Alert> : null}
-              <Field label="Event">
-                <Select name="meetupId" required>
-                  {events.map((event) => (
-                    <option key={event.id} value={event.id}>
-                      {event.title} · {formatDate(event.meetupDate)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+              {meetupId && selected ? (
+                <>
+                  <input type="hidden" name="meetupId" value={selected.id} />
+                  <p className="text-sm text-slate-600">
+                    {selected.title} · {formatDate(selected.meetupDate)}
+                  </p>
+                </>
+              ) : (
+                <Field label="Event">
+                  <Select name="meetupId" required defaultValue={selectedId}>
+                    {events.map((event) => (
+                      <option key={event.id} value={event.id}>
+                        {event.title} · {formatDate(event.meetupDate)}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
               <Field label="Pickup area / location">
                 <Input name="pickupArea" required placeholder="North York / Finch" />
               </Field>
               <Field label="Available after">
-                <Input name="availableAfter" required placeholder="After 7:00 PM" />
+                <Input name="availableAfter" required placeholder="After 8:00 PM" />
               </Field>
               <Field label="Number of passengers">
                 <Input name="passengerCount" type="number" min={1} defaultValue={1} required />

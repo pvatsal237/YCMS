@@ -327,6 +327,7 @@ model Meetup {
   eventType           EventType @default(WEEKLY_MEETUP)
   startTime           String?
   endTime             String?
+  cuisine             String?
   topic               String?
   speakerName         String?
   speakerOrganization String?

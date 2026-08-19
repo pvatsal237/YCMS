@@ -190,7 +190,24 @@ async function main() {
     });
   }
 
-  const pastDates = [4, 11, 18, 25].flatMap((d) => [utcDate(2026, 6, d), utcDate(2026, 7, d)]).slice(0, 8);
+  const weeklyCuisines = [
+    "Gujarati thali",
+    "South Indian vegetarian",
+    "Indo-Chinese",
+    "Pasta night",
+    "Chaat & snacks",
+    "Biryani (veg & non-veg)",
+    "Mexican bowls",
+    "Pizza & salad",
+  ];
+  const pastDates = [
+    utcDate(2026, 7, 10),
+    utcDate(2026, 7, 17),
+    utcDate(2026, 7, 24),
+    utcDate(2026, 7, 31),
+    utcDate(2026, 8, 7),
+    utcDate(2026, 8, 14),
+  ];
   const meetups = [];
   for (const [index, date] of pastDates.entries()) {
     meetups.push(
@@ -200,8 +217,9 @@ async function main() {
           title: `Weekly Youth Meetup #${index + 1}`,
           location: "Riverside Community Centre",
           eventType: "WEEKLY_MEETUP",
-          startTime: "15:00",
-          endTime: "18:30",
+          startTime: "20:00",
+          endTime: "22:00",
+          cuisine: weeklyCuisines[index],
           createdById: coordinator.id,
           expectedAttendance: 160,
         },
@@ -210,14 +228,28 @@ async function main() {
   }
   const upcoming = await prisma.meetup.create({
     data: {
-      meetupDate: utcDate(2026, 9, 12),
+      meetupDate: utcDate(2026, 8, 21),
       title: "Weekly Youth Meetup",
       location: "Riverside Community Centre",
       eventType: "WEEKLY_MEETUP",
-      startTime: "15:00",
-      endTime: "18:30",
+      startTime: "20:00",
+      endTime: "22:00",
+      cuisine: "Punjabi vegetarian",
       createdById: coordinator.id,
       expectedAttendance: 180,
+    },
+  });
+  await prisma.meetup.create({
+    data: {
+      meetupDate: utcDate(2026, 9, 11),
+      title: "Weekly Youth Meetup",
+      location: "Riverside Community Centre",
+      eventType: "WEEKLY_MEETUP",
+      startTime: "20:00",
+      endTime: "22:00",
+      cuisine: "Mediterranean mezze",
+      createdById: coordinator.id,
+      expectedAttendance: 175,
     },
   });
   const riseup = await prisma.meetup.create({

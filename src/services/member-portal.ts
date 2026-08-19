@@ -94,10 +94,11 @@ async function loadMemberPortalData(actor: SessionUser) {
     startTime: string | null;
     endTime: string | null;
     eventType: string;
+    cuisine: string | null;
   } | null = null;
   try {
     upcomingMeetup = await prisma.meetup.findFirst({
-      where: { active: true, meetupDate: { gte: new Date() } },
+      where: { active: true, eventType: "WEEKLY_MEETUP", meetupDate: { gte: new Date() } },
       orderBy: { meetupDate: "asc" },
       select: {
         id: true,
@@ -107,18 +108,37 @@ async function loadMemberPortalData(actor: SessionUser) {
         startTime: true,
         endTime: true,
         eventType: true,
+        cuisine: true,
       },
     });
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientValidationError)) throw error;
-    const row = await prisma.meetup.findFirst({
-      where: { active: true, meetupDate: { gte: new Date() } },
-      orderBy: { meetupDate: "asc" },
-      select: { id: true, title: true, meetupDate: true, location: true },
-    });
-    upcomingMeetup = row
-      ? { ...row, startTime: null, endTime: null, eventType: "WEEKLY_MEETUP" }
-      : null;
+    try {
+      const row = await prisma.meetup.findFirst({
+        where: { active: true, eventType: "WEEKLY_MEETUP", meetupDate: { gte: new Date() } },
+        orderBy: { meetupDate: "asc" },
+        select: {
+          id: true,
+          title: true,
+          meetupDate: true,
+          location: true,
+          startTime: true,
+          endTime: true,
+          eventType: true,
+        },
+      });
+      upcomingMeetup = row ? { ...row, cuisine: null } : null;
+    } catch (inner) {
+      if (!(inner instanceof Prisma.PrismaClientValidationError)) throw inner;
+      const row = await prisma.meetup.findFirst({
+        where: { active: true, meetupDate: { gte: new Date() } },
+        orderBy: { meetupDate: "asc" },
+        select: { id: true, title: true, meetupDate: true, location: true },
+      });
+      upcomingMeetup = row
+        ? { ...row, startTime: null, endTime: null, eventType: "WEEKLY_MEETUP", cuisine: null }
+        : null;
+    }
   }
 
   await ensureMemberAuthSchema();

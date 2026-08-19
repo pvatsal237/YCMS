@@ -25,6 +25,7 @@ export async function createEventAction(
       eventType: String(formData.get("eventType") ?? "WEEKLY_MEETUP") as EventType,
       startTime: String(formData.get("startTime") ?? "") || undefined,
       endTime: String(formData.get("endTime") ?? "") || undefined,
+      cuisine: String(formData.get("cuisine") ?? "") || undefined,
       topic: String(formData.get("topic") ?? "") || undefined,
       speakerName: String(formData.get("speakerName") ?? "") || undefined,
       speakerOrganization: String(formData.get("speakerOrganization") ?? "") || undefined,

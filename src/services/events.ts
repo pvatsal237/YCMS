@@ -29,6 +29,7 @@ export async function createEvent(
     eventType: EventType;
     startTime?: string;
     endTime?: string;
+    cuisine?: string;
     topic?: string;
     speakerName?: string;
     speakerOrganization?: string;
@@ -49,6 +50,7 @@ export async function createEvent(
       eventType: input.eventType,
       startTime: input.startTime || null,
       endTime: input.endTime || null,
+      cuisine: input.cuisine || null,
       topic: input.topic || null,
       speakerName: input.speakerName || null,
       speakerOrganization: input.speakerOrganization || null,
