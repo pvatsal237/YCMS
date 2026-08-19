@@ -15,11 +15,20 @@ import { ensureVolunteerEnrollmentSchema } from "@/lib/volunteer-enrollment-sche
 export default async function TransportationPage() {
   const user = await requireStaffSession();
   await ensureVolunteerEnrollmentSchema();
-  const [lead, upcoming, transportVolunteer] = await Promise.all([
-    isTransportationLead(user.id),
-    listUpcomingEvents(1),
-    isTransportationAssignee(user.id),
-  ]);
+  let lead = false;
+  let upcoming: Awaited<ReturnType<typeof listUpcomingEvents>> = [];
+  let transportVolunteer = false;
+  try {
+    [lead, upcoming, transportVolunteer] = await Promise.all([
+      isTransportationLead(user.id),
+      listUpcomingEvents(1),
+      isTransportationAssignee(user.id),
+    ]);
+  } catch {
+    lead = user.role === "ADMIN" || user.role === "COORDINATOR";
+    upcoming = [];
+    transportVolunteer = user.role === "ADMIN" || user.role === "COORDINATOR";
+  }
   const canManage = user.role === "ADMIN" || user.role === "COORDINATOR" || lead;
   if (user.role === "ATTENDANCE_VOLUNTEER" && !transportVolunteer) {
     return (
@@ -43,8 +52,10 @@ export default async function TransportationPage() {
   }
   const nextEvent = upcoming[0];
   const meetupIds = [...new Set(rows.map((row) => row.meetupId))];
-  const driverLists = canManage
-    ? await Promise.all(
+  let driversByMeetup = new Map<string, Awaited<ReturnType<typeof listEligibleRideDrivers>>>();
+  if (canManage) {
+    try {
+      const driverLists = await Promise.all(
         meetupIds.map(async (meetupId) => {
           try {
             return await listEligibleRideDrivers(user, meetupId);
@@ -52,9 +63,12 @@ export default async function TransportationPage() {
             return [];
           }
         }),
-      )
-    : [];
-  const driversByMeetup = new Map(meetupIds.map((id, index) => [id, driverLists[index] ?? []]));
+      );
+      driversByMeetup = new Map(meetupIds.map((id, index) => [id, driverLists[index] ?? []]));
+    } catch {
+      driversByMeetup = new Map();
+    }
+  }
 
   return (
     <div className="space-y-6">

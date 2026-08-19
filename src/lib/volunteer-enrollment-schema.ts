@@ -115,6 +115,14 @@ export async function ensureVolunteerEnrollmentSchema() {
         FOREIGN KEY ("meetupId") REFERENCES "Meetup"("id") ON DELETE CASCADE ON UPDATE CASCADE;
     EXCEPTION WHEN duplicate_object THEN NULL; END $$;
   `);
+  await exec(`ALTER TABLE "RideRequest" ADD COLUMN IF NOT EXISTS "pickupNotes" TEXT`);
 
-  ensured = true;
+  try {
+    await prisma.$queryRaw`SELECT "notes" FROM "VolunteerDepartmentMembership" LIMIT 1`;
+    await prisma.$queryRaw`SELECT 1 FROM "VolunteerEnrollmentRequest" LIMIT 1`;
+    await prisma.$queryRaw`SELECT 1 FROM "TransportEventAvailability" LIMIT 1`;
+    ensured = true;
+  } catch {
+    ensured = false;
+  }
 }

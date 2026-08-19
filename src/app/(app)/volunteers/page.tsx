@@ -28,6 +28,10 @@ export default async function VolunteersPage() {
       listPendingEnrollments(actor),
     ]);
   } catch {
+    volunteers = [];
+    departments = [];
+    pending = [];
+    pendingPlans = [];
     pendingEnrollments = [];
   }
 
@@ -58,16 +62,7 @@ export default async function VolunteersPage() {
             ))}
           </CardBody>
         </Card>
-      ) : (
-        <Card>
-          <CardHeader title="People who would like to serve" />
-          <CardBody>
-            <p className="text-sm text-slate-600">
-              All serving requests have been reviewed. When a member submits Serve as Volunteer, it will appear here for you to assign a department.
-            </p>
-          </CardBody>
-        </Card>
-      )}
+      ) : null}
       {pendingPlans.length > 0 ? (
         <Card>
           <CardHeader title="Department plans to review" />

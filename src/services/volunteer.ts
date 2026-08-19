@@ -7,7 +7,7 @@ import {
 } from "@/services/staff-notifications";
 import { DEPARTMENT_TASK_TEMPLATES } from "@/utils/volunteer-templates";
 import type { SessionUser } from "@/types";
-import type { DepartmentPlanStatus, VolunteerDepartmentCode } from "@prisma/client";
+import type { DepartmentPlanStatus, Meetup, VolunteerDepartmentCode } from "@prisma/client";
 import {
   KITCHEN_LEAD_SEATING_MESSAGE,
   SCHEDULE_CONFLICT_MESSAGE,
@@ -47,39 +47,68 @@ export type StaffingRequirementInput = {
 };
 
 export async function listDepartments() {
-  return prisma.volunteerDepartment.findMany({
-    orderBy: { name: "asc" },
-    include: {
-      lead: { select: { id: true, name: true, phone: true } },
-      members: { include: { user: { select: { id: true, name: true, phone: true, active: true } } } },
-    },
-  });
+  try {
+    return await prisma.volunteerDepartment.findMany({
+      orderBy: { name: "asc" },
+      include: {
+        lead: { select: { id: true, name: true, phone: true } },
+        members: {
+          select: {
+            id: true,
+            userId: true,
+            departmentId: true,
+            responsibility: true,
+            user: { select: { id: true, name: true, phone: true, active: true } },
+          },
+        },
+      },
+    });
+  } catch {
+    return [];
+  }
 }
 
 export async function getVolunteerContext(userId: string) {
   await ensureVolunteerEnrollmentSchema();
-  return prisma.volunteerDepartmentMembership.findMany({
-    where: { userId },
-    include: { department: true },
-  });
+  try {
+    return await prisma.volunteerDepartmentMembership.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        departmentId: true,
+        responsibility: true,
+        department: true,
+      },
+    });
+  } catch {
+    return [];
+  }
 }
 
 export async function isTransportationAssignee(userId: string) {
-  return Boolean(
-    await prisma.volunteerDepartmentMembership.findFirst({
-      where: { userId, department: { code: "TRANSPORTATION" } },
-      select: { id: true },
-    }),
-  );
+  try {
+    return Boolean(
+      await prisma.volunteerDepartmentMembership.findFirst({
+        where: { userId, department: { code: "TRANSPORTATION" } },
+        select: { id: true },
+      }),
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function isTransportationLead(userId: string) {
-  return Boolean(
-    await prisma.volunteerDepartmentMembership.findFirst({
-      where: { userId, department: { code: "TRANSPORTATION" }, responsibility: "LEAD" },
-      select: { id: true },
-    }),
-  );
+  try {
+    return Boolean(
+      await prisma.volunteerDepartmentMembership.findFirst({
+        where: { userId, department: { code: "TRANSPORTATION" }, responsibility: "LEAD" },
+        select: { id: true },
+      }),
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function isDepartmentLead(userId: string, departmentId?: string) {
@@ -904,7 +933,7 @@ export async function getVolunteerHomeData(userId: string) {
     orderBy: { meetupDate: "asc" },
     take: 6,
   });
-  const nextEvent = upcomingEvents[0] ?? null;
+  const nextEvent = upcomingEvents.length > 0 ? upcomingEvents[0] : null;
   const assignments = await prisma.volunteerAssignment.findMany({
     where: { userId },
     include: { request: { include: { meetup: true, department: true } } },
@@ -938,8 +967,8 @@ export async function getVolunteerHomeData(userId: string) {
       const [team, recent] = await Promise.all([
         prisma.volunteerDepartmentMembership.findMany({
           where: { departmentId: department.id, userId: { in: userIds } },
-          select: { userId: true, isNewVolunteer: true, notes: true },
-        }),
+          select: { userId: true, isNewVolunteer: true },
+        }).catch(() => [] as Array<{ userId: string; isNewVolunteer: boolean }>),
         prisma.volunteerAssignment.groupBy({
           by: ["userId"],
           where: { userId: { in: userIds } },
@@ -953,7 +982,7 @@ export async function getVolunteerHomeData(userId: string) {
           const row = teamByUser.get(person.id);
           Object.assign(person, {
             isNewVolunteer: row?.isNewVolunteer ?? false,
-            teamNotes: row?.notes ?? null,
+            teamNotes: null as string | null,
             recentAssignments: recentByUser.get(person.id) ?? 0,
           });
         }
@@ -991,12 +1020,16 @@ export async function getVolunteerHomeData(userId: string) {
     });
   }
 
-  const transportAvailability =
-    nextEvent && memberships.some((row) => row.department.code === "TRANSPORTATION")
-      ? await prisma.transportEventAvailability.findUnique({
-          where: { userId_meetupId: { userId, meetupId: nextEvent.id } },
-        })
-      : null;
+  let transportAvailability = null;
+  if (nextEvent && memberships.some((row) => row.department.code === "TRANSPORTATION")) {
+    try {
+      transportAvailability = await prisma.transportEventAvailability.findUnique({
+        where: { userId_meetupId: { userId, meetupId: nextEvent.id } },
+      });
+    } catch {
+      transportAvailability = null;
+    }
+  }
 
   return {
     memberships,

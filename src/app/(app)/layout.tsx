@@ -6,14 +6,22 @@ import { staffDisplayTitle } from "@/utils/format";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireStaffSession();
-  const notifications = await getNotificationCounts(user);
-  const memberships = user.role === "ATTENDANCE_VOLUNTEER" ? await getVolunteerContext(user.id) : [];
-  const departmentCodes = memberships.map((row) => row.department.code);
-  const leadCodes = memberships.filter((row) => row.responsibility === "LEAD").map((row) => row.department.code);
+  let notificationCount = 0;
+  let departmentCodes: string[] = [];
+  let leadCodes: string[] = [];
+  try {
+    const notifications = await getNotificationCounts(user);
+    notificationCount = notifications.total;
+    const memberships = user.role === "ATTENDANCE_VOLUNTEER" ? await getVolunteerContext(user.id) : [];
+    departmentCodes = memberships.map((row) => row.department.code);
+    leadCodes = memberships.filter((row) => row.responsibility === "LEAD").map((row) => row.department.code);
+  } catch {
+    notificationCount = 0;
+  }
   return (
     <AppShell
       user={user}
-      notificationCount={notifications.total}
+      notificationCount={notificationCount}
       displayTitle={staffDisplayTitle(user.role, leadCodes)}
       departmentCodes={departmentCodes}
     >

@@ -188,7 +188,14 @@ export async function listRideRequestsForStaff(actor: SessionUser) {
   try {
     return await prisma.rideRequest.findMany({
       where: lead ? {} : { driverUserId: actor.id, status: { in: ["ASSIGNED", "APPROVED"] } },
-      include: {
+      select: {
+        id: true,
+        meetupId: true,
+        pickupArea: true,
+        availableAfter: true,
+        passengerCount: true,
+        note: true,
+        status: true,
         meetup: true,
         member: { select: { id: true, firstName: true, lastName: true, phone: true } },
         driver: { select: { id: true, name: true, phone: true } },
@@ -231,19 +238,26 @@ export async function listEligibleRideDrivers(actor: SessionUser, meetupId: stri
   if (actor.role !== "ADMIN" && actor.role !== "COORDINATOR" && !(await isTransportationLead(actor.id))) {
     throw new AppError("You do not have permission to perform this action.", 403);
   }
-  const members = await prisma.volunteerDepartmentMembership.findMany({
-    where: { department: { code: "TRANSPORTATION" } },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-          active: true,
+  let members: Array<{
+    user: { id: string; name: string; phone: string | null; active: boolean };
+  }> = [];
+  try {
+    members = await prisma.volunteerDepartmentMembership.findMany({
+      where: { department: { code: "TRANSPORTATION" } },
+      select: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            active: true,
+          },
         },
       },
-    },
-  });
+    });
+  } catch {
+    return [];
+  }
   let availabilityRows: Array<{
     userId: string;
     status: "AVAILABLE" | "PARTIAL" | "NOT_AVAILABLE";

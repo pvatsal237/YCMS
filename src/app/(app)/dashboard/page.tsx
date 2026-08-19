@@ -38,10 +38,17 @@ export default async function DashboardPage() {
   const data = await getDashboardData(user);
   const showSensitive = canViewImmigration(user.role);
   await ensureVolunteerEnrollmentSchema();
-  const [pendingEnrollments, departments] = await Promise.all([
-    listPendingEnrollments(user),
-    listDepartments(),
-  ]);
+  let pendingEnrollments: Awaited<ReturnType<typeof listPendingEnrollments>> = [];
+  let departments: Awaited<ReturnType<typeof listDepartments>> = [];
+  try {
+    [pendingEnrollments, departments] = await Promise.all([
+      listPendingEnrollments(user),
+      listDepartments(),
+    ]);
+  } catch {
+    pendingEnrollments = [];
+    departments = [];
+  }
 
   return (
     <div>
@@ -74,16 +81,7 @@ export default async function DashboardPage() {
             ))}
           </CardBody>
         </Card>
-      ) : (
-        <Card className="mb-6">
-          <CardHeader title="People who would like to serve" />
-          <CardBody>
-            <p className="text-sm text-slate-600">
-              All serving requests have been reviewed. New Serve as Volunteer submissions will show here.
-            </p>
-          </CardBody>
-        </Card>
-      )}
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard label="Total active members" value={data.stats.totalActiveMembers} />

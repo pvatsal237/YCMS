@@ -12,7 +12,20 @@ import Link from "next/link";
 
 export default async function VolunteerHomePage() {
   const user = await requireRole(["ATTENDANCE_VOLUNTEER"]);
-  const data = await getVolunteerHomeData(user.id);
+  let data: Awaited<ReturnType<typeof getVolunteerHomeData>>;
+  try {
+    data = await getVolunteerHomeData(user.id);
+  } catch {
+    data = {
+      memberships: [],
+      upcomingEvents: [],
+      assignments: [],
+      openRequests: [],
+      leadDashboards: [],
+      nextEvent: null,
+      transportAvailability: null,
+    } as unknown as Awaited<ReturnType<typeof getVolunteerHomeData>>;
+  }
 
   const leadMemberships = data.memberships.filter((row) => row.responsibility === "LEAD");
   const teamMemberships = data.memberships.filter((row) => row.responsibility !== "LEAD");
@@ -207,13 +220,11 @@ export default async function VolunteerHomePage() {
           )}
         </CardBody>
       </Card>
+      {data.openRequests.length > 0 ? (
       <Card>
         <CardHeader title="Ways you can help" />
         <CardBody className="space-y-4">
-          {data.openRequests.length === 0 ? (
-            <p className="text-sm text-slate-500">No open opportunities in your teams right now. Thank you for being part of this community.</p>
-          ) : (
-            data.openRequests.map((request) => (
+          {data.openRequests.map((request) => (
               <div key={request.id} className="rounded-md border border-slate-200 p-3 text-sm">
                 <p className="font-medium">{request.task}</p>
                 <p className="text-slate-500">
@@ -224,10 +235,10 @@ export default async function VolunteerHomePage() {
                 {request.notes ? <p className="mt-1">{request.notes}</p> : null}
                 <StaffingResponseForm requestId={request.id} />
               </div>
-            ))
-          )}
+            ))}
         </CardBody>
       </Card>
+      ) : null}
     </div>
   );
 }
