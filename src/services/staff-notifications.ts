@@ -43,7 +43,7 @@ export async function markStaffNotificationsRead(userId: string) {
 
 export async function createStaffNotification(input: {
   userId: string;
-  memberId: string;
+  memberId?: string | null;
   requestId: string;
   title: string;
   message: string;
@@ -55,7 +55,7 @@ export async function createStaffNotification(input: {
     VALUES (
       ${randomUUID()},
       ${input.userId},
-      ${input.memberId},
+      ${input.memberId ?? null},
       ${input.requestId},
       ${input.title},
       ${input.message},

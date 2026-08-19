@@ -27,6 +27,7 @@ describe("role authorization", () => {
     expect(canAccessSystemSettings("COORDINATOR")).toBe(false);
     expect(isPathAllowed("/admin/logs", "COORDINATOR")).toBe(false);
     expect(isPathAllowed("/settings", "COORDINATOR")).toBe(false);
+    expect(isPathAllowed("/admin/users", "COORDINATOR")).toBe(false);
     expect(isPathAllowed("/follow-ups", "COORDINATOR")).toBe(true);
     expect(isPathAllowed("/assistance", "COORDINATOR")).toBe(true);
     expect(isPathAllowed("/assistance", "ADMIN")).toBe(true);
@@ -42,7 +43,9 @@ describe("role authorization", () => {
     expect(canCreateMeetup("ATTENDANCE_VOLUNTEER")).toBe(false);
     expect(isPathAllowed("/immigration", "ATTENDANCE_VOLUNTEER")).toBe(false);
     expect(isPathAllowed("/members", "ATTENDANCE_VOLUNTEER")).toBe(false);
-    expect(isPathAllowed("/attendance", "ATTENDANCE_VOLUNTEER")).toBe(true);
+    expect(isPathAllowed("/attendance", "ATTENDANCE_VOLUNTEER")).toBe(false);
+    expect(isPathAllowed("/volunteer", "ATTENDANCE_VOLUNTEER")).toBe(true);
+    expect(isPathAllowed("/events", "ATTENDANCE_VOLUNTEER")).toBe(true);
     expect(isPathAllowed("/attendance/new", "ATTENDANCE_VOLUNTEER")).toBe(false);
     expect(isPathAllowed("/admin/users", "ATTENDANCE_VOLUNTEER")).toBe(false);
   });

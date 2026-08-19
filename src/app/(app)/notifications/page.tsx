@@ -9,7 +9,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { formatDate } from "@/lib/dates";
 
 export default async function NotificationsPage() {
-  const user = await requireRole(["ADMIN", "COORDINATOR"]);
+  const user = await requireRole(["ADMIN", "COORDINATOR", "ATTENDANCE_VOLUNTEER"]);
   const rows = await listStaffNotifications(user.id);
   await markStaffNotificationsRead(user.id);
 

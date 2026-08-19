@@ -5,10 +5,43 @@ import { signIn, signOut } from "@/auth";
 import { loginSchema, memberOtpRequestSchema, memberOtpVerifySchema } from "@/validations/auth";
 import { logActivity } from "@/lib/activity-log";
 import { getSessionUser } from "@/lib/session";
+import type { ActionResult } from "@/types";
 import { requestMemberOtp } from "@/services/member-auth";
+import { identifyLoginKind } from "@/services/login-identify";
 import { OTP_GENERIC_INVALID_MESSAGE } from "@/lib/otp";
 import { logServerError, toUserMessage } from "@/lib/errors";
-import type { ActionResult } from "@/types";
+
+export async function identifyLoginAction(
+  _prev: ActionResult<{ kind?: "staff" | "member"; devOtp?: string }>,
+  formData: FormData,
+): Promise<ActionResult<{ kind?: "staff" | "member"; devOtp?: string }>> {
+  const parsed = memberOtpRequestSchema.safeParse({
+    email: formData.get("email"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Enter a valid email." };
+  }
+  try {
+    const kind = await identifyLoginKind(parsed.data.email);
+    if (kind === "staff") {
+      return { ok: true, data: { kind: "staff" } };
+    }
+    if (kind === "member") {
+      const result = await requestMemberOtp(parsed.data.email);
+      return { ok: true, message: result.message, data: { kind: "member", devOtp: result.devOtp } };
+    }
+    return { ok: false, error: "We could not find an active account for that email." };
+  } catch (error) {
+    logServerError("identifyLoginAction", error);
+    return {
+      ok: false,
+      error: toUserMessage(
+        error,
+        "Unable to continue. Check that the system is available and try again.",
+      ),
+    };
+  }
+}
 
 export async function loginAction(
   _prev: ActionResult,

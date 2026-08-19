@@ -18,7 +18,7 @@ export function roleLabel(role: UserRole): string {
     case "COORDINATOR":
       return "Youth Coordinator";
     case "ATTENDANCE_VOLUNTEER":
-      return "Attendance Volunteer";
+      return "Volunteer";
     case "MEMBER":
       return "Member";
   }
@@ -98,6 +98,30 @@ export function assistanceStatusLabel(status: string): string {
     CLOSED: "Closed",
   };
   return labels[status] ?? status;
+}
+
+export function eventTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    WEEKLY_MEETUP: "Weekly Youth Meetup",
+    RISEUP: "RiseUp",
+    RECREATION: "Recreation",
+    SPECIAL: "Special Event",
+  };
+  return labels[type] ?? type;
+}
+
+export function departmentLabel(code: string): string {
+  const labels: Record<string, string> = {
+    KITCHEN: "Kitchen / Food Preparation",
+    GROCERIES: "Groceries",
+    TRANSPORTATION: "Transportation",
+    SEATING_SETUP: "Seating & Setup",
+    AUDIO_VIDEO: "Audio / Video",
+    RECREATION: "Recreation",
+    RISEUP_SUPPORT: "RiseUp Event Support",
+    GENERAL_EVENT_SUPPORT: "General Event Support",
+  };
+  return labels[code] ?? code;
 }
 
 export function employmentSummary(employment?: {

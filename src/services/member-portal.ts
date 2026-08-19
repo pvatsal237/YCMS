@@ -88,7 +88,7 @@ async function loadMemberPortalData(actor: SessionUser) {
   const upcomingMeetup = await prisma.meetup.findFirst({
     where: { active: true, meetupDate: { gte: new Date() } },
     orderBy: { meetupDate: "asc" },
-    select: { title: true, meetupDate: true, location: true },
+    select: { id: true, title: true, meetupDate: true, location: true, startTime: true, endTime: true, eventType: true },
   });
 
   await ensureMemberAuthSchema();

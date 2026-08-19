@@ -11,7 +11,9 @@ export const STAFF_ROLES: UserRole[] = [
 export const ALL_ROLES: UserRole[] = [...STAFF_ROLES, "MEMBER"];
 
 export function defaultHomePath(role: UserRole): string {
-  return role === "MEMBER" ? "/portal" : "/dashboard";
+  if (role === "MEMBER") return "/portal";
+  if (role === "ATTENDANCE_VOLUNTEER") return "/volunteer";
+  return "/dashboard";
 }
 
 export function canAccessMembers(role: UserRole): boolean {
@@ -94,13 +96,19 @@ export type NavItem = {
 };
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", roles: STAFF_ROLES },
+  { href: "/dashboard", label: "Dashboard", roles: ["ADMIN", "COORDINATOR"] },
+  { href: "/volunteer", label: "Home", roles: ["ATTENDANCE_VOLUNTEER"] },
   { href: "/members", label: "Members", roles: ["ADMIN", "COORDINATOR"] },
-  { href: "/attendance", label: "Attendance", roles: STAFF_ROLES },
+  { href: "/attendance", label: "Attendance", roles: ["ADMIN", "COORDINATOR"] },
+  { href: "/volunteers", label: "Volunteers", roles: ["ADMIN", "COORDINATOR"] },
+  { href: "/events", label: "Events", roles: ["ADMIN", "COORDINATOR", "ATTENDANCE_VOLUNTEER"] },
+  { href: "/volunteer/departments", label: "My Departments", roles: ["ATTENDANCE_VOLUNTEER"] },
+  { href: "/volunteer/assignments", label: "Assignments", roles: ["ATTENDANCE_VOLUNTEER"] },
+  { href: "/volunteer/availability", label: "Availability", roles: ["ATTENDANCE_VOLUNTEER"] },
   {
     href: "/notifications",
     label: "Notifications",
-    roles: ["ADMIN", "COORDINATOR"],
+    roles: ["ADMIN", "COORDINATOR", "ATTENDANCE_VOLUNTEER"],
   },
   {
     href: "/immigration",
@@ -117,8 +125,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Assistance Requests",
     roles: ["ADMIN", "COORDINATOR"],
   },
+  {
+    href: "/transportation",
+    label: "Transportation",
+    roles: ["ADMIN", "COORDINATOR", "ATTENDANCE_VOLUNTEER"],
+  },
   { href: "/reports", label: "Reports", roles: ["ADMIN", "COORDINATOR"] },
-  { href: "/admin/users", label: "User Management", roles: ["ADMIN", "COORDINATOR"] },
+  { href: "/admin/users", label: "User Management", roles: ["ADMIN"] },
   { href: "/admin/logs", label: "Activity Logs", roles: ["ADMIN"] },
   { href: "/settings", label: "Settings", roles: ["ADMIN"] },
 ];
@@ -138,24 +151,38 @@ export function isPublicPath(pathname: string): boolean {
   );
 }
 
+export function canViewVolunteerOps(role: UserRole): boolean {
+  return role === "ADMIN" || role === "COORDINATOR" || role === "ATTENDANCE_VOLUNTEER";
+}
+
+export function canManageVolunteers(role: UserRole): boolean {
+  return role === "ADMIN" || role === "COORDINATOR";
+}
+
 export function isPathAllowed(pathname: string, role: UserRole): boolean {
   if (isPublicPath(pathname)) return true;
   if (role === "MEMBER") {
     return pathname.startsWith("/portal");
   }
   if (pathname.startsWith("/portal")) return false;
-  if (pathname.startsWith("/dashboard")) return STAFF_ROLES.includes(role);
+  if (pathname.startsWith("/volunteer")) return role === "ATTENDANCE_VOLUNTEER";
+  if (pathname.startsWith("/dashboard")) return role === "ADMIN" || role === "COORDINATOR";
   if (pathname.startsWith("/attendance/new")) return canCreateMeetup(role);
-  if (pathname.startsWith("/attendance")) return canTakeAttendance(role);
+  if (pathname.startsWith("/attendance")) return role === "ADMIN" || role === "COORDINATOR";
   if (pathname.startsWith("/members")) return canAccessMembers(role);
-  if (pathname.startsWith("/notifications")) return canViewImmigration(role);
+  if (pathname.startsWith("/volunteers")) return canManageVolunteers(role);
+  if (pathname.startsWith("/events")) return canViewVolunteerOps(role);
+  if (pathname.startsWith("/transportation")) return canViewVolunteerOps(role);
+  if (pathname.startsWith("/notifications")) {
+    return role === "ADMIN" || role === "COORDINATOR" || role === "ATTENDANCE_VOLUNTEER";
+  }
   if (pathname.startsWith("/immigration")) return canViewImmigration(role);
   if (pathname.startsWith("/follow-ups")) return canViewFollowUps(role);
   if (pathname.startsWith("/assistance")) return canViewAssistance(role);
   if (pathname.startsWith("/reports")) return canViewReports(role);
   if (pathname.startsWith("/admin/logs")) return canViewActivityLogs(role);
   if (pathname.startsWith("/admin/users")) {
-    return role === "ADMIN" || role === "COORDINATOR";
+    return role === "ADMIN";
   }
   if (pathname.startsWith("/settings")) return canAccessSystemSettings(role);
   return false;

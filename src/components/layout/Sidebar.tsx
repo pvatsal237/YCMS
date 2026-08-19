@@ -20,10 +20,17 @@ import type { UserRole } from "@/types/roles";
 
 const icons: Record<string, React.ComponentType<{ className?: string }>> = {
   "/dashboard": LayoutDashboard,
+  "/volunteer": LayoutDashboard,
   "/members": Users,
   "/attendance": ClipboardCheck,
+  "/volunteers": Users,
+  "/events": ClipboardCheck,
+  "/volunteer/departments": Users,
+  "/volunteer/assignments": ClipboardCheck,
+  "/volunteer/availability": PhoneCall,
   "/immigration": FileWarning,
   "/follow-ups": PhoneCall,
+  "/transportation": PhoneCall,
   "/reports": BarChart3,
   "/admin/users": UserCog,
   "/admin/logs": ScrollText,

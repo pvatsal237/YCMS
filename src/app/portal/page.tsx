@@ -11,7 +11,10 @@ import { DocumentRenewalActions } from "@/components/members/DocumentRenewalActi
 import { AssistanceRequestMenu } from "@/components/assistance/AssistanceRequestForm";
 import { followUpOutcomeLabel } from "@/utils/follow-up-outcomes";
 import { getAlertPresentation } from "@/utils/immigration-alerts";
-import { listStaffContactsByRole } from "@/services/assistance";
+import { RideRequestMenu } from "@/components/rides/RideRequestMenu";
+import { listMemberAssistanceRequests, listStaffContactsByRole } from "@/services/assistance";
+import { listMemberRideRequests, listUpcomingEvents } from "@/services/events";
+import { eventTypeLabel } from "@/utils/format";
 
 const NOTICE_TONES = {
   green: "border-emerald-200 bg-emerald-50 text-emerald-900",
@@ -25,9 +28,12 @@ export default async function MemberPortalPage() {
   const user = await requireMemberSession();
   const { member, upcomingMeetup, pendingRequests, staffContacts } =
     await getMemberPortalData(user);
-  const [coordinators, administrators] = await Promise.all([
+  const [coordinators, administrators, upcomingEvents, rideRequests, myAssistance] = await Promise.all([
     listStaffContactsByRole("COORDINATOR"),
     listStaffContactsByRole("ADMIN"),
+    listUpcomingEvents(6),
+    listMemberRideRequests(member.id),
+    listMemberAssistanceRequests(member.id),
   ]);
   const documentNotices = member.documents
     .map((doc) => ({ doc, alert: getAlertPresentation(doc.expiryDate) }))
@@ -43,16 +49,34 @@ export default async function MemberPortalPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Your portal"
-        description="This view is limited to your own records."
+        title="Home"
+        description="Upcoming events, attendance, and your requests."
         action={
-          <AssistanceRequestMenu
-            coordinators={coordinators}
-            administrators={administrators}
-            eligibleDocuments={eligibleDocuments}
-          />
+          <div className="flex flex-wrap gap-2">
+            <RideRequestMenu events={upcomingEvents} />
+            <AssistanceRequestMenu
+              coordinators={coordinators}
+              administrators={administrators}
+              eligibleDocuments={eligibleDocuments}
+            />
+          </div>
         }
       />
+
+      {upcomingMeetup ? (
+        <Card>
+          <CardHeader title="Upcoming event" />
+          <CardBody className="text-sm">
+            <p className="text-lg font-semibold text-slate-900">{upcomingMeetup.title}</p>
+            <p className="mt-1 text-slate-600">
+              {eventTypeLabel(upcomingMeetup.eventType)} · {formatDate(upcomingMeetup.meetupDate)}
+              {upcomingMeetup.startTime ? ` · ${upcomingMeetup.startTime}` : ""}
+              {upcomingMeetup.endTime ? `–${upcomingMeetup.endTime}` : ""}
+            </p>
+            <p className="text-slate-600">{upcomingMeetup.location}</p>
+          </CardBody>
+        </Card>
+      ) : null}
 
       {documentNotices.length > 0 ? (
         <div className="space-y-3">
@@ -91,6 +115,7 @@ export default async function MemberPortalPage() {
         </div>
       ) : null}
 
+      <div id="profile">
       <Card>
         <CardHeader title="Contact information" />
         <CardBody className="space-y-1 text-sm">
@@ -100,6 +125,7 @@ export default async function MemberPortalPage() {
           <p className="text-slate-500">Joined {formatDate(member.dateJoined)}</p>
         </CardBody>
       </Card>
+      </div>
 
       <Card>
         <CardHeader
@@ -143,23 +169,29 @@ export default async function MemberPortalPage() {
         )}
       </Card>
 
+      <div id="events">
       <Card>
-        <CardHeader title="Upcoming meetup" />
-        <CardBody>
-          {upcomingMeetup ? (
-            <div className="text-sm">
-              <p className="font-medium text-slate-900">{upcomingMeetup.title}</p>
-              <p className="text-slate-500">
-                {formatDate(upcomingMeetup.meetupDate)}
-                {upcomingMeetup.location ? ` · ${upcomingMeetup.location}` : ""}
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500">No upcoming meetup is scheduled yet.</p>
-          )}
-        </CardBody>
+        <CardHeader title="Upcoming events" />
+        {upcomingEvents.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-slate-500">No upcoming events.</p>
+        ) : (
+          <Table headers={["Event", "Date", "Venue"]}>
+            {upcomingEvents.map((event) => (
+              <tr key={event.id}>
+                <td className="px-4 py-3">{event.title}</td>
+                <td className="px-4 py-3">
+                  {formatDate(event.meetupDate)}
+                  {event.startTime ? ` · ${event.startTime}` : ""}
+                </td>
+                <td className="px-4 py-3">{event.location}</td>
+              </tr>
+            ))}
+          </Table>
+        )}
       </Card>
+      </div>
 
+      <div id="attendance">
       <Card>
         <CardHeader title="Attendance history" />
         {member.attendance.length === 0 ? (
@@ -178,6 +210,7 @@ export default async function MemberPortalPage() {
           </Table>
         )}
       </Card>
+      </div>
 
       <Card>
         <CardHeader title="Follow-up status" />
@@ -199,6 +232,44 @@ export default async function MemberPortalPage() {
           </Table>
         )}
       </Card>
+
+      <div id="requests">
+      <Card>
+        <CardHeader title="My requests" />
+        <CardBody className="space-y-4 text-sm">
+          <div>
+            <p className="font-medium text-slate-900">Assistance</p>
+            {myAssistance.length === 0 ? (
+              <p className="text-slate-500">No assistance requests.</p>
+            ) : (
+              myAssistance.slice(0, 6).map((item) => (
+                <p key={item.id} className="mt-1">
+                  {item.category} · {item.status} · {formatDate(item.createdAt)}
+                </p>
+              ))
+            )}
+          </div>
+          <div>
+            <p className="font-medium text-slate-900">Ride requests</p>
+            {rideRequests.length === 0 ? (
+              <p className="text-slate-500">No ride requests.</p>
+            ) : (
+              rideRequests.map((item) => (
+                <p key={item.id} className="mt-1">
+                  {item.meetup.title} · {item.status}
+                  {item.driver
+                    ? ` · Driver ${item.driver.name}${item.driver.phone ? ` (${item.driver.phone})` : ""}`
+                    : ""}
+                </p>
+              ))
+            )}
+            <p className="mt-2 text-xs text-slate-500">
+              If the driver does not answer, please leave a voicemail with your name and callback number.
+            </p>
+          </div>
+        </CardBody>
+      </Card>
+      </div>
 
       <Card>
         <CardHeader

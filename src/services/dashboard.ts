@@ -92,8 +92,12 @@ export async function getDashboardData(user: SessionUser) {
 }
 
 export async function getNotificationCounts(user: SessionUser) {
-  if (user.role === "ATTENDANCE_VOLUNTEER" || user.role === "MEMBER") {
+  if (user.role === "MEMBER") {
     return { total: 0, immigration: 0, followUps: 0, inbox: 0 };
+  }
+  if (user.role === "ATTENDANCE_VOLUNTEER") {
+    const inbox = await countUnreadStaffNotifications(user.id);
+    return { total: inbox, immigration: 0, followUps: 0, inbox };
   }
   const [immigration, followUps, inbox] = await Promise.all([
     listExpiringSoon(90, 50),

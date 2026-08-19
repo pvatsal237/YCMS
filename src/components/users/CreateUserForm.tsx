@@ -31,7 +31,7 @@ export function CreateUserForm({ actorRole }: { actorRole: UserRole }) {
       <Field label="Role">
         <Select name="role" defaultValue="ATTENDANCE_VOLUNTEER">
           {canCreateCoordinator ? <option value="COORDINATOR">Youth Coordinator</option> : null}
-          <option value="ATTENDANCE_VOLUNTEER">Attendance Volunteer</option>
+          <option value="ATTENDANCE_VOLUNTEER">Volunteer</option>
         </Select>
       </Field>
       <Field label="Temporary password">

@@ -100,13 +100,7 @@ export function Header({
         <div className="ml-auto" />
       )}
       <Link
-        href={
-          user.role === "ATTENDANCE_VOLUNTEER"
-            ? "/attendance"
-            : user.role === "ADMIN" || user.role === "COORDINATOR"
-              ? "/notifications"
-              : "/follow-ups"
-        }
+        href="/notifications"
         className="relative rounded-md p-2 text-slate-600 hover:bg-slate-100"
         aria-label="Notifications"
       >

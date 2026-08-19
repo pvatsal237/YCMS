@@ -101,11 +101,58 @@ enum AssistanceStatus {
   CLOSED
 }
 
+enum EventType {
+  WEEKLY_MEETUP
+  RISEUP
+  RECREATION
+  SPECIAL
+}
+
+enum VolunteerDepartmentCode {
+  KITCHEN
+  GROCERIES
+  TRANSPORTATION
+  SEATING_SETUP
+  AUDIO_VIDEO
+  RECREATION
+  RISEUP_SUPPORT
+  GENERAL_EVENT_SUPPORT
+}
+
+enum VolunteerDeptRole {
+  LEAD
+  VOLUNTEER
+}
+
+enum StaffingRequestStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  FILLED
+  CLOSED
+}
+
+enum VolunteerResponseStatus {
+  AVAILABLE
+  PARTIAL
+  NOT_AVAILABLE
+}
+
+enum RideRequestStatus {
+  REQUESTED
+  APPROVED
+  ASSIGNED
+  COMPLETED
+  CANCELLED
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
   email        String   @unique
   passwordHash String?
+  phone        String?
   role         UserRole
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
@@ -126,6 +173,12 @@ model User {
   assistanceRequested AssistanceRequest[] @relation("AssistanceRequestedUser")
   assistanceAssigned  AssistanceRequest[] @relation("AssistanceAssignedTo")
   assistanceUpdates   AssistanceRequestUpdate[]
+  volunteerMemberships VolunteerDepartmentMembership[]
+  departmentsLed       VolunteerDepartment[] @relation("DepartmentLead")
+  staffingCreated      VolunteerStaffingRequest[] @relation("StaffingCreatedBy")
+  staffingResponses    VolunteerStaffingResponse[]
+  volunteerAssignments VolunteerAssignment[]
+  ridesDriving         RideRequest[] @relation("RideDriver")
 
   @@index([role, active])
   @@index([createdById])
@@ -161,6 +214,7 @@ model Member {
   followUps          FollowUp[]
   profileChangeRequests MemberProfileChangeRequest[]
   assistanceRequests    AssistanceRequest[]
+  rideRequests          RideRequest[]
 
   @@index([lastName, firstName])
   @@index([active, dateJoined])
@@ -265,19 +319,32 @@ model AccommodationNeed {
 }
 
 model Meetup {
-  id          String   @id @default(cuid())
-  meetupDate  DateTime @db.Date
-  title       String
-  location    String
-  active      Boolean  @default(true)
-  createdById String?
-  createdBy   User?    @relation("MeetupCreatedBy", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  id                  String    @id @default(cuid())
+  meetupDate          DateTime  @db.Date
+  title               String
+  location            String
+  active              Boolean   @default(true)
+  eventType           EventType @default(WEEKLY_MEETUP)
+  startTime           String?
+  endTime             String?
+  topic               String?
+  speakerName         String?
+  speakerOrganization String?
+  speakerPosition     String?
+  careerSkillArea     String?
+  description         String?
+  expectedAttendance  Int?
+  createdById         String?
+  createdBy           User?     @relation("MeetupCreatedBy", fields: [createdById], references: [id])
+  createdAt           DateTime  @default(now())
 
-  attendance Attendance[]
+  attendance       Attendance[]
+  staffingRequests VolunteerStaffingRequest[]
+  rideRequests     RideRequest[]
 
   @@index([meetupDate])
   @@index([active, meetupDate])
+  @@index([eventType, meetupDate])
 }
 
 model Attendance {
@@ -362,6 +429,106 @@ model EmailOtp {
 
   @@index([email, createdAt])
   @@index([email, consumedAt])
+}
+
+model VolunteerDepartment {
+  id         String                   @id @default(cuid())
+  code       VolunteerDepartmentCode  @unique
+  name       String
+  leadUserId String?
+  lead       User?                    @relation("DepartmentLead", fields: [leadUserId], references: [id], onDelete: SetNull)
+  members    VolunteerDepartmentMembership[]
+  staffingRequests VolunteerStaffingRequest[]
+
+  @@index([leadUserId])
+}
+
+model VolunteerDepartmentMembership {
+  id             String             @id @default(cuid())
+  userId         String
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  departmentId   String
+  department     VolunteerDepartment @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  responsibility VolunteerDeptRole  @default(VOLUNTEER)
+  createdAt      DateTime           @default(now())
+
+  @@unique([userId, departmentId])
+  @@index([departmentId])
+}
+
+model VolunteerStaffingRequest {
+  id           String                 @id @default(cuid())
+  meetupId     String
+  meetup       Meetup                 @relation(fields: [meetupId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   VolunteerDepartment    @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  task         String
+  neededCount  Int
+  requestDate  DateTime               @db.Date
+  startTime    String
+  endTime      String
+  notes        String?
+  createdById  String?
+  createdBy    User?                  @relation("StaffingCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  status       StaffingRequestStatus  @default(PENDING_APPROVAL)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  responses    VolunteerStaffingResponse[]
+  assignments  VolunteerAssignment[]
+
+  @@index([status, requestDate])
+  @@index([meetupId, departmentId])
+}
+
+model VolunteerStaffingResponse {
+  id          String                   @id @default(cuid())
+  requestId   String
+  request     VolunteerStaffingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      VolunteerResponseStatus
+  startTime   String?
+  endTime     String?
+  note        String?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  @@unique([requestId, userId])
+  @@index([userId])
+}
+
+model VolunteerAssignment {
+  id         String                   @id @default(cuid())
+  requestId  String
+  request    VolunteerStaffingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime                 @default(now())
+
+  @@unique([requestId, userId])
+  @@index([userId])
+}
+
+model RideRequest {
+  id              String            @id @default(cuid())
+  memberId        String
+  member          Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  meetupId        String
+  meetup          Meetup            @relation(fields: [meetupId], references: [id], onDelete: Cascade)
+  pickupArea      String
+  availableAfter  String
+  passengerCount  Int               @default(1)
+  note            String?
+  status          RideRequestStatus @default(REQUESTED)
+  driverUserId    String?
+  driver          User?             @relation("RideDriver", fields: [driverUserId], references: [id], onDelete: SetNull)
+  pickupNotes     String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([status, meetupId])
+  @@index([memberId, createdAt])
+  @@index([driverUserId])
 }
 
 model AssistanceRequest {
