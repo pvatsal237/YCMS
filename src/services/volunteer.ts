@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
-import { createStaffNotification } from "@/services/staff-notifications";
+import {
+  createStaffNotification,
+  deleteStaffingOpportunityNotifications,
+} from "@/services/staff-notifications";
 import { DEPARTMENT_TASK_TEMPLATES } from "@/utils/volunteer-templates";
 import type { SessionUser } from "@/types";
 import type { DepartmentPlanStatus, VolunteerDepartmentCode } from "@prisma/client";
@@ -9,6 +12,7 @@ import {
   SCHEDULE_CONFLICT_MESSAGE,
   assignmentFitsAvailability,
   kitchenLeadMembershipConflict,
+  staffingShortage,
   utcDateKey,
   windowsOverlap,
   type ScheduleWindow,
@@ -30,6 +34,7 @@ export { DEPARTMENT_TASK_TEMPLATES };
 export type KnownAssignment = { label: string; userId: string };
 
 export type StaffingRequirementInput = {
+  id?: string;
   task: string;
   neededCount: number;
   requestDate: Date;
@@ -236,6 +241,128 @@ async function assertNoScheduleConflict(input: {
   }
 }
 
+async function volunteerHasTimeConflict(input: {
+  userId: string;
+  departmentId: string;
+  requestDate: Date;
+  startTime: string;
+  endTime: string;
+  exceptRequestId?: string;
+}) {
+  const target = toWindow(input.requestDate, input.startTime, input.endTime);
+  const busy = [
+    ...(await loadAssignmentWindows(input.userId, input.exceptRequestId)),
+    ...(await loadLeadCommitmentWindows(input.userId, input.departmentId)),
+  ];
+  return busy.some((window) => windowsOverlap(window, target));
+}
+
+function nextDepartmentPlanStatus(
+  actor: SessionUser,
+  existing: { status: DepartmentPlanStatus } | null,
+  submit: boolean,
+): DepartmentPlanStatus {
+  if (existing?.status === "CLOSED") {
+    throw new AppError("This plan is locked after the event was completed.", 400);
+  }
+  if (actor.role === "ADMIN" || actor.role === "COORDINATOR") {
+    if (submit) return "APPROVED";
+    return existing?.status ?? "APPROVED";
+  }
+  if (submit) return "PENDING_APPROVAL";
+  if (!existing || existing.status === "DRAFT") return "DRAFT";
+  if (existing.status === "CHANGES_REQUESTED") return "CHANGES_REQUESTED";
+  return "PENDING_APPROVAL";
+}
+
+function requestStatusForPlan(planStatus: DepartmentPlanStatus, needed: number, confirmed: number) {
+  if (planStatus === "CLOSED") return "CLOSED" as const;
+  if (planStatus === "APPROVED") return staffingShortage(needed, confirmed) > 0 ? ("APPROVED" as const) : ("FILLED" as const);
+  if (planStatus === "PENDING_APPROVAL") return "PENDING_APPROVAL" as const;
+  return "DRAFT" as const;
+}
+
+async function syncRequestFillStatus(requestId: string) {
+  const request = await prisma.volunteerStaffingRequest.findUnique({
+    where: { id: requestId },
+    include: { assignments: true },
+  });
+  if (!request) return null;
+  const confirmed = request.assignments.length;
+  const liveOpen = staffingShortage(request.neededCount, confirmed) > 0;
+  const canToggleFill = request.status === "APPROVED" || request.status === "FILLED";
+  const next = canToggleFill ? (liveOpen ? "APPROVED" : "FILLED") : request.status;
+  if (next !== request.status) {
+    await prisma.volunteerStaffingRequest.update({
+      where: { id: requestId },
+      data: { status: next },
+    });
+  }
+  await syncStaffingOpportunityNotifications(requestId);
+  return { ...request, status: next, confirmed };
+}
+
+async function syncStaffingOpportunityNotifications(requestId: string) {
+  const request = await prisma.volunteerStaffingRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      meetup: true,
+      department: { include: { members: { include: { user: { select: { id: true, active: true } } } } } },
+      assignments: true,
+      responses: true,
+    },
+  });
+  if (!request) return;
+  const remaining = staffingShortage(request.neededCount, request.assignments.length);
+  const assigned = new Set(request.assignments.map((row) => row.userId));
+  if (request.status !== "APPROVED" && request.status !== "FILLED") {
+    await deleteStaffingOpportunityNotifications(requestId);
+    return;
+  }
+  if (remaining === 0) {
+    await deleteStaffingOpportunityNotifications(requestId);
+    return;
+  }
+  await deleteStaffingOpportunityNotifications(requestId);
+  const declined = new Set(
+    request.responses.filter((row) => row.status === "NOT_AVAILABLE").map((row) => row.userId),
+  );
+  const title = `${request.department.name} needs ${remaining} more volunteer${remaining === 1 ? "" : "s"} for ${request.task}`;
+  const message = [
+    `Event: ${request.meetup.title}`,
+    `Department: ${request.department.name}`,
+    `Task: ${request.task}`,
+    `Date: ${utcDateKey(request.requestDate)}`,
+    `Start Time: ${request.startTime}`,
+    `End Time: ${request.endTime}`,
+    `Remaining Spots: ${remaining}`,
+    request.notes ? `Notes: ${request.notes}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  for (const member of request.department.members) {
+    if (!member.user.active || assigned.has(member.userId) || declined.has(member.userId)) continue;
+    if (
+      await volunteerHasTimeConflict({
+        userId: member.userId,
+        departmentId: request.departmentId,
+        requestDate: request.requestDate,
+        startTime: request.startTime,
+        endTime: request.endTime,
+        exceptRequestId: request.id,
+      })
+    ) {
+      continue;
+    }
+    await createStaffNotification({
+      userId: member.userId,
+      requestId: request.id,
+      title,
+      message,
+    });
+  }
+}
+
 export async function createStaffingRequest(
   actor: SessionUser,
   input: {
@@ -283,15 +410,16 @@ export async function saveDepartmentPlan(
   }
   const existing = await prisma.eventDepartmentPlan.findUnique({
     where: { meetupId_departmentId: { meetupId: input.meetupId, departmentId: input.departmentId } },
+    include: { staffingRequests: { include: { assignments: true } } },
   });
-  if (existing && !["DRAFT", "CHANGES_REQUESTED"].includes(existing.status) && actor.role === "ATTENDANCE_VOLUNTEER") {
-    throw new AppError("This plan is already submitted for review.", 400);
+  if (existing?.status === "CLOSED") {
+    throw new AppError("This plan is locked after the event was completed.", 400);
   }
   if (input.requirements.length === 0) {
     throw new AppError("Add at least one staffing requirement.", 400);
   }
 
-  const status: DepartmentPlanStatus = input.submit ? "PENDING_APPROVAL" : "DRAFT";
+  const status = nextDepartmentPlanStatus(actor, existing, input.submit);
   const plan = existing
     ? await prisma.eventDepartmentPlan.update({
         where: { id: existing.id },
@@ -321,41 +449,66 @@ export async function saveDepartmentPlan(
         },
       });
 
-  await prisma.volunteerAssignment.deleteMany({
-    where: { request: { planId: plan.id } },
-  });
-  await prisma.volunteerStaffingRequest.deleteMany({ where: { planId: plan.id } });
+  const keepIds = new Set(input.requirements.map((row) => row.id).filter(Boolean) as string[]);
+  const existingIds = existing?.staffingRequests.map((row) => row.id) ?? [];
+  const removeIds = existingIds.filter((id) => !keepIds.has(id));
+  if (removeIds.length > 0) {
+    await prisma.volunteerStaffingRequest.deleteMany({ where: { id: { in: removeIds } } });
+  }
 
   for (const requirement of input.requirements) {
-    const request = await prisma.volunteerStaffingRequest.create({
-      data: {
-        meetupId: input.meetupId,
-        departmentId: input.departmentId,
-        planId: plan.id,
-        task: requirement.task.trim(),
-        neededCount: requirement.neededCount,
-        requestDate: requirement.requestDate,
-        startTime: requirement.startTime,
-        endTime: requirement.endTime,
-        notes: requirement.notes || null,
-        createdById: actor.id,
-        preAssignedUserId: requirement.preAssignedUserId || null,
-        status: input.submit ? "PENDING_APPROVAL" : "DRAFT",
-      },
-    });
+    const owned = requirement.id
+      ? existing?.staffingRequests.find((row) => row.id === requirement.id)
+      : undefined;
+    const confirmed = owned?.assignments.length ?? 0;
+    const requestStatus = requestStatusForPlan(status, requirement.neededCount, confirmed);
+    const request = owned
+      ? await prisma.volunteerStaffingRequest.update({
+          where: { id: owned.id },
+          data: {
+            task: requirement.task.trim(),
+            neededCount: requirement.neededCount,
+            requestDate: requirement.requestDate,
+            startTime: requirement.startTime,
+            endTime: requirement.endTime,
+            notes: requirement.notes || null,
+            preAssignedUserId: requirement.preAssignedUserId || null,
+            status: requestStatus,
+          },
+        })
+      : await prisma.volunteerStaffingRequest.create({
+          data: {
+            meetupId: input.meetupId,
+            departmentId: input.departmentId,
+            planId: plan.id,
+            task: requirement.task.trim(),
+            neededCount: requirement.neededCount,
+            requestDate: requirement.requestDate,
+            startTime: requirement.startTime,
+            endTime: requirement.endTime,
+            notes: requirement.notes || null,
+            createdById: actor.id,
+            preAssignedUserId: requirement.preAssignedUserId || null,
+            status: requestStatus,
+          },
+        });
     if (requirement.preAssignedUserId) {
-      await assertNoScheduleConflict({
-        userId: requirement.preAssignedUserId,
-        departmentId: input.departmentId,
-        requestDate: requirement.requestDate,
-        startTime: requirement.startTime,
-        endTime: requirement.endTime,
-        exceptRequestId: request.id,
-      });
-      await prisma.volunteerAssignment.create({
-        data: { requestId: request.id, userId: requirement.preAssignedUserId },
-      });
+      const already = owned?.assignments.some((row) => row.userId === requirement.preAssignedUserId);
+      if (!already) {
+        await assertNoScheduleConflict({
+          userId: requirement.preAssignedUserId,
+          departmentId: input.departmentId,
+          requestDate: requirement.requestDate,
+          startTime: requirement.startTime,
+          endTime: requirement.endTime,
+          exceptRequestId: request.id,
+        });
+        await prisma.volunteerAssignment.create({
+          data: { requestId: request.id, userId: requirement.preAssignedUserId },
+        });
+      }
     }
+    await syncRequestFillStatus(request.id);
   }
   return plan;
 }
@@ -390,16 +543,13 @@ export async function reviewDepartmentPlan(
     data: { status: requestStatus },
   });
   if (decision === "APPROVED") {
-    await Promise.all(
-      plan.department.members.map((member) =>
-        createStaffNotification({
-          userId: member.userId,
-          requestId: plan.id,
-          title: "New volunteer opportunity",
-          message: `${plan.department.name} needs volunteers for ${plan.meetup.title}.`,
-        }),
-      ),
-    );
+    for (const request of plan.staffingRequests) {
+      await syncRequestFillStatus(request.id);
+    }
+  } else {
+    for (const request of plan.staffingRequests) {
+      await deleteStaffingOpportunityNotifications(request.id);
+    }
   }
   return plan;
 }
@@ -418,16 +568,9 @@ export async function reviewStaffingRequest(
     include: { department: { include: { members: true } } },
   });
   if (status === "APPROVED") {
-    await Promise.all(
-      request.department.members.map((member) =>
-        createStaffNotification({
-          userId: member.userId,
-          requestId: request.id,
-          title: "New volunteer opportunity",
-          message: `${request.task} needs ${request.neededCount} volunteers.`,
-        }),
-      ),
-    );
+    await syncRequestFillStatus(request.id);
+  } else {
+    await deleteStaffingOpportunityNotifications(request.id);
   }
   return request;
 }
@@ -444,6 +587,7 @@ export async function respondToStaffingRequest(
 ) {
   const request = await prisma.volunteerStaffingRequest.findFirst({
     where: { id: input.requestId, status: { in: ["APPROVED", "FILLED"] } },
+    include: { assignments: true },
   });
   if (!request) throw new AppError("Request not found.", 404);
   const member = await prisma.volunteerDepartmentMembership.findFirst({
@@ -453,18 +597,45 @@ export async function respondToStaffingRequest(
   if (input.status === "PARTIAL" && (!input.startTime || !input.endTime)) {
     throw new AppError("Partial availability needs a start and end time.", 400);
   }
-  if (input.status !== "NOT_AVAILABLE") {
-    await assertNoScheduleConflict({
-      userId: actor.id,
-      departmentId: request.departmentId,
-      requestDate: request.requestDate,
-      startTime: input.status === "PARTIAL" ? input.startTime! : request.startTime,
-      endTime: input.status === "PARTIAL" ? input.endTime! : request.endTime,
-      exceptRequestId: request.id,
-      availability: input,
+  const existingAssignment = request.assignments.find((row) => row.userId === actor.id);
+  if (input.status === "NOT_AVAILABLE") {
+    if (existingAssignment) {
+      await prisma.volunteerAssignment.delete({ where: { id: existingAssignment.id } });
+    }
+    const response = await prisma.volunteerStaffingResponse.upsert({
+      where: { requestId_userId: { requestId: input.requestId, userId: actor.id } },
+      create: {
+        requestId: input.requestId,
+        userId: actor.id,
+        status: input.status,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        note: input.note,
+      },
+      update: {
+        status: input.status,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        note: input.note,
+      },
     });
+    await syncRequestFillStatus(request.id);
+    return response;
   }
-  return prisma.volunteerStaffingResponse.upsert({
+  await assertNoScheduleConflict({
+    userId: actor.id,
+    departmentId: request.departmentId,
+    requestDate: request.requestDate,
+    startTime: request.startTime,
+    endTime: request.endTime,
+    exceptRequestId: request.id,
+    availability: input,
+  });
+  const remaining = staffingShortage(request.neededCount, request.assignments.length);
+  if (!existingAssignment && remaining <= 0) {
+    throw new AppError("This requirement is already filled.", 400);
+  }
+  const response = await prisma.volunteerStaffingResponse.upsert({
     where: { requestId_userId: { requestId: input.requestId, userId: actor.id } },
     create: {
       requestId: input.requestId,
@@ -481,6 +652,17 @@ export async function respondToStaffingRequest(
       note: input.note,
     },
   });
+  if (!existingAssignment) {
+    await prisma.volunteerAssignment.create({ data: { requestId: request.id, userId: actor.id } });
+    await createStaffNotification({
+      userId: actor.id,
+      requestId: request.id,
+      title: "Volunteer assignment",
+      message: `You were assigned to ${request.task}.`,
+    });
+  }
+  await syncRequestFillStatus(request.id);
+  return response;
 }
 
 export async function assignVolunteerToRequest(
@@ -496,6 +678,9 @@ export async function assignVolunteerToRequest(
   });
   if (!request) throw new AppError("Request not found.", 404);
   if (request.assignments.some((row) => row.userId === userId)) return request;
+  if (staffingShortage(request.neededCount, request.assignments.length) <= 0) {
+    throw new AppError("This requirement is already filled.", 400);
+  }
   const response = request.responses.find((row) => row.userId === userId);
   await assertNoScheduleConflict({
     userId,
@@ -519,13 +704,7 @@ export async function assignVolunteerToRequest(
     title: "Volunteer assignment",
     message: `You were assigned to ${request.task}.`,
   });
-  const count = request.assignments.length + 1;
-  if (count >= request.neededCount) {
-    await prisma.volunteerStaffingRequest.update({
-      where: { id: requestId },
-      data: { status: "FILLED" },
-    });
-  }
+  await syncRequestFillStatus(requestId);
   return request;
 }
 
@@ -548,8 +727,8 @@ export async function listOpenStaffingForVolunteer(userId: string) {
     select: { departmentId: true },
   });
   const ids = memberships.map((row) => row.departmentId);
-  return prisma.volunteerStaffingRequest.findMany({
-    where: { status: "APPROVED", departmentId: { in: ids } },
+  const rows = await prisma.volunteerStaffingRequest.findMany({
+    where: { status: { in: ["APPROVED", "FILLED"] }, departmentId: { in: ids } },
     include: {
       meetup: true,
       department: true,
@@ -558,6 +737,27 @@ export async function listOpenStaffingForVolunteer(userId: string) {
     },
     orderBy: { requestDate: "asc" },
   });
+  const open = [];
+  for (const request of rows) {
+    const remaining = staffingShortage(request.neededCount, request.assignments.length);
+    if (remaining <= 0) continue;
+    if (request.assignments.some((row) => row.userId === userId)) continue;
+    if (request.responses.some((row) => row.status === "NOT_AVAILABLE")) continue;
+    if (
+      await volunteerHasTimeConflict({
+        userId,
+        departmentId: request.departmentId,
+        requestDate: request.requestDate,
+        startTime: request.startTime,
+        endTime: request.endTime,
+        exceptRequestId: request.id,
+      })
+    ) {
+      continue;
+    }
+    open.push({ ...request, remaining });
+  }
+  return open;
 }
 
 function summarizeRequests(
@@ -565,20 +765,52 @@ function summarizeRequests(
     id: string;
     task: string;
     neededCount: number;
+    status: string;
+    requestDate: Date;
+    startTime: string;
+    endTime: string;
+    notes: string | null;
     assignments: Array<{ user: { id: string; name: string; phone: string | null } }>;
+    responses?: Array<{
+      userId: string;
+      status: string;
+      startTime: string | null;
+      endTime: string | null;
+      note: string | null;
+    }>;
   }>,
 ) {
-  const tasks = requests.map((request) => ({
-    id: request.id,
-    task: request.task,
-    needed: request.neededCount,
-    confirmed: request.assignments.length,
-    remaining: Math.max(0, request.neededCount - request.assignments.length),
-    volunteers: request.assignments.map((row) => row.user),
-  }));
+  const tasks = requests.map((request) => {
+    const confirmed = request.assignments.length;
+    const remaining = staffingShortage(request.neededCount, confirmed);
+    return {
+      id: request.id,
+      task: request.task,
+      needed: request.neededCount,
+      confirmed,
+      remaining,
+      fill: remaining > 0 ? "OPEN" : "FILLED",
+      status: request.status,
+      requestDate: request.requestDate,
+      startTime: request.startTime,
+      endTime: request.endTime,
+      notes: request.notes,
+      volunteers: request.assignments.map((row) => {
+        const response = request.responses?.find((item) => item.userId === row.user.id);
+        return {
+          ...row.user,
+          availability: response?.status ?? "AVAILABLE",
+          availableStart: response?.startTime ?? null,
+          availableEnd: response?.endTime ?? null,
+          note: response?.note ?? null,
+          assignmentStatus: "Confirmed",
+        };
+      }),
+    };
+  });
   const needed = tasks.reduce((sum, row) => sum + row.needed, 0);
   const confirmed = tasks.reduce((sum, row) => sum + row.confirmed, 0);
-  return { needed, confirmed, remaining: Math.max(0, needed - confirmed), tasks };
+  return { needed, confirmed, remaining: staffingShortage(needed, confirmed), tasks };
 }
 
 export async function getVolunteerHomeData(userId: string) {
@@ -609,6 +841,9 @@ export async function getVolunteerHomeData(userId: string) {
             staffingRequests: {
               include: {
                 assignments: { include: { user: { select: { id: true, name: true, phone: true } } } },
+                responses: {
+                  select: { userId: true, status: true, startTime: true, endTime: true, note: true },
+                },
               },
             },
           },

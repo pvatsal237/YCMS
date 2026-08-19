@@ -91,6 +91,17 @@ export async function ensureMemberAuthSchema() {
   await exec(
     `CREATE INDEX IF NOT EXISTS "StaffNotification_userId_createdAt_idx" ON "StaffNotification"("userId", "createdAt")`,
   );
+  await exec(`
+    DELETE FROM "StaffNotification" a
+    USING "StaffNotification" b
+    WHERE a."userId" = b."userId"
+      AND a."requestId" IS NOT NULL
+      AND a."requestId" = b."requestId"
+      AND a."createdAt" < b."createdAt"
+  `);
+  await exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "StaffNotification_userId_requestId_key" ON "StaffNotification"("userId", "requestId") WHERE "requestId" IS NOT NULL`,
+  );
 
   ensured = true;
 }

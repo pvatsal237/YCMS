@@ -22,14 +22,14 @@ export function StaffingResponseForm({ requestId }: { requestId: string }) {
           onChange={(event) => setStatus(event.target.value)}
         >
           <option value="AVAILABLE">Available</option>
-          <option value="PARTIAL">Partially available</option>
-          <option value="NOT_AVAILABLE">Not available</option>
+          <option value="PARTIAL">Partially Available</option>
+          <option value="NOT_AVAILABLE">Not Available</option>
         </select>
         {status === "PARTIAL" ? (
           <>
-            <input name="startTime" placeholder="From" required className="w-24 rounded-md border px-2 py-1" />
-            <input name="endTime" placeholder="To" required className="w-24 rounded-md border px-2 py-1" />
-            <input name="note" placeholder="Note" className="w-40 rounded-md border px-2 py-1" />
+            <input name="startTime" type="time" required className="rounded-md border px-2 py-1" aria-label="Start Time" />
+            <input name="endTime" type="time" required className="rounded-md border px-2 py-1" aria-label="End Time" />
+            <input name="note" placeholder="Optional note" className="w-40 rounded-md border px-2 py-1" />
           </>
         ) : null}
         <Button type="submit" size="sm" disabled={pending}>

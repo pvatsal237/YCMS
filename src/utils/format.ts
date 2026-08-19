@@ -158,6 +158,13 @@ export function departmentPlanStatusLabel(status: string): string {
   return labels[status] ?? status;
 }
 
+export function staffingRequirementBadge(planStatus: string, needed: number, confirmed: number): string {
+  if (planStatus === "PENDING_APPROVAL" || planStatus === "DRAFT" || planStatus === "CHANGES_REQUESTED") {
+    return "Pending Approval";
+  }
+  return needed - confirmed > 0 ? "Open" : "Filled";
+}
+
 export function employmentSummary(employment?: {
   employmentStatus: string;
   employer?: string | null;

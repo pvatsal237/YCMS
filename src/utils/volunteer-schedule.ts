@@ -57,6 +57,20 @@ export function windowsOverlap(a: ScheduleWindow, b: ScheduleWindow): boolean {
   return a.dateKey === b.dateKey && rangesOverlap(a.startTime, a.endTime, b.startTime, b.endTime);
 }
 
+export function staffingShortage(needed: number, confirmed: number): number {
+  return Math.max(0, needed - confirmed);
+}
+
+export function staffingFillLabel(needed: number, confirmed: number): "OPEN" | "FILLED" {
+  return staffingShortage(needed, confirmed) > 0 ? "OPEN" : "FILLED";
+}
+
+export function shiftIsoDate(iso: string, days: number): string {
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 export const KITCHEN_LEAD_BLOCKED_DEPARTMENTS = ["SEATING_SETUP"] as const;
 
 export const KITCHEN_LEAD_SEATING_MESSAGE =

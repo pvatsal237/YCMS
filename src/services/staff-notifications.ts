@@ -22,9 +22,10 @@ export async function listStaffNotifications(userId: string) {
       readAt: Date | null;
       createdAt: Date;
       memberId: string | null;
+      requestId: string | null;
     }[]
   >`
-    SELECT id, title, message, "readAt", "createdAt", "memberId"
+    SELECT id, title, message, "readAt", "createdAt", "memberId", "requestId"
     FROM "StaffNotification"
     WHERE "userId" = ${userId}
     ORDER BY "createdAt" DESC
@@ -49,6 +50,15 @@ export async function createStaffNotification(input: {
   message: string;
 }) {
   await ensureMemberAuthSchema();
+  const updated = await prisma.$executeRaw`
+    UPDATE "StaffNotification"
+    SET title = ${input.title},
+        message = ${input.message},
+        "memberId" = ${input.memberId ?? null},
+        "readAt" = NULL
+    WHERE "userId" = ${input.userId} AND "requestId" = ${input.requestId}
+  `;
+  if (Number(updated) > 0) return;
   await prisma.$executeRaw`
     INSERT INTO "StaffNotification"
       (id, "userId", "memberId", "requestId", title, message, "createdAt")
@@ -61,5 +71,14 @@ export async function createStaffNotification(input: {
       ${input.message},
       NOW()
     )
+  `;
+}
+
+export async function deleteStaffingOpportunityNotifications(requestId: string) {
+  await ensureMemberAuthSchema();
+  await prisma.$executeRaw`
+    DELETE FROM "StaffNotification"
+    WHERE "requestId" = ${requestId}
+      AND title LIKE ${"%more volunteer%"}
   `;
 }

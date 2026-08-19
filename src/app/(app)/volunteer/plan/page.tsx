@@ -11,7 +11,7 @@ export default async function VolunteerPlanPage({
 }: {
   searchParams: Promise<{ meetupId?: string; departmentId?: string }>;
 }) {
-  const user = await requireRole(["ATTENDANCE_VOLUNTEER"]);
+  const user = await requireRole(["ADMIN", "COORDINATOR", "ATTENDANCE_VOLUNTEER"]);
   const params = await searchParams;
   if (!params.meetupId || !params.departmentId) {
     return (
@@ -21,7 +21,7 @@ export default async function VolunteerPlanPage({
     );
   }
   const data = await getPlanEditorData(user.id, params.meetupId, params.departmentId);
-  const locked = Boolean(data.plan && !["DRAFT", "CHANGES_REQUESTED"].includes(data.plan.status));
+  const locked = data.plan?.status === "CLOSED";
 
   return (
     <div className="space-y-6">
@@ -56,6 +56,7 @@ export default async function VolunteerPlanPage({
                 ? (data.plan.knownAssignments as Array<{ label: string; userId: string }>)
                 : [],
               requirements: data.plan?.staffingRequests.map((row) => ({
+                id: row.id,
                 task: row.task,
                 neededCount: String(row.neededCount),
                 requestDate: toDateInputValue(row.requestDate),

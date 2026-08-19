@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
 import { DEPARTMENT_TASK_TEMPLATES } from "@/utils/volunteer-templates";
+import { shiftIsoDate } from "@/utils/volunteer-schedule";
 import type { ActionResult } from "@/types";
 
 type VolunteerOption = { id: string; name: string };
 type Requirement = {
+  id?: string;
   task: string;
   neededCount: string;
   requestDate: string;
@@ -18,6 +20,10 @@ type Requirement = {
   notes: string;
   preAssignedUserId: string;
 };
+
+function defaultDateForTask(task: string, eventDate: string) {
+  return /grocery/i.test(task) ? shiftIsoDate(eventDate, -1) : eventDate;
+}
 
 export function DepartmentPlanForm({
   meetupId,
@@ -71,7 +77,7 @@ export function DepartmentPlanForm({
       : templates.slice(0, kitchen ? 5 : transport ? 4 : 2).map((task) => ({
           task,
           neededCount: kitchen && task === "Chopping" ? "10" : "2",
-          requestDate: defaultDate,
+          requestDate: defaultDateForTask(task, defaultDate),
           startTime: eventStart || "20:00",
           endTime: eventEnd || "22:00",
           notes: "",
@@ -156,7 +162,7 @@ export function DepartmentPlanForm({
       <div className="space-y-4">
         <p className="text-sm font-medium text-slate-800">Staffing requirements</p>
         {rows.map((row, index) => (
-          <div key={index} className="grid gap-2 rounded-md border border-slate-200 p-3 sm:grid-cols-6">
+          <div key={row.id ?? index} className="grid gap-2 rounded-md border border-slate-200 p-3 sm:grid-cols-6">
             <Field label={transport ? "Area / route" : "Task"} >
               <Input
                 list={`tasks-${departmentCode}`}
@@ -275,10 +281,10 @@ export function DepartmentPlanForm({
       {locked ? null : (
         <div className="flex flex-wrap gap-2">
           <Button type="submit" size="sm" variant="secondary" disabled={pending} onClick={() => setSubmitFlag("0")}>
-            Save draft
+            Save Changes
           </Button>
           <Button type="submit" size="sm" disabled={pending} onClick={() => setSubmitFlag("1")}>
-            Submit for approval
+            Submit for Approval
           </Button>
         </div>
       )}

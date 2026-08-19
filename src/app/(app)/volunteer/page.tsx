@@ -5,7 +5,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatDate, formatTime12h } from "@/lib/dates";
-import { departmentLabel, departmentPlanStatusLabel, departmentShortLabel } from "@/utils/format";
+import { departmentLabel, departmentPlanStatusLabel, departmentShortLabel, staffingRequirementBadge } from "@/utils/format";
 import { StaffingResponseForm } from "@/components/volunteer/StaffingResponseForm";
 import Link from "next/link";
 
@@ -37,7 +37,7 @@ export default async function VolunteerHomePage() {
             action={
               lead.event ? (
                 <Link href={`/volunteer/plan?meetupId=${lead.event.id}&departmentId=${lead.department.id}`}>
-                  <Button size="sm">Plan Department Requirements</Button>
+                  <Button size="sm">Edit Plan</Button>
                 </Link>
               ) : null
             }
@@ -67,26 +67,47 @@ export default async function VolunteerHomePage() {
               <p className="text-slate-500">There is no upcoming event to plan.</p>
             )}
             {lead.summary.needed > 0 ? (
-              <div className="rounded-md bg-slate-50 p-3">
-                <p>
-                  Volunteers needed {lead.summary.needed} · confirmed {lead.summary.confirmed} · remaining{" "}
-                  {lead.summary.remaining}
-                </p>
-                <ul className="mt-2 space-y-1">
-                  {lead.summary.tasks.map((task) => (
-                    <li key={task.id}>
-                      <span className={task.remaining > 0 ? "text-amber-800" : "text-slate-700"}>
-                        {task.task}: {task.confirmed} / {task.needed}
-                        {task.remaining > 0 ? " — shortage" : ""}
-                      </span>
-                      {task.volunteers.length > 0 ? (
-                        <span className="block text-slate-500">
-                          {task.volunteers.map((person) => `${person.name}${person.phone ? ` · ${person.phone}` : ""}`).join("; ")}
-                        </span>
+              <div className="space-y-3">
+                {lead.summary.tasks.map((task) => (
+                  <div key={task.id} id={`requirement-${task.id}`} className="rounded-md border border-slate-200 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-medium">Task: {task.task}</p>
+                      <Badge>
+                        {staffingRequirementBadge(lead.plan?.status ?? task.status, task.needed, task.confirmed)}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-slate-700">
+                      Needed: {task.needed} · Confirmed: {task.confirmed} · Still Needed: {task.remaining}
+                    </p>
+                    {task.volunteers.length > 0 ? (
+                      <ul className="mt-2 space-y-1 text-slate-600">
+                        {task.volunteers.map((person) => (
+                          <li key={person.id}>
+                            {person.name}
+                            {person.phone ? ` · ${person.phone}` : ""}
+                            {` · ${person.availability === "PARTIAL" ? "Partially available" : person.availability === "NOT_AVAILABLE" ? "Not available" : "Available"}`}
+                            {` · ${person.assignmentStatus}`}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-2 text-slate-500">No confirmed volunteers yet.</p>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <a href={`#requirement-${task.id}`} className="text-sm font-medium text-teal-800">
+                        View Volunteers
+                      </a>
+                      {lead.event ? (
+                        <Link
+                          href={`/volunteer/plan?meetupId=${lead.event.id}&departmentId=${lead.department.id}`}
+                          className="text-sm font-medium text-teal-800"
+                        >
+                          Edit Requirement
+                        </Link>
                       ) : null}
-                    </li>
-                  ))}
-                </ul>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : null}
             {lead.transport ? (
@@ -180,8 +201,9 @@ export default async function VolunteerHomePage() {
               <div key={request.id} className="rounded-md border border-slate-200 p-3 text-sm">
                 <p className="font-medium">{request.task}</p>
                 <p className="text-slate-500">
-                  {request.meetup.title} · {departmentLabel(request.department.code)} · needed {request.neededCount} ·{" "}
-                  {formatDate(request.requestDate)} · {formatTime12h(request.startTime)}–{formatTime12h(request.endTime)}
+                  {request.meetup.title} · {departmentLabel(request.department.code)} · Remaining spots{" "}
+                  {request.remaining} · {formatDate(request.requestDate)} · {formatTime12h(request.startTime)}–
+                  {formatTime12h(request.endTime)}
                 </p>
                 {request.notes ? <p className="mt-1">{request.notes}</p> : null}
                 <StaffingResponseForm requestId={request.id} />

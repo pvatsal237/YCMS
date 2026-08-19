@@ -88,6 +88,7 @@ export async function respondStaffingAction(
     });
     revalidatePath("/volunteer");
     revalidatePath("/volunteer/availability");
+    revalidatePath("/notifications");
     return { ok: true, message: "Availability saved." };
   } catch (error) {
     logServerError("respondStaffingAction", error);
@@ -118,6 +119,7 @@ export async function saveDepartmentPlanAction(
     const requirements = (JSON.parse(String(formData.get("requirements") ?? "[]")) as Array<Record<string, string>>).map(
       (row) =>
         ({
+          id: row.id,
           task: row.task,
           neededCount: Number(row.neededCount ?? 0),
           requestDate: parseDateOnly(String(row.requestDate ?? "")),
@@ -144,7 +146,7 @@ export async function saveDepartmentPlanAction(
     revalidatePath("/events");
     return {
       ok: true,
-      message: String(formData.get("submit") ?? "") === "1" ? "Plan submitted for approval." : "Draft saved.",
+      message: String(formData.get("submit") ?? "") === "1" ? "Plan submitted for approval." : "Changes saved.",
     };
   } catch (error) {
     logServerError("saveDepartmentPlanAction", error);
