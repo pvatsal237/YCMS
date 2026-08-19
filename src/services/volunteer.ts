@@ -5,8 +5,10 @@ import { DEPARTMENT_TASK_TEMPLATES } from "@/utils/volunteer-templates";
 import type { SessionUser } from "@/types";
 import type { DepartmentPlanStatus, VolunteerDepartmentCode } from "@prisma/client";
 import {
+  KITCHEN_LEAD_SEATING_MESSAGE,
   SCHEDULE_CONFLICT_MESSAGE,
   assignmentFitsAvailability,
+  kitchenLeadMembershipConflict,
   utcDateKey,
   windowsOverlap,
   type ScheduleWindow,
@@ -94,6 +96,15 @@ export async function assignVolunteerDepartments(
     where: { id: input.userId, role: "ATTENDANCE_VOLUNTEER" },
   });
   if (!user) throw new AppError("Volunteer not found.", 404);
+  const selectedIds = [...new Set([...input.departmentIds, ...input.leadDepartmentIds])];
+  const selected = await prisma.volunteerDepartment.findMany({
+    where: { id: { in: selectedIds } },
+    select: { id: true, code: true },
+  });
+  const memberCodes = selected.filter((row) => input.departmentIds.includes(row.id)).map((row) => row.code);
+  const leadCodes = selected.filter((row) => input.leadDepartmentIds.includes(row.id)).map((row) => row.code);
+  const conflict = kitchenLeadMembershipConflict(leadCodes, memberCodes);
+  if (conflict) throw new AppError(conflict, 400);
   await prisma.user.update({
     where: { id: user.id },
     data: {
@@ -147,19 +158,44 @@ async function loadAssignmentWindows(userId: string, exceptRequestId?: string): 
 async function loadLeadCommitmentWindows(userId: string, exceptDepartmentId?: string): Promise<ScheduleWindow[]> {
   const leadMemberships = await prisma.volunteerDepartmentMembership.findMany({
     where: { userId, responsibility: "LEAD" },
-    select: { departmentId: true },
+    include: { department: true },
   });
-  const departmentIds = leadMemberships
-    .map((row) => row.departmentId)
-    .filter((id) => id !== exceptDepartmentId);
-  if (departmentIds.length === 0) return [];
+  const relevant = leadMemberships.filter((row) => row.departmentId !== exceptDepartmentId);
+  if (relevant.length === 0) return [];
+  const departmentIds = relevant.map((row) => row.departmentId);
   const requests = await prisma.volunteerStaffingRequest.findMany({
     where: {
       departmentId: { in: departmentIds },
       status: { notIn: ["REJECTED", "CLOSED"] },
     },
+    include: { meetup: true },
   });
-  return requests.map((row) => toWindow(row.requestDate, row.startTime, row.endTime));
+  const windows = requests.map((row) => toWindow(row.requestDate, row.startTime, row.endTime));
+  const kitchenLead = relevant.some((row) => row.department.code === "KITCHEN");
+  if (kitchenLead) {
+    const meetups = new Map(requests.map((row) => [row.meetup.id, row.meetup]));
+    const plans = await prisma.eventDepartmentPlan.findMany({
+      where: { department: { code: "KITCHEN" }, status: { not: "CLOSED" } },
+      include: { meetup: true },
+    });
+    for (const plan of plans) meetups.set(plan.meetup.id, plan.meetup);
+    for (const meetup of meetups.values()) {
+      windows.push(toWindow(meetup.meetupDate, "15:00", meetup.endTime || "22:00"));
+    }
+  }
+  return windows;
+}
+
+async function assertKitchenLeadNotSeating(userId: string, departmentId: string) {
+  const [target, kitchenLead] = await Promise.all([
+    prisma.volunteerDepartment.findUnique({ where: { id: departmentId }, select: { code: true } }),
+    prisma.volunteerDepartmentMembership.findFirst({
+      where: { userId, responsibility: "LEAD", department: { code: "KITCHEN" } },
+    }),
+  ]);
+  if (kitchenLead && target?.code === "SEATING_SETUP") {
+    throw new AppError(KITCHEN_LEAD_SEATING_MESSAGE, 400);
+  }
 }
 
 async function assertNoScheduleConflict(input: {
@@ -174,6 +210,7 @@ async function assertNoScheduleConflict(input: {
   if (input.availability?.status === "NOT_AVAILABLE") {
     throw new AppError("This volunteer is not available for this task.", 400);
   }
+  await assertKitchenLeadNotSeating(input.userId, input.departmentId);
   if (input.availability?.status === "PARTIAL") {
     if (!input.availability.startTime || !input.availability.endTime) {
       throw new AppError("Partial availability needs a start and end time.", 400);

@@ -56,3 +56,15 @@ export type ScheduleWindow = {
 export function windowsOverlap(a: ScheduleWindow, b: ScheduleWindow): boolean {
   return a.dateKey === b.dateKey && rangesOverlap(a.startTime, a.endTime, b.startTime, b.endTime);
 }
+
+export const KITCHEN_LEAD_BLOCKED_DEPARTMENTS = ["SEATING_SETUP"] as const;
+
+export const KITCHEN_LEAD_SEATING_MESSAGE =
+  "Kitchen leads stay with food preparation through the end of the event, so they cannot volunteer for Seating & Setup.";
+
+export function kitchenLeadMembershipConflict(leadCodes: string[], memberCodes: string[]): string | null {
+  if (leadCodes.includes("KITCHEN") && memberCodes.includes("SEATING_SETUP")) {
+    return KITCHEN_LEAD_SEATING_MESSAGE;
+  }
+  return null;
+}

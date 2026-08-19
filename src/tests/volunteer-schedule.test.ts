@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   SCHEDULE_CONFLICT_MESSAGE,
   assignmentFitsAvailability,
+  kitchenLeadMembershipConflict,
   rangesOverlap,
   windowsOverlap,
 } from "@/utils/volunteer-schedule";
@@ -27,5 +28,12 @@ describe("volunteer schedule rules", () => {
 
   it("keeps the conflict copy stable", () => {
     expect(SCHEDULE_CONFLICT_MESSAGE).toBe("You are already assigned to another activity during this time.");
+  });
+
+  it("does not let a kitchen lead also join seating and setup", () => {
+    expect(kitchenLeadMembershipConflict(["KITCHEN"], ["KITCHEN", "SEATING_SETUP"])).toBe(
+      "Kitchen leads stay with food preparation through the end of the event, so they cannot volunteer for Seating & Setup.",
+    );
+    expect(kitchenLeadMembershipConflict(["KITCHEN"], ["KITCHEN"])).toBeNull();
   });
 });

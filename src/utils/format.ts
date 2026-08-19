@@ -124,6 +124,29 @@ export function departmentLabel(code: string): string {
   return labels[code] ?? code;
 }
 
+export function departmentShortLabel(code: string): string {
+  const labels: Record<string, string> = {
+    KITCHEN: "Kitchen",
+    GROCERIES: "Groceries",
+    TRANSPORTATION: "Transportation",
+    SEATING_SETUP: "Seating & Setup",
+    AUDIO_VIDEO: "Audio / Video",
+    RECREATION: "Recreation",
+    RISEUP_SUPPORT: "RiseUp",
+    GENERAL_EVENT_SUPPORT: "Event Support",
+  };
+  return labels[code] ?? departmentLabel(code);
+}
+
+export function staffDisplayTitle(role: UserRole, leadDepartmentCodes: string[] = []): string {
+  if (role !== "ATTENDANCE_VOLUNTEER") return roleLabel(role);
+  if (leadDepartmentCodes.length === 1) {
+    return `${departmentShortLabel(leadDepartmentCodes[0])} Lead`;
+  }
+  if (leadDepartmentCodes.length > 1) return "Department Lead";
+  return "Volunteer";
+}
+
 export function departmentPlanStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     DRAFT: "Draft",

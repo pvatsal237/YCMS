@@ -20,14 +20,17 @@ export function Header({
   user,
   notificationCount,
   onMenu,
+  displayTitle,
 }: {
   user: SessionUser;
   notificationCount: number;
   onMenu: () => void;
+  displayTitle?: string;
 }) {
   const [openProfile, setOpenProfile] = useState(false);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
+  const title = displayTitle ?? roleLabel(user.role);
   const canSearch = user.role === "ADMIN" || user.role === "COORDINATOR";
 
   useEffect(() => {
@@ -120,7 +123,7 @@ export function Header({
           <UserRound className="h-5 w-5 text-slate-500" />
           <span className="hidden text-left sm:block">
             <span className="block text-sm font-medium text-slate-900">{user.name}</span>
-            <span className="block text-xs text-slate-500">{roleLabel(user.role)}</span>
+            <span className="block text-xs text-slate-500">{title}</span>
           </span>
         </button>
         {openProfile ? (
@@ -128,7 +131,7 @@ export function Header({
             <div className="px-2 py-2 text-sm">
               <div className="font-medium text-slate-900">{user.name}</div>
               <div className="text-slate-500">{user.email}</div>
-              <div className="mt-1 text-xs text-slate-500">{roleLabel(user.role)}</div>
+              <div className="mt-1 text-xs text-slate-500">{title}</div>
             </div>
             <form action={logoutAction}>
               <button

@@ -8,10 +8,12 @@ import type { SessionUser } from "@/types";
 export function AppShell({
   user,
   notificationCount,
+  displayTitle,
   children,
 }: {
   user: SessionUser;
   notificationCount: number;
+  displayTitle?: string;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -31,6 +33,7 @@ export function AppShell({
         <Header
           user={user}
           notificationCount={notificationCount}
+          displayTitle={displayTitle}
           onMenu={() => setOpen(true)}
         />
         <main className="flex-1 p-4 lg:p-6">{children}</main>

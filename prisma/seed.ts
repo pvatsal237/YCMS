@@ -127,14 +127,17 @@ async function main() {
   for (const [index, volunteer] of volunteers.entries()) {
     const primary = departments[index % departments.length];
     const secondary = departments[(index + 3) % departments.length];
+    const isLead = index < departments.length;
     await prisma.volunteerDepartmentMembership.create({
       data: {
         userId: volunteer.id,
         departmentId: primary.id,
-        responsibility: index < departments.length ? "LEAD" : "VOLUNTEER",
+        responsibility: isLead ? "LEAD" : "VOLUNTEER",
       },
     });
-    if (secondary.id !== primary.id) {
+    const kitchenLeadOnSeating =
+      isLead && primary.code === "KITCHEN" && secondary.code === "SEATING_SETUP";
+    if (secondary.id !== primary.id && !kitchenLeadOnSeating) {
       await prisma.volunteerDepartmentMembership.create({
         data: { userId: volunteer.id, departmentId: secondary.id, responsibility: "VOLUNTEER" },
       });
