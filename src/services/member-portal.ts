@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { prisma, connectPrisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
@@ -85,11 +86,40 @@ async function loadMemberPortalData(actor: SessionUser) {
     throw new AppError("You do not have permission to perform this action.", 403);
   }
 
-  const upcomingMeetup = await prisma.meetup.findFirst({
-    where: { active: true, meetupDate: { gte: new Date() } },
-    orderBy: { meetupDate: "asc" },
-    select: { id: true, title: true, meetupDate: true, location: true, startTime: true, endTime: true, eventType: true },
-  });
+  let upcomingMeetup: {
+    id: string;
+    title: string;
+    meetupDate: Date;
+    location: string;
+    startTime: string | null;
+    endTime: string | null;
+    eventType: string;
+  } | null = null;
+  try {
+    upcomingMeetup = await prisma.meetup.findFirst({
+      where: { active: true, meetupDate: { gte: new Date() } },
+      orderBy: { meetupDate: "asc" },
+      select: {
+        id: true,
+        title: true,
+        meetupDate: true,
+        location: true,
+        startTime: true,
+        endTime: true,
+        eventType: true,
+      },
+    });
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientValidationError)) throw error;
+    const row = await prisma.meetup.findFirst({
+      where: { active: true, meetupDate: { gte: new Date() } },
+      orderBy: { meetupDate: "asc" },
+      select: { id: true, title: true, meetupDate: true, location: true },
+    });
+    upcomingMeetup = row
+      ? { ...row, startTime: null, endTime: null, eventType: "WEEKLY_MEETUP" }
+      : null;
+  }
 
   await ensureMemberAuthSchema();
   const pendingRequests = await prisma.$queryRaw<
