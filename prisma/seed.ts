@@ -12,6 +12,17 @@ import { createStaffNotification } from "../src/services/staff-notifications";
 const prisma = new PrismaClient();
 const DEMO_PASSWORD = "YcmsDemo123!";
 
+async function deleteAll(
+  delegate: { deleteMany: (args?: object) => Promise<unknown> } | undefined,
+  table: string,
+) {
+  if (typeof delegate?.deleteMany === "function") {
+    await delegate.deleteMany({});
+    return;
+  }
+  await prisma.$executeRawUnsafe(`DELETE FROM "${table}"`);
+}
+
 function utcDate(year: number, month: number, day: number) {
   return new Date(Date.UTC(year, month - 1, day));
 }
@@ -35,8 +46,8 @@ const LAST = [
 ];
 
 async function main() {
-  await prisma.volunteerEnrollmentRequest.deleteMany();
-  await prisma.transportEventAvailability.deleteMany();
+  await deleteAll(prisma.volunteerEnrollmentRequest, "VolunteerEnrollmentRequest");
+  await deleteAll(prisma.transportEventAvailability, "TransportEventAvailability");
   await prisma.volunteerAssignment.deleteMany();
   await prisma.volunteerStaffingResponse.deleteMany();
   await prisma.volunteerStaffingRequest.deleteMany();
