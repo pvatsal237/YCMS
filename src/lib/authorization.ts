@@ -101,7 +101,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/volunteer", label: "Home", roles: ["ATTENDANCE_VOLUNTEER"] },
   { href: "/members", label: "Members", roles: ["ADMIN", "COORDINATOR"] },
   { href: "/attendance", label: "Attendance", roles: ["ADMIN", "COORDINATOR"] },
-  { href: "/volunteers", label: "Volunteers", roles: ["ADMIN", "COORDINATOR"] },
+  { href: "/volunteers", label: "Volunteer requests", roles: ["ADMIN", "COORDINATOR"] },
   { href: "/events", label: "Events", roles: ["ADMIN", "COORDINATOR", "ATTENDANCE_VOLUNTEER"] },
   { href: "/volunteer/departments", label: "My Departments", roles: ["ATTENDANCE_VOLUNTEER"] },
   { href: "/volunteer/assignments", label: "Assignments", roles: ["ATTENDANCE_VOLUNTEER"] },
@@ -174,25 +174,26 @@ export function isPathAllowed(pathname: string, role: UserRole): boolean {
     return pathname.startsWith("/portal");
   }
   if (pathname.startsWith("/portal")) return false;
-  if (pathname === "/volunteers" || pathname.startsWith("/volunteers/")) {
-    return canManageVolunteers(role);
-  }
-  if (pathname === "/volunteer" || pathname.startsWith("/volunteer/")) {
-    return role === "ATTENDANCE_VOLUNTEER";
-  }
-  if (pathname.startsWith("/events")) return canViewVolunteerOps(role);
-  if (pathname.startsWith("/transportation")) return canViewVolunteerOps(role);
-  if (pathname.startsWith("/notifications")) {
+
+  const pathIs = (prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
+
+  if (pathIs("/volunteers")) return canManageVolunteers(role);
+  if (pathIs("/volunteer")) return role === "ATTENDANCE_VOLUNTEER";
+  if (pathIs("/dashboard")) return role === "ADMIN" || role === "COORDINATOR";
+  if (pathname.startsWith("/attendance/new")) return canCreateMeetup(role);
+  if (pathIs("/attendance")) return role === "ADMIN" || role === "COORDINATOR";
+  if (pathIs("/members")) return canAccessMembers(role);
+  if (pathIs("/events")) return canViewVolunteerOps(role);
+  if (pathIs("/transportation")) return canViewVolunteerOps(role);
+  if (pathIs("/notifications")) {
     return role === "ADMIN" || role === "COORDINATOR" || role === "ATTENDANCE_VOLUNTEER";
   }
-  if (pathname.startsWith("/immigration")) return canViewImmigration(role);
-  if (pathname.startsWith("/follow-ups")) return canViewFollowUps(role);
-  if (pathname.startsWith("/assistance")) return canViewAssistance(role);
-  if (pathname.startsWith("/reports")) return canViewReports(role);
-  if (pathname.startsWith("/admin/logs")) return canViewActivityLogs(role);
-  if (pathname.startsWith("/admin/users")) {
-    return role === "ADMIN";
-  }
-  if (pathname.startsWith("/settings")) return canAccessSystemSettings(role);
+  if (pathIs("/immigration")) return canViewImmigration(role);
+  if (pathIs("/follow-ups")) return canViewFollowUps(role);
+  if (pathIs("/assistance")) return canViewAssistance(role);
+  if (pathIs("/reports")) return canViewReports(role);
+  if (pathIs("/admin/logs")) return canViewActivityLogs(role);
+  if (pathIs("/admin/users")) return role === "ADMIN";
+  if (pathIs("/settings")) return canAccessSystemSettings(role);
   return false;
 }

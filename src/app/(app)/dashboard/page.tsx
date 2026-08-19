@@ -10,6 +10,10 @@ import { AttendanceChart } from "@/components/dashboard/AttendanceChart";
 import { formatDate } from "@/lib/dates";
 import { fullName, immigrationStatusLabel } from "@/utils/format";
 import { canViewImmigration, canViewFollowUps, canViewAssistance } from "@/lib/authorization";
+import { listPendingEnrollments } from "@/services/enrollment";
+import { EnrollmentReviewForm } from "@/components/volunteer/EnrollmentReviewForm";
+import { listDepartments } from "@/services/volunteer";
+import { departmentLabel } from "@/utils/format";
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
@@ -32,6 +36,10 @@ export default async function DashboardPage() {
   }
   const data = await getDashboardData(user);
   const showSensitive = canViewImmigration(user.role);
+  const [pendingEnrollments, departments] = await Promise.all([
+    listPendingEnrollments(user),
+    listDepartments(),
+  ]);
 
   return (
     <div>
@@ -39,6 +47,33 @@ export default async function DashboardPage() {
         title="Dashboard"
         description="Live counts from the membership and attendance database."
       />
+
+      {pendingEnrollments.length > 0 ? (
+        <Card className="mb-6">
+          <CardHeader
+            title="People who would like to serve"
+            description="Assign a department, then welcome them as a regular volunteer. This does not make them a department lead."
+            action={
+              <Link href="/volunteers" className="text-sm font-medium text-teal-800">
+                Open all volunteer requests
+              </Link>
+            }
+          />
+          <CardBody className="space-y-3 text-sm">
+            {pendingEnrollments.map((row) => (
+              <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
+                <p>
+                  {row.member.firstName} {row.member.lastName}
+                  {row.department ? ` · ${departmentLabel(row.department.code)}` : row.interestKind === "WHEREVER" ? " · wherever needed" : " · not sure where yet"}
+                  {row.notes ? ` · ${row.notes}` : ""}
+                </p>
+                <EnrollmentReviewForm id={row.id} departmentId={row.departmentId} departments={departments} />
+              </div>
+            ))}
+          </CardBody>
+        </Card>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard label="Total active members" value={data.stats.totalActiveMembers} />
         <StatCard label="Present at latest meetup" value={data.stats.presentLatest} />

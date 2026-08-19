@@ -2,18 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Users,
-  ClipboardCheck,
-  FileWarning,
-  PhoneCall,
-  BarChart3,
-  UserCog,
-  ScrollText,
-  Settings,
-  X,
-} from "lucide-react";
+import { Bell, LayoutDashboard, Users, ClipboardCheck, FileWarning, PhoneCall, BarChart3, UserCog, ScrollText, Settings, X } from "lucide-react";
 import { defaultHomePath, navItemsForRole } from "@/lib/authorization";
 import { cn } from "@/utils/format";
 import type { UserRole } from "@/types/roles";
@@ -28,7 +17,7 @@ const icons: Record<string, React.ComponentType<{ className?: string }>> = {
   "/volunteer/departments": Users,
   "/volunteer/assignments": ClipboardCheck,
   "/volunteer/availability": PhoneCall,
-  "/immigration": FileWarning,
+  "/notifications": Bell,
   "/follow-ups": PhoneCall,
   "/transportation": PhoneCall,
   "/reports": BarChart3,

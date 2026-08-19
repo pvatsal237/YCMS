@@ -34,6 +34,10 @@ describe("role authorization", () => {
     expect(isPathAllowed("/volunteer", "COORDINATOR")).toBe(false);
     expect(isPathAllowed("/volunteers", "ADMIN")).toBe(true);
     expect(isPathAllowed("/volunteers", "ATTENDANCE_VOLUNTEER")).toBe(false);
+    expect(isPathAllowed("/dashboard", "COORDINATOR")).toBe(true);
+    expect(isPathAllowed("/members", "COORDINATOR")).toBe(true);
+    expect(isPathAllowed("/attendance", "COORDINATOR")).toBe(true);
+    expect(isPathAllowed("/notifications", "COORDINATOR")).toBe(true);
     expect(isPathAllowed("/assistance", "COORDINATOR")).toBe(true);
     expect(isPathAllowed("/assistance", "ADMIN")).toBe(true);
     expect(isPathAllowed("/assistance", "ATTENDANCE_VOLUNTEER")).toBe(false);
