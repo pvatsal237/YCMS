@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
+import { ensureVolunteerEnrollmentSchema } from "@/lib/volunteer-enrollment-schema";
 import {
   createStaffNotification,
   deleteStaffingOpportunityNotifications,
@@ -56,6 +57,7 @@ export async function listDepartments() {
 }
 
 export async function getVolunteerContext(userId: string) {
+  await ensureVolunteerEnrollmentSchema();
   return prisma.volunteerDepartmentMembership.findMany({
     where: { userId },
     include: { department: true },

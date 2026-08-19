@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { logActivity } from "@/lib/activity-log";
 import { createStaffNotification } from "@/services/staff-notifications";
+import { ensureVolunteerEnrollmentSchema } from "@/lib/volunteer-enrollment-schema";
 import { departmentLabel } from "@/utils/format";
 import type { SessionUser } from "@/types";
 import type { VolunteerDepartmentCode, VolunteerInterestKind, VolunteerResponseStatus } from "@prisma/client";
@@ -36,6 +37,7 @@ export async function listDepartmentsForServe() {
 }
 
 export async function listMemberEnrollments(memberId: string) {
+  await ensureVolunteerEnrollmentSchema();
   return prisma.volunteerEnrollmentRequest.findMany({
     where: { memberId },
     include: { department: true },
@@ -44,6 +46,7 @@ export async function listMemberEnrollments(memberId: string) {
 }
 
 export async function listMemberVolunteerTeams(userId: string) {
+  await ensureVolunteerEnrollmentSchema();
   return prisma.volunteerDepartmentMembership.findMany({
     where: { userId },
     include: { department: true },
@@ -52,6 +55,7 @@ export async function listMemberVolunteerTeams(userId: string) {
 }
 
 export async function submitVolunteerInterests(actor: SessionUser, interests: EnrollmentInterestInput[]) {
+  await ensureVolunteerEnrollmentSchema();
   if (actor.role !== "MEMBER") {
     throw new AppError("Please use the member portal to offer to serve.", 403);
   }
@@ -157,6 +161,7 @@ async function notifyEnrollmentReviewers(requestId: string) {
 }
 
 export async function listPendingEnrollments(actor: SessionUser) {
+  await ensureVolunteerEnrollmentSchema();
   if (actor.role === "ADMIN" || actor.role === "COORDINATOR") {
     return prisma.volunteerEnrollmentRequest.findMany({
       where: { status: "PENDING" },
@@ -183,6 +188,7 @@ export async function reviewEnrollment(
   decision: "APPROVED" | "REJECTED",
   assignedDepartmentId?: string,
 ) {
+  await ensureVolunteerEnrollmentSchema();
   const request = await prisma.volunteerEnrollmentRequest.findUnique({
     where: { id: requestId },
     include: { member: true, department: true },
