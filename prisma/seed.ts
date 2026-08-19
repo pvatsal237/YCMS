@@ -34,6 +34,8 @@ const LAST = [
 ];
 
 async function main() {
+  await prisma.volunteerEnrollmentRequest.deleteMany();
+  await prisma.transportEventAvailability.deleteMany();
   await prisma.volunteerAssignment.deleteMany();
   await prisma.volunteerStaffingResponse.deleteMany();
   await prisma.volunteerStaffingRequest.deleteMany();
@@ -145,6 +147,13 @@ async function main() {
           userId: volunteers[index].id,
           departmentId: department.id,
           responsibility: leadIndexes.includes(index) ? "LEAD" : "VOLUNTEER",
+          isNewVolunteer: row.code === "KITCHEN" && [6, 7].includes(index),
+          notes:
+            row.code === "KITCHEN" && index === 2
+              ? "Good at Gujarati and Punjabi dishes"
+              : row.code === "TRANSPORTATION" && index === 9
+                ? "Can drive and take up to 4 passengers"
+                : undefined,
         },
       });
     }
@@ -515,6 +524,51 @@ async function main() {
       driverUserId: volunteers[10].id,
     },
   });
+
+  await prisma.transportEventAvailability.createMany({
+    data: [
+      {
+        userId: volunteers[8].id,
+        meetupId: upcoming.id,
+        status: "AVAILABLE",
+        startTime: "18:00",
+        passengerCapacity: 4,
+        note: "Available from 6:00 PM onward",
+      },
+      {
+        userId: volunteers[9].id,
+        meetupId: upcoming.id,
+        status: "PARTIAL",
+        startTime: "19:00",
+        endTime: "22:00",
+        passengerCapacity: 3,
+        note: "Available 7–10 PM",
+      },
+      {
+        userId: volunteers[10].id,
+        meetupId: upcoming.id,
+        status: "AVAILABLE",
+        startTime: "18:30",
+        passengerCapacity: 4,
+      },
+    ],
+  });
+
+  const memberLogin = await prisma.user.findFirst({ where: { email: "hetvi.patel@example.test" } });
+  if (memberLogin) {
+    await prisma.volunteerEnrollmentRequest.create({
+      data: {
+        memberId: createdMembers[0].id,
+        volunteerUserId: memberLogin.id,
+        departmentId: kitchen.id,
+        interestKind: "DEPARTMENT",
+        availability: "AVAILABLE",
+        notes: "Good at Gujarati, Punjabi and Italian dishes",
+        isNewVolunteer: true,
+        status: "PENDING",
+      },
+    });
+  }
 
   await prisma.activityLog.create({ data: { userId: admin.id, action: "SEED", message: "Development seed data loaded" } });
   console.log("Seed complete. Demo: admin@ycms.local / coordinator@ycms.local / volunteer@ycms.local / YcmsDemo123!");

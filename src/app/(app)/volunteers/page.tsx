@@ -1,5 +1,7 @@
 import { requireRole } from "@/lib/session";
 import { listDepartments, listPendingPlansForReview, listPendingStaffingForReview, listVolunteersForManage } from "@/services/volunteer";
+import { listPendingEnrollments } from "@/services/enrollment";
+import { EnrollmentReviewForm } from "@/components/volunteer/EnrollmentReviewForm";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -9,12 +11,13 @@ import { assignVolunteerDepartmentsAction, reviewDepartmentPlanAction, reviewSta
 import { formatDate } from "@/lib/dates";
 
 export default async function VolunteersPage() {
-  await requireRole(["ADMIN", "COORDINATOR"]);
-  const [volunteers, departments, pending, pendingPlans] = await Promise.all([
+  const actor = await requireRole(["ADMIN", "COORDINATOR"]);
+  const [volunteers, departments, pending, pendingPlans, pendingEnrollments] = await Promise.all([
     listVolunteersForManage(),
     listDepartments(),
     listPendingStaffingForReview(),
     listPendingPlansForReview(),
+    listPendingEnrollments(actor),
   ]);
 
   return (
@@ -23,6 +26,28 @@ export default async function VolunteersPage() {
         title="Volunteers"
         description="Assign people as regular volunteers or designated department leads. A department can have several volunteers and more than one lead. Lead designation applies only to that department. A Kitchen lead cannot also be placed on Seating & Setup."
       />
+      {pendingEnrollments.length > 0 ? (
+        <Card>
+          <CardHeader title="People who would like to serve" />
+          <CardBody className="space-y-3 text-sm">
+            {pendingEnrollments.map((row) => (
+              <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
+                <p>
+                  {row.member.firstName} {row.member.lastName}
+                  {row.department ? ` · ${departmentLabel(row.department.code)}` : row.interestKind === "WHEREVER" ? " · wherever needed" : " · not sure where yet"}
+                  {row.isNewVolunteer ? " · new to volunteering" : ""}
+                  {row.notes ? ` · ${row.notes}` : ""}
+                </p>
+                <EnrollmentReviewForm
+                  id={row.id}
+                  departmentId={row.departmentId}
+                  departments={departments}
+                />
+              </div>
+            ))}
+          </CardBody>
+        </Card>
+      ) : null}
       {pendingPlans.length > 0 ? (
         <Card>
           <CardHeader title="Department plans to review" />

@@ -77,6 +77,16 @@ export async function createRideRequest(
   if (actor.role !== "MEMBER") throw new AppError("You do not have permission to perform this action.", 403);
   const member = await prisma.member.findFirst({ where: { email: actor.email, active: true } });
   if (!member) throw new AppError("You do not have permission to perform this action.", 403);
+  const duplicate = await prisma.rideRequest.findFirst({
+    where: {
+      memberId: member.id,
+      meetupId: input.meetupId,
+      status: { in: ["REQUESTED", "APPROVED", "ASSIGNED"] },
+    },
+  });
+  if (duplicate) {
+    throw new AppError("You already have a ride request for this event.", 400);
+  }
   const request = await prisma.rideRequest.create({
     data: {
       memberId: member.id,
@@ -91,7 +101,9 @@ export async function createRideRequest(
     where: { code: "TRANSPORTATION" },
     include: { members: true, lead: true },
   });
+  const leadIds = transport?.members.filter((row) => row.responsibility === "LEAD").map((row) => row.userId) ?? [];
   const notifyIds = [
+    ...leadIds,
     ...(transport?.leadUserId ? [transport.leadUserId] : []),
     ...((await prisma.user.findMany({
       where: { role: { in: ["ADMIN", "COORDINATOR"] }, active: true },
@@ -127,7 +139,7 @@ export async function listRideRequestsForStaff(actor: SessionUser) {
   }
   const lead = actor.role !== "ATTENDANCE_VOLUNTEER" || (await isTransportationLead(actor.id));
   return prisma.rideRequest.findMany({
-    where: lead ? {} : { status: { in: ["APPROVED", "ASSIGNED"] } },
+    where: lead ? {} : { driverUserId: actor.id, status: { in: ["ASSIGNED", "APPROVED"] } },
     include: {
       meetup: true,
       member: { select: { id: true, firstName: true, lastName: true, phone: true } },
@@ -137,11 +149,170 @@ export async function listRideRequestsForStaff(actor: SessionUser) {
   });
 }
 
-export async function reviewRideRequest(actor: SessionUser, id: string, status: "APPROVED" | "CANCELLED") {
+export async function reviewRideRequest(actor: SessionUser, id: string, status: "APPROVED" | "CANCELLED" | "REJECTED") {
   if (actor.role !== "ADMIN" && actor.role !== "COORDINATOR" && !(await isTransportationLead(actor.id))) {
     throw new AppError("You do not have permission to perform this action.", 403);
   }
-  return prisma.rideRequest.update({ where: { id }, data: { status } });
+  const existing = await prisma.rideRequest.findUnique({
+    where: { id },
+    include: { member: true, meetup: true },
+  });
+  if (!existing) throw new AppError("Ride request not found.", 404);
+  const updated = await prisma.rideRequest.update({ where: { id }, data: { status } });
+  const memberUser = await prisma.user.findFirst({ where: { memberId: existing.memberId } });
+  if (memberUser) {
+    await createStaffNotification({
+      userId: memberUser.id,
+      memberId: existing.memberId,
+      requestId: id,
+      title: status === "APPROVED" ? "Ride request approved" : "Ride request update",
+      message:
+        status === "APPROVED"
+          ? `Your ride request for ${existing.meetup.title} was approved. A driver will be assigned next.`
+          : `Your ride request for ${existing.meetup.title} could not be filled this time. You are welcome to request again if you still need a ride.`,
+    });
+  }
+  return updated;
+}
+
+export async function listEligibleRideDrivers(actor: SessionUser, meetupId: string) {
+  if (actor.role !== "ADMIN" && actor.role !== "COORDINATOR" && !(await isTransportationLead(actor.id))) {
+    throw new AppError("You do not have permission to perform this action.", 403);
+  }
+  const members = await prisma.volunteerDepartmentMembership.findMany({
+    where: { department: { code: "TRANSPORTATION" } },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          active: true,
+          transportAvailability: { where: { meetupId } },
+        },
+      },
+    },
+  });
+  return members
+    .filter((row) => row.user.active)
+    .map((row) => {
+      const availability = row.user.transportAvailability[0];
+      return {
+        id: row.user.id,
+        name: row.user.name,
+        phone: row.user.phone,
+        availability: availability?.status ?? null,
+        startTime: availability?.startTime ?? null,
+        endTime: availability?.endTime ?? null,
+        passengerCapacity: availability?.passengerCapacity ?? null,
+        note: availability?.note ?? null,
+        eligible: availability?.status !== "NOT_AVAILABLE",
+      };
+    })
+    .filter((row) => row.eligible);
+}
+
+export async function assignRideToDriver(actor: SessionUser, rideId: string, driverUserId: string) {
+  if (actor.role !== "ADMIN" && actor.role !== "COORDINATOR" && !(await isTransportationLead(actor.id))) {
+    throw new AppError("You do not have permission to perform this action.", 403);
+  }
+  const existing = await prisma.rideRequest.findUnique({
+    where: { id: rideId },
+    include: { meetup: true, member: true },
+  });
+  if (!existing || !["APPROVED", "ASSIGNED"].includes(existing.status)) {
+    throw new AppError("Approve this ride before assigning a driver.", 400);
+  }
+  const drivers = await listEligibleRideDrivers(actor, existing.meetupId);
+  const driver = drivers.find((row) => row.id === driverUserId);
+  if (!driver) {
+    throw new AppError("Please choose an available Transportation volunteer.", 400);
+  }
+  if (driver.passengerCapacity && existing.passengerCount > driver.passengerCapacity) {
+    throw new AppError("This volunteer does not have enough passenger capacity for this ride.", 400);
+  }
+  const { assertRideAcceptAllowed } = await import("@/services/volunteer");
+  await assertRideAcceptAllowed(driverUserId, existing.meetup);
+  const updated = await prisma.rideRequest.update({
+    where: { id: rideId },
+    data: { status: "ASSIGNED", driverUserId },
+    include: { member: true, driver: true, meetup: true },
+  });
+  const memberUser = await prisma.user.findFirst({ where: { memberId: updated.memberId } });
+  if (memberUser) {
+    await createStaffNotification({
+      userId: memberUser.id,
+      memberId: updated.memberId,
+      requestId: updated.id,
+      title: "Your ride has been confirmed.",
+      message: [
+        `Driver: ${updated.driver?.name ?? "A volunteer"}`,
+        updated.driver?.phone ? `Driver phone: ${updated.driver.phone}` : null,
+        `Pickup: ${updated.pickupArea}`,
+        `Available after: ${updated.availableAfter}`,
+        `Event: ${updated.meetup.title}`,
+        "If the driver does not answer, please leave a voicemail with your name and callback number.",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    });
+  }
+  await createStaffNotification({
+    userId: driverUserId,
+    memberId: updated.memberId,
+    requestId: updated.id,
+    title: "New Ride Assignment",
+    message: [
+      `Member: ${updated.member.firstName} ${updated.member.lastName}`,
+      `Pickup: ${updated.pickupArea}`,
+      `Available after: ${updated.availableAfter}`,
+      `Passengers: ${updated.passengerCount}`,
+      `Phone: ${updated.member.phone}`,
+      `Event: ${updated.meetup.title}`,
+      updated.note ? `Notes: ${updated.note}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  });
+  return updated;
+}
+
+export async function saveTransportAvailability(
+  actor: SessionUser,
+  input: {
+    meetupId: string;
+    status: "AVAILABLE" | "PARTIAL" | "NOT_AVAILABLE";
+    startTime?: string;
+    endTime?: string;
+    passengerCapacity?: number;
+    note?: string;
+  },
+) {
+  if (!(await isTransportationAssignee(actor.id)) && actor.role !== "ADMIN" && actor.role !== "COORDINATOR") {
+    throw new AppError("Only Transportation volunteers can share this availability.", 403);
+  }
+  if (input.status === "PARTIAL" && (!input.startTime || !input.endTime)) {
+    throw new AppError("Partial availability needs Available From and Available Until.", 400);
+  }
+  return prisma.transportEventAvailability.upsert({
+    where: { userId_meetupId: { userId: actor.id, meetupId: input.meetupId } },
+    create: {
+      userId: actor.id,
+      meetupId: input.meetupId,
+      status: input.status,
+      startTime: input.startTime || null,
+      endTime: input.endTime || null,
+      passengerCapacity: input.passengerCapacity || null,
+      note: input.note?.trim() || null,
+    },
+    update: {
+      status: input.status,
+      startTime: input.startTime || null,
+      endTime: input.endTime || null,
+      passengerCapacity: input.passengerCapacity || null,
+      note: input.note?.trim() || null,
+    },
+  });
 }
 
 export async function acceptRideRequest(actor: SessionUser, id: string) {

@@ -374,7 +374,7 @@ async function syncStaffingOpportunityNotifications(requestId: string) {
   const declined = new Set(
     request.responses.filter((row) => row.status === "NOT_AVAILABLE").map((row) => row.userId),
   );
-  const title = `${request.department.name} needs ${remaining} more volunteer${remaining === 1 ? "" : "s"} for ${request.task}`;
+  const title = `${remaining} more volunteer${remaining === 1 ? "" : "s"} would be helpful for ${request.task}`;
   const message = [
     `Event: ${request.meetup.title}`,
     `Department: ${request.department.name}`,
@@ -648,6 +648,20 @@ export async function respondToStaffingRequest(
   if (input.status === "NOT_AVAILABLE") {
     if (existingAssignment) {
       await prisma.volunteerAssignment.delete({ where: { id: existingAssignment.id } });
+      const leads = await prisma.volunteerDepartmentMembership.findMany({
+        where: { departmentId: request.departmentId, responsibility: "LEAD" },
+        select: { userId: true },
+      });
+      await Promise.all(
+        leads.map((lead) =>
+          createStaffNotification({
+            userId: lead.userId,
+            requestId: request.id,
+            title: "A volunteer stepped back",
+            message: `Someone is no longer able to help with ${request.task}. The opportunity can be offered again.`,
+          }),
+        ),
+      );
     }
     const response = await prisma.volunteerStaffingResponse.upsert({
       where: { requestId_userId: { requestId: input.requestId, userId: actor.id } },
@@ -854,6 +868,9 @@ function summarizeRequests(
           availableEnd: response?.endTime ?? null,
           note: response?.note ?? null,
           assignmentStatus: "Confirmed",
+          isNewVolunteer: false,
+          teamNotes: null as string | null,
+          recentAssignments: 0,
         };
       }),
     };
@@ -902,6 +919,32 @@ export async function getVolunteerHomeData(userId: string) {
         })
       : null;
     const summary = plan ? summarizeRequests(plan.staffingRequests) : { needed: 0, confirmed: 0, remaining: 0, tasks: [] };
+    if (summary.tasks.length > 0) {
+      const userIds = [...new Set(summary.tasks.flatMap((task) => task.volunteers.map((person) => person.id)))];
+      const [team, recent] = await Promise.all([
+        prisma.volunteerDepartmentMembership.findMany({
+          where: { departmentId: department.id, userId: { in: userIds } },
+          select: { userId: true, isNewVolunteer: true, notes: true },
+        }),
+        prisma.volunteerAssignment.groupBy({
+          by: ["userId"],
+          where: { userId: { in: userIds } },
+          _count: { _all: true },
+        }),
+      ]);
+      const teamByUser = new Map(team.map((row) => [row.userId, row]));
+      const recentByUser = new Map(recent.map((row) => [row.userId, row._count._all]));
+      for (const task of summary.tasks) {
+        for (const person of task.volunteers) {
+          const row = teamByUser.get(person.id);
+          Object.assign(person, {
+            isNewVolunteer: row?.isNewVolunteer ?? false,
+            teamNotes: row?.notes ?? null,
+            recentAssignments: recentByUser.get(person.id) ?? 0,
+          });
+        }
+      }
+    }
     let transport = null;
     if (department.code === "TRANSPORTATION" && nextEvent) {
       const rides = await prisma.rideRequest.findMany({
@@ -934,7 +977,22 @@ export async function getVolunteerHomeData(userId: string) {
     });
   }
 
-  return { memberships, upcomingEvents, assignments, openRequests, leadDashboards, nextEvent };
+  const transportAvailability =
+    nextEvent && memberships.some((row) => row.department.code === "TRANSPORTATION")
+      ? await prisma.transportEventAvailability.findUnique({
+          where: { userId_meetupId: { userId, meetupId: nextEvent.id } },
+        })
+      : null;
+
+  return {
+    memberships,
+    upcomingEvents,
+    assignments,
+    openRequests,
+    leadDashboards,
+    nextEvent,
+    transportAvailability,
+  };
 }
 
 export async function getPlanEditorData(actor: SessionUser, meetupId: string, departmentKey: string) {

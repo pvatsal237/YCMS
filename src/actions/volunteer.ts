@@ -78,7 +78,7 @@ export async function respondStaffingAction(
   formData: FormData,
 ): Promise<ActionResult> {
   try {
-    const actor = await requireRoleAction(["ATTENDANCE_VOLUNTEER"]);
+    const actor = await requireRoleAction(["ATTENDANCE_VOLUNTEER", "MEMBER"]);
     await respondToStaffingRequest(actor, {
       requestId: String(formData.get("requestId") ?? ""),
       status: String(formData.get("status") ?? "") as "AVAILABLE" | "PARTIAL" | "NOT_AVAILABLE",
@@ -89,7 +89,8 @@ export async function respondStaffingAction(
     revalidatePath("/volunteer");
     revalidatePath("/volunteer/availability");
     revalidatePath("/notifications");
-    return { ok: true, message: "Availability saved." };
+    revalidatePath("/portal");
+    return { ok: true, message: "Thank you — your availability was saved." };
   } catch (error) {
     logServerError("respondStaffingAction", error);
     return { ok: false, error: toUserMessage(error, "Unable to save availability.") };

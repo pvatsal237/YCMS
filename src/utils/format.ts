@@ -158,6 +158,18 @@ export function departmentPlanStatusLabel(status: string): string {
   return labels[status] ?? status;
 }
 
+export function rideStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    REQUESTED: "Pending Approval",
+    APPROVED: "Approved",
+    ASSIGNED: "Assigned",
+    COMPLETED: "Completed",
+    CANCELLED: "Cancelled",
+    REJECTED: "Rejected",
+  };
+  return labels[status] ?? status;
+}
+
 export function staffingRequirementBadge(planStatus: string, needed: number, confirmed: number): string {
   if (planStatus === "PENDING_APPROVAL" || planStatus === "DRAFT" || planStatus === "CHANGES_REQUESTED") {
     return "Pending Approval";

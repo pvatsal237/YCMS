@@ -12,8 +12,14 @@ import { AssistanceRequestMenu } from "@/components/assistance/AssistanceRequest
 import { followUpOutcomeLabel } from "@/utils/follow-up-outcomes";
 import { getAlertPresentation } from "@/utils/immigration-alerts";
 import { RideRequestMenu } from "@/components/rides/RideRequestMenu";
+import { ServeAsVolunteerMenu } from "@/components/volunteer/ServeAsVolunteerMenu";
+import { StaffingResponseForm } from "@/components/volunteer/StaffingResponseForm";
 import { listMemberAssistanceRequests, listStaffContactsByRole } from "@/services/assistance";
 import { listMemberRideRequests, listUpcomingEvents } from "@/services/events";
+import { listMemberEnrollments, listMemberVolunteerTeams } from "@/services/enrollment";
+import { listOpenStaffingForVolunteer } from "@/services/volunteer";
+import { listStaffNotifications } from "@/services/staff-notifications";
+import { departmentLabel, rideStatusLabel } from "@/utils/format";
 
 const NOTICE_TONES = {
   green: "border-emerald-200 bg-emerald-50 text-emerald-900",
@@ -27,12 +33,16 @@ export default async function MemberPortalPage() {
   const user = await requireMemberSession();
   const { member, upcomingMeetup, pendingRequests, staffContacts } =
     await getMemberPortalData(user);
-  const [coordinators, administrators, upcomingEvents, rideRequests, myAssistance] = await Promise.all([
+  const [coordinators, administrators, upcomingEvents, rideRequests, myAssistance, enrollments, teams, opportunities, updates] = await Promise.all([
     listStaffContactsByRole("COORDINATOR"),
     listStaffContactsByRole("ADMIN"),
     listUpcomingEvents(6),
     listMemberRideRequests(member.id),
     listMemberAssistanceRequests(member.id),
+    listMemberEnrollments(member.id),
+    listMemberVolunteerTeams(user.id),
+    listOpenStaffingForVolunteer(user.id),
+    listStaffNotifications(user.id),
   ]);
   const documentNotices = member.documents
     .map((doc) => ({ doc, alert: getAlertPresentation(doc.expiryDate) }))
@@ -49,13 +59,16 @@ export default async function MemberPortalPage() {
     <div className="space-y-6">
       <PageHeader
         title="Home"
-        description="Upcoming events, attendance, and your requests."
+        description="You belong here. Upcoming events, rides, and ways to serve."
         action={
-          <AssistanceRequestMenu
-            coordinators={coordinators}
-            administrators={administrators}
-            eligibleDocuments={eligibleDocuments}
-          />
+          <div className="flex flex-wrap gap-2">
+            <ServeAsVolunteerMenu />
+            <AssistanceRequestMenu
+              coordinators={coordinators}
+              administrators={administrators}
+              eligibleDocuments={eligibleDocuments}
+            />
+          </div>
         }
       />
 
@@ -92,6 +105,61 @@ export default async function MemberPortalPage() {
             </p>
           </CardBody>
         </Card>
+      ) : null}
+
+      {teams.length > 0 || enrollments.length > 0 || opportunities.length > 0 ? (
+        <div id="serve">
+        <Card>
+          <CardHeader title="Serving with us" description="Thank you for helping this community." />
+          <CardBody className="space-y-3 text-sm">
+            {teams.length > 0 ? (
+              <p>
+                Your teams: {teams.map((row) => departmentLabel(row.department.code)).join(", ")}
+              </p>
+            ) : null}
+            {enrollments.filter((row) => row.status === "PENDING").length > 0 ? (
+              <p className="text-slate-600">
+                A lead is reviewing your interest
+                {enrollments
+                  .filter((row) => row.status === "PENDING")
+                  .map((row) => (row.department ? ` in ${departmentLabel(row.department.code)}` : ""))
+                  .join("")}
+                .
+              </p>
+            ) : null}
+            {opportunities.length === 0 ? (
+              teams.length > 0 ? <p className="text-slate-500">No open volunteer opportunities right now.</p> : null
+            ) : (
+              opportunities.map((request) => (
+                <div key={request.id} className="rounded-md border p-3">
+                  <p className="font-medium">{request.task}</p>
+                  <p className="text-slate-500">
+                    {request.meetup.title} · {departmentLabel(request.department.code)} ·{" "}
+                    {request.remaining} more volunteer{request.remaining === 1 ? "" : "s"} would be helpful
+                  </p>
+                  <StaffingResponseForm requestId={request.id} />
+                </div>
+              ))
+            )}
+          </CardBody>
+        </Card>
+        </div>
+      ) : null}
+
+      {updates.length > 0 ? (
+        <div id="updates">
+          <Card>
+            <CardHeader title="Updates" description="The same notices as your volunteer teams and ride requests." />
+            <CardBody className="space-y-2 text-sm">
+              {updates.slice(0, 8).map((item) => (
+                <div key={item.id} className="rounded-md border border-slate-200 p-3">
+                  <p className="font-medium">{item.title}</p>
+                  <p className="whitespace-pre-line text-slate-600">{item.message}</p>
+                </div>
+              ))}
+            </CardBody>
+          </Card>
+        </div>
       ) : null}
 
       {documentNotices.length > 0 ? (
@@ -272,7 +340,7 @@ export default async function MemberPortalPage() {
             ) : (
               rideRequests.map((item) => (
                 <p key={item.id} className="mt-1">
-                  {item.meetup.title} · {item.status}
+                  {item.meetup.title} · {rideStatusLabel(item.status)}
                   {item.driver
                     ? ` · Driver ${item.driver.name}${item.driver.phone ? ` (${item.driver.phone})` : ""}`
                     : ""}

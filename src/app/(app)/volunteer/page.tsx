@@ -1,5 +1,7 @@
 import { requireRole } from "@/lib/session";
 import { getVolunteerHomeData } from "@/services/volunteer";
+import { listPendingEnrollments, listDepartmentsForServe } from "@/services/enrollment";
+import { EnrollmentReviewForm } from "@/components/volunteer/EnrollmentReviewForm";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -7,11 +9,16 @@ import { Button } from "@/components/ui/Button";
 import { formatDate, formatTime12h } from "@/lib/dates";
 import { departmentLabel, departmentPlanStatusLabel, departmentShortLabel, staffingRequirementBadge } from "@/utils/format";
 import { StaffingResponseForm } from "@/components/volunteer/StaffingResponseForm";
+import { TransportAvailabilityForm } from "@/components/volunteer/TransportAvailabilityForm";
 import Link from "next/link";
 
 export default async function VolunteerHomePage() {
   const user = await requireRole(["ATTENDANCE_VOLUNTEER"]);
-  const data = await getVolunteerHomeData(user.id);
+  const [data, pendingEnrollments, serveDepartments] = await Promise.all([
+    getVolunteerHomeData(user.id),
+    listPendingEnrollments(user),
+    listDepartmentsForServe(),
+  ]);
 
   const leadMemberships = data.memberships.filter((row) => row.responsibility === "LEAD");
   const teamMemberships = data.memberships.filter((row) => row.responsibility !== "LEAD");
@@ -28,6 +35,37 @@ export default async function VolunteerHomePage() {
             : "Your volunteer teams, events, and assignments."
         }
       />
+
+      {pendingEnrollments.length > 0 ? (
+        <Card>
+          <CardHeader title="People who would like to serve" />
+          <CardBody className="space-y-3 text-sm">
+            {pendingEnrollments.map((row) => (
+              <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
+                <p>
+                  {row.member.firstName} {row.member.lastName}
+                  {row.department ? ` · ${departmentLabel(row.department.code)}` : row.interestKind === "WHEREVER" ? " · wherever needed" : " · not sure where yet"}
+                  {row.isNewVolunteer ? " · new to volunteering" : ""}
+                  {row.notes ? ` · ${row.notes}` : ""}
+                </p>
+                <EnrollmentReviewForm
+                  id={row.id}
+                  departmentId={row.departmentId}
+                  departments={serveDepartments}
+                />
+              </div>
+            ))}
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {data.nextEvent && data.memberships.some((row) => row.department.code === "TRANSPORTATION") ? (
+        <Card>
+          <CardBody>
+            <TransportAvailabilityForm meetupId={data.nextEvent.id} eventTitle={data.nextEvent.title} />
+          </CardBody>
+        </Card>
+      ) : null}
 
       {data.leadDashboards.map((lead) => (
         <Card key={lead.department.id}>
@@ -78,6 +116,9 @@ export default async function VolunteerHomePage() {
                     </div>
                     <p className="mt-1 text-slate-700">
                       Needed: {task.needed} · Confirmed: {task.confirmed} · Still Needed: {task.remaining}
+                      {task.remaining > 0
+                        ? ` · ${task.remaining} more volunteer${task.remaining === 1 ? "" : "s"} would be helpful for ${task.task}`
+                        : " · Thank you — this task is filled."}
                     </p>
                     {task.volunteers.length > 0 ? (
                       <ul className="mt-2 space-y-1 text-slate-600">
@@ -87,6 +128,10 @@ export default async function VolunteerHomePage() {
                             {person.phone ? ` · ${person.phone}` : ""}
                             {` · ${person.availability === "PARTIAL" ? "Partially available" : person.availability === "NOT_AVAILABLE" ? "Not available" : "Available"}`}
                             {` · ${person.assignmentStatus}`}
+                            {person.isNewVolunteer ? " · new to volunteering" : ""}
+                            {person.recentAssignments > 0
+                              ? ` · helped ${person.recentAssignments} time${person.recentAssignments === 1 ? "" : "s"}`
+                              : ""}
                           </li>
                         ))}
                       </ul>
@@ -192,18 +237,18 @@ export default async function VolunteerHomePage() {
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Open volunteer requests" />
+        <CardHeader title="Ways you can help" />
         <CardBody className="space-y-4">
           {data.openRequests.length === 0 ? (
-            <p className="text-sm text-slate-500">No open requests for your departments.</p>
+            <p className="text-sm text-slate-500">No open opportunities in your teams right now. Thank you for being part of this community.</p>
           ) : (
             data.openRequests.map((request) => (
               <div key={request.id} className="rounded-md border border-slate-200 p-3 text-sm">
                 <p className="font-medium">{request.task}</p>
                 <p className="text-slate-500">
-                  {request.meetup.title} · {departmentLabel(request.department.code)} · Remaining spots{" "}
-                  {request.remaining} · {formatDate(request.requestDate)} · {formatTime12h(request.startTime)}–
-                  {formatTime12h(request.endTime)}
+                  {request.meetup.title} · {departmentLabel(request.department.code)} ·{" "}
+                  {request.remaining} more volunteer{request.remaining === 1 ? "" : "s"} would be helpful ·{" "}
+                  {formatDate(request.requestDate)} · {formatTime12h(request.startTime)}–{formatTime12h(request.endTime)}
                 </p>
                 {request.notes ? <p className="mt-1">{request.notes}</p> : null}
                 <StaffingResponseForm requestId={request.id} />

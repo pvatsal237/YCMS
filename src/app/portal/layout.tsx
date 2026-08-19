@@ -6,7 +6,8 @@ const LINKS = [
   { href: "/portal", label: "Home" },
   { href: "/portal#profile", label: "My Profile" },
   { href: "/portal#attendance", label: "Attendance" },
-  { href: "/portal#events", label: "Events" },
+  { href: "/portal#serve", label: "Serve" },
+  { href: "/portal#updates", label: "Updates" },
   { href: "/portal#requests", label: "My Requests" },
 ];
 
