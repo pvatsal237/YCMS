@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { logActivity } from "@/lib/activity-log";
 import { createStaffNotification } from "@/services/staff-notifications";
-import { isDepartmentLead } from "@/services/volunteer";
 import { departmentLabel } from "@/utils/format";
 import type { SessionUser } from "@/types";
 import type { VolunteerDepartmentCode, VolunteerInterestKind, VolunteerResponseStatus } from "@prisma/client";
@@ -191,7 +190,7 @@ export async function reviewEnrollment(
   if (!request || request.status !== "PENDING") {
     throw new AppError("This request is no longer waiting for review.", 404);
   }
-  if (assignedDepartmentId && !request.departmentId && (actor.role === "ADMIN" || actor.role === "COORDINATOR")) {
+  if (assignedDepartmentId && (actor.role === "ADMIN" || actor.role === "COORDINATOR")) {
     const department = await prisma.volunteerDepartment.findUnique({ where: { id: assignedDepartmentId } });
     if (!department) throw new AppError("Please choose a department.", 400);
     await prisma.volunteerEnrollmentRequest.update({
@@ -202,12 +201,9 @@ export async function reviewEnrollment(
     request.department = department;
     request.interestKind = "DEPARTMENT";
   }
-  const canReview =
-    actor.role === "ADMIN" ||
-    actor.role === "COORDINATOR" ||
-    (request.departmentId ? await isDepartmentLead(actor.id, request.departmentId) : false);
+  const canReview = actor.role === "ADMIN" || actor.role === "COORDINATOR";
   if (!canReview) {
-    throw new AppError("You can only review serving requests for your own department.", 403);
+    throw new AppError("A coordinator reviews serving requests and assigns the department.", 403);
   }
   if (decision === "APPROVED" && !request.departmentId) {
     throw new AppError("Please choose a department before welcoming this person to a team.", 400);

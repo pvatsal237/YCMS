@@ -113,16 +113,22 @@ export default async function MemberPortalPage() {
           <CardHeader title="Serving with us" description="Thank you for helping this community." />
           <CardBody className="space-y-3 text-sm">
             {teams.length > 0 ? (
-              <p>
-                Your teams: {teams.map((row) => departmentLabel(row.department.code)).join(", ")}
-              </p>
+              <ul className="space-y-1">
+                {teams.map((row) => (
+                  <li key={row.id}>
+                    {departmentLabel(row.department.code)}
+                    {" · "}
+                    {row.responsibility === "LEAD" ? "Department lead" : "Regular volunteer"}
+                  </li>
+                ))}
+              </ul>
             ) : null}
             {enrollments.filter((row) => row.status === "PENDING").length > 0 ? (
               <p className="text-slate-600">
-                A lead is reviewing your interest
+                A coordinator is reviewing your interest and will assign a department
                 {enrollments
                   .filter((row) => row.status === "PENDING")
-                  .map((row) => (row.department ? ` in ${departmentLabel(row.department.code)}` : ""))
+                  .map((row) => (row.department ? ` (${departmentLabel(row.department.code)})` : ""))
                   .join("")}
                 .
               </p>

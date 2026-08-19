@@ -24,7 +24,7 @@ export default async function VolunteersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Volunteers"
-        description="Assign people as regular volunteers or designated department leads. A department can have several volunteers and more than one lead. Lead designation applies only to that department. A Kitchen lead cannot also be placed on Seating & Setup."
+        description="Coordinators review serving requests, assign a department, and welcome people as regular volunteers. Separately, you can designate a department lead for a team. Lead designation is not automatic."
       />
       {pendingEnrollments.length > 0 ? (
         <Card>

@@ -1,7 +1,5 @@
 import { requireRole } from "@/lib/session";
 import { getVolunteerHomeData } from "@/services/volunteer";
-import { listPendingEnrollments, listDepartmentsForServe } from "@/services/enrollment";
-import { EnrollmentReviewForm } from "@/components/volunteer/EnrollmentReviewForm";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -14,11 +12,7 @@ import Link from "next/link";
 
 export default async function VolunteerHomePage() {
   const user = await requireRole(["ATTENDANCE_VOLUNTEER"]);
-  const [data, pendingEnrollments, serveDepartments] = await Promise.all([
-    getVolunteerHomeData(user.id),
-    listPendingEnrollments(user),
-    listDepartmentsForServe(),
-  ]);
+  const data = await getVolunteerHomeData(user.id);
 
   const leadMemberships = data.memberships.filter((row) => row.responsibility === "LEAD");
   const teamMemberships = data.memberships.filter((row) => row.responsibility !== "LEAD");
@@ -32,32 +26,9 @@ export default async function VolunteerHomePage() {
             ? teamMemberships.length > 0
               ? `You are the department lead for ${leadMemberships.map((row) => departmentShortLabel(row.department.code)).join(" and ")}. Listed separately are other teams you help on.`
               : `You are the department lead for ${leadMemberships.map((row) => departmentShortLabel(row.department.code)).join(" and ")}.`
-            : "Your volunteer teams, events, and assignments."
+            : "You serve as a regular volunteer on your teams. A coordinator assigns departments and department-lead roles."
         }
       />
-
-      {pendingEnrollments.length > 0 ? (
-        <Card>
-          <CardHeader title="People who would like to serve" />
-          <CardBody className="space-y-3 text-sm">
-            {pendingEnrollments.map((row) => (
-              <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
-                <p>
-                  {row.member.firstName} {row.member.lastName}
-                  {row.department ? ` · ${departmentLabel(row.department.code)}` : row.interestKind === "WHEREVER" ? " · wherever needed" : " · not sure where yet"}
-                  {row.isNewVolunteer ? " · new to volunteering" : ""}
-                  {row.notes ? ` · ${row.notes}` : ""}
-                </p>
-                <EnrollmentReviewForm
-                  id={row.id}
-                  departmentId={row.departmentId}
-                  departments={serveDepartments}
-                />
-              </div>
-            ))}
-          </CardBody>
-        </Card>
-      ) : null}
 
       {data.nextEvent && data.memberships.some((row) => row.department.code === "TRANSPORTATION") ? (
         <Card>

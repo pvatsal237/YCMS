@@ -4,7 +4,7 @@ import {
   type FollowUpStatus,
   type ImmigrationStatus,
 } from "@prisma/client";
-import { hash } from "bcryptjs";
+import { hash, compare } from "bcryptjs";
 import { THREE_CONSECUTIVE_ABSENCE_REASON } from "../src/lib/constants";
 import { DEPARTMENT_CODES } from "../src/services/volunteer";
 
@@ -214,7 +214,8 @@ async function main() {
   for (let i = 0; i < 180; i++) {
     const firstName = i === 0 ? "Hetvi" : FIRST[i % FIRST.length];
     const lastName = i === 0 ? "Patel" : LAST[(i + Math.floor(i / FIRST.length)) % LAST.length];
-    const email = i === 0 ? "hetvi.patel@example.test" : `member${i + 1}@example.test`;
+    const email =
+      i === 0 ? "hetvi.patel@example.test" : i === 1 ? "krisha.shah@example.test" : `member${i + 1}@example.test`;
     const status = statuses[i % statuses.length];
     const expiryOffsetDays = i % 17 === 0 ? 40 : 200 + (i % 400);
     const created = await prisma.member.create({
@@ -390,6 +391,16 @@ async function main() {
   });
 
   const kitchen = departments.find((d) => d.code === "KITCHEN")!;
+  const memberVolunteerLogin = await prisma.user.findFirst({ where: { email: "krisha.shah@example.test" } });
+  if (memberVolunteerLogin) {
+    await prisma.volunteerDepartmentMembership.create({
+      data: {
+        userId: memberVolunteerLogin.id,
+        departmentId: kitchen.id,
+        responsibility: "VOLUNTEER",
+      },
+    });
+  }
   const transport = departments.find((d) => d.code === "TRANSPORTATION")!;
   const setup = departments.find((d) => d.code === "SEATING_SETUP")!;
   const av = departments.find((d) => d.code === "AUDIO_VIDEO")!;
@@ -610,6 +621,32 @@ async function main() {
   }
 
   await prisma.activityLog.create({ data: { userId: admin.id, action: "SEED", message: "Development seed data loaded" } });
+  const leadLogins = [
+    "admin@ycms.local",
+    "coordinator@ycms.local",
+    "volunteer@ycms.local",
+    "jenil.shah@ycms.local",
+    "isha.modi@ycms.local",
+    "bansari.gandhi@ycms.local",
+    "manan.acharya@ycms.local",
+    "veer.gajjar@ycms.local",
+    "maitri.vora@ycms.local",
+    "diya.upadhyay@ycms.local",
+    "aayush.shukla@ycms.local",
+  ];
+  for (const email of leadLogins) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user?.passwordHash || !(await compare(DEMO_PASSWORD, user.passwordHash))) {
+      throw new Error(`Demo login is not working for ${email}`);
+    }
+  }
+  const memberAccounts = await prisma.user.findMany({
+    where: { email: { in: ["hetvi.patel@example.test", "krisha.shah@example.test"] }, role: "MEMBER" },
+  });
+  if (memberAccounts.length !== 2) {
+    throw new Error("Demo member logins were not created.");
+  }
+
   console.log("Seed complete. Password for all demo staff: YcmsDemo123!");
   console.log("Admin: admin@ycms.local · Coordinator: coordinator@ycms.local");
   console.log("Kitchen lead: volunteer@ycms.local (Hetvi Patel) · jenil.shah@ycms.local (Jenil Shah)");
@@ -620,7 +657,8 @@ async function main() {
   console.log("Recreation lead: maitri.vora@ycms.local");
   console.log("RiseUp lead: diya.upadhyay@ycms.local");
   console.log("General Event Support lead: aayush.shukla@ycms.local");
-  console.log("Member OTP: hetvi.patel@example.test");
+  console.log("Member OTP (Serve as Volunteer, pending): hetvi.patel@example.test");
+  console.log("Member OTP (regular Kitchen volunteer): krisha.shah@example.test");
 }
 
 main()

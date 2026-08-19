@@ -17,9 +17,9 @@ export function EnrollmentReviewForm({
       <form action={reviewEnrollmentFormAction} className="flex flex-wrap items-center gap-2">
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="decision" value="APPROVED" />
-        {!departmentId && departments ? (
-          <select name="departmentId" required className="rounded-md border px-2 py-1 text-sm">
-            <option value="">Choose a team</option>
+        {departments ? (
+          <select name="departmentId" required defaultValue={departmentId ?? ""} className="rounded-md border px-2 py-1 text-sm">
+            <option value="">Assign a department</option>
             {departments.map((dept) => (
               <option key={dept.id} value={dept.id}>
                 {departmentLabel(dept.code)}
@@ -28,7 +28,7 @@ export function EnrollmentReviewForm({
           </select>
         ) : null}
         <Button type="submit" size="sm">
-          Welcome to the team
+          Welcome as regular volunteer
         </Button>
       </form>
       <form action={reviewEnrollmentFormAction}>
