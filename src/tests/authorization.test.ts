@@ -9,6 +9,7 @@ import {
   canTakeAttendance,
   canViewImmigration,
   canViewSensitiveMemberData,
+  defaultHomePath,
   isPathAllowed,
 } from "@/lib/authorization";
 
@@ -47,6 +48,8 @@ describe("role authorization", () => {
     expect(isPathAllowed("/volunteer", "ATTENDANCE_VOLUNTEER")).toBe(true);
     expect(isPathAllowed("/volunteer/plan", "ATTENDANCE_VOLUNTEER")).toBe(true);
     expect(isPathAllowed("/volunteer/plan", "ADMIN")).toBe(false);
+    expect(isPathAllowed("/dashboard", "ATTENDANCE_VOLUNTEER")).toBe(false);
+    expect(defaultHomePath("ATTENDANCE_VOLUNTEER")).toBe("/volunteer");
     expect(isPathAllowed("/events", "ATTENDANCE_VOLUNTEER")).toBe(true);
     expect(isPathAllowed("/attendance/new", "ATTENDANCE_VOLUNTEER")).toBe(false);
     expect(isPathAllowed("/admin/users", "ATTENDANCE_VOLUNTEER")).toBe(false);

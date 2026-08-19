@@ -10,6 +10,8 @@ import { requestMemberOtp } from "@/services/member-auth";
 import { identifyLoginKind } from "@/services/login-identify";
 import { OTP_GENERIC_INVALID_MESSAGE } from "@/lib/otp";
 import { logServerError, toUserMessage } from "@/lib/errors";
+import { defaultHomePath } from "@/lib/authorization";
+import { prisma } from "@/lib/prisma";
 
 export async function identifyLoginAction(
   _prev: ActionResult<{ kind?: "staff" | "member"; devOtp?: string }>,
@@ -56,11 +58,15 @@ export async function loginAction(
   }
 
   try {
+    const staffUser = await prisma.user.findUnique({
+      where: { email: parsed.data.email },
+      select: { role: true },
+    });
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
       loginType: "staff",
-      redirectTo: "/dashboard",
+      redirectTo: staffUser ? defaultHomePath(staffUser.role) : "/",
     });
     return { ok: true };
   } catch (error) {
