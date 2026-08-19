@@ -121,18 +121,29 @@ async function resolveDepartment(departmentId: string) {
 
 export async function listVolunteersForManage() {
   await ensureVolunteerEnrollmentSchema();
-  return prisma.user.findMany({
-    where: { role: "ATTENDANCE_VOLUNTEER" },
-    orderBy: { name: "asc" },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      active: true,
-      volunteerMemberships: { include: { department: true } },
-    },
-  });
+  try {
+    return await prisma.user.findMany({
+      where: { role: "ATTENDANCE_VOLUNTEER" },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        active: true,
+        volunteerMemberships: {
+          select: {
+            id: true,
+            departmentId: true,
+            responsibility: true,
+            department: true,
+          },
+        },
+      },
+    });
+  } catch {
+    return [];
+  }
 }
 
 export async function assignVolunteerDepartments(

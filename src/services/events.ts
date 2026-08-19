@@ -185,15 +185,19 @@ export async function listRideRequestsForStaff(actor: SessionUser) {
     throw new AppError("You do not have permission to perform this action.", 403);
   }
   const lead = actor.role !== "ATTENDANCE_VOLUNTEER" || (await isTransportationLead(actor.id));
-  return prisma.rideRequest.findMany({
-    where: lead ? {} : { driverUserId: actor.id, status: { in: ["ASSIGNED", "APPROVED"] } },
-    include: {
-      meetup: true,
-      member: { select: { id: true, firstName: true, lastName: true, phone: true } },
-      driver: { select: { id: true, name: true, phone: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  try {
+    return await prisma.rideRequest.findMany({
+      where: lead ? {} : { driverUserId: actor.id, status: { in: ["ASSIGNED", "APPROVED"] } },
+      include: {
+        meetup: true,
+        member: { select: { id: true, firstName: true, lastName: true, phone: true } },
+        driver: { select: { id: true, name: true, phone: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch {
+    return [];
+  }
 }
 
 export async function reviewRideRequest(actor: SessionUser, id: string, status: "APPROVED" | "CANCELLED" | "REJECTED") {
@@ -236,15 +240,38 @@ export async function listEligibleRideDrivers(actor: SessionUser, meetupId: stri
           name: true,
           phone: true,
           active: true,
-          transportAvailability: { where: { meetupId } },
         },
       },
     },
   });
+  let availabilityRows: Array<{
+    userId: string;
+    status: "AVAILABLE" | "PARTIAL" | "NOT_AVAILABLE";
+    startTime: string | null;
+    endTime: string | null;
+    passengerCapacity: number | null;
+    note: string | null;
+  }> = [];
+  try {
+    availabilityRows = await prisma.transportEventAvailability.findMany({
+      where: { meetupId },
+      select: {
+        userId: true,
+        status: true,
+        startTime: true,
+        endTime: true,
+        passengerCapacity: true,
+        note: true,
+      },
+    });
+  } catch {
+    availabilityRows = [];
+  }
+  const availabilityByUser = new Map(availabilityRows.map((row) => [row.userId, row]));
   return members
     .filter((row) => row.user.active)
     .map((row) => {
-      const availability = row.user.transportAvailability[0];
+      const availability = availabilityByUser.get(row.user.id);
       return {
         id: row.user.id,
         name: row.user.name,

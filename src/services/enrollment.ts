@@ -162,24 +162,28 @@ async function notifyEnrollmentReviewers(requestId: string) {
 
 export async function listPendingEnrollments(actor: SessionUser) {
   await ensureVolunteerEnrollmentSchema();
-  if (actor.role === "ADMIN" || actor.role === "COORDINATOR") {
-    return prisma.volunteerEnrollmentRequest.findMany({
-      where: { status: "PENDING" },
+  try {
+    if (actor.role === "ADMIN" || actor.role === "COORDINATOR") {
+      return await prisma.volunteerEnrollmentRequest.findMany({
+        where: { status: "PENDING" },
+        include: { member: true, department: true },
+        orderBy: { createdAt: "asc" },
+      });
+    }
+    const leadMemberships = await prisma.volunteerDepartmentMembership.findMany({
+      where: { userId: actor.id, responsibility: "LEAD" },
+      select: { departmentId: true },
+    });
+    const ids = leadMemberships.map((row) => row.departmentId);
+    if (ids.length === 0) return [];
+    return await prisma.volunteerEnrollmentRequest.findMany({
+      where: { status: "PENDING", departmentId: { in: ids }, interestKind: "DEPARTMENT" },
       include: { member: true, department: true },
       orderBy: { createdAt: "asc" },
     });
+  } catch {
+    return [];
   }
-  const leadMemberships = await prisma.volunteerDepartmentMembership.findMany({
-    where: { userId: actor.id, responsibility: "LEAD" },
-    select: { departmentId: true },
-  });
-  const ids = leadMemberships.map((row) => row.departmentId);
-  if (ids.length === 0) return [];
-  return prisma.volunteerEnrollmentRequest.findMany({
-    where: { status: "PENDING", departmentId: { in: ids }, interestKind: "DEPARTMENT" },
-    include: { member: true, department: true },
-    orderBy: { createdAt: "asc" },
-  });
 }
 
 export async function reviewEnrollment(

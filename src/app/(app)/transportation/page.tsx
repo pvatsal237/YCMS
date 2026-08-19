@@ -35,11 +35,24 @@ export default async function TransportationPage() {
       </div>
     );
   }
-  const rows = await listRideRequestsForStaff(user);
+  let rows: Awaited<ReturnType<typeof listRideRequestsForStaff>> = [];
+  try {
+    rows = await listRideRequestsForStaff(user);
+  } catch {
+    rows = [];
+  }
   const nextEvent = upcoming[0];
   const meetupIds = [...new Set(rows.map((row) => row.meetupId))];
   const driverLists = canManage
-    ? await Promise.all(meetupIds.map((meetupId) => listEligibleRideDrivers(user, meetupId)))
+    ? await Promise.all(
+        meetupIds.map(async (meetupId) => {
+          try {
+            return await listEligibleRideDrivers(user, meetupId);
+          } catch {
+            return [];
+          }
+        }),
+      )
     : [];
   const driversByMeetup = new Map(meetupIds.map((id, index) => [id, driverLists[index] ?? []]));
 

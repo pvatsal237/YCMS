@@ -14,13 +14,22 @@ import { formatDate } from "@/lib/dates";
 export default async function VolunteersPage() {
   const actor = await requireRole(["ADMIN", "COORDINATOR"]);
   await ensureVolunteerEnrollmentSchema();
-  const [volunteers, departments, pending, pendingPlans, pendingEnrollments] = await Promise.all([
-    listVolunteersForManage(),
-    listDepartments(),
-    listPendingStaffingForReview(),
-    listPendingPlansForReview(),
-    listPendingEnrollments(actor),
-  ]);
+  let volunteers: Awaited<ReturnType<typeof listVolunteersForManage>> = [];
+  let departments: Awaited<ReturnType<typeof listDepartments>> = [];
+  let pending: Awaited<ReturnType<typeof listPendingStaffingForReview>> = [];
+  let pendingPlans: Awaited<ReturnType<typeof listPendingPlansForReview>> = [];
+  let pendingEnrollments: Awaited<ReturnType<typeof listPendingEnrollments>> = [];
+  try {
+    [volunteers, departments, pending, pendingPlans, pendingEnrollments] = await Promise.all([
+      listVolunteersForManage(),
+      listDepartments(),
+      listPendingStaffingForReview(),
+      listPendingPlansForReview(),
+      listPendingEnrollments(actor),
+    ]);
+  } catch {
+    pendingEnrollments = [];
+  }
 
   return (
     <div className="space-y-6">

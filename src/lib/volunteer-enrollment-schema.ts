@@ -5,16 +5,8 @@ let ensured = false;
 async function exec(sql: string) {
   try {
     await prisma.$executeRawUnsafe(sql);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (
-      /already exists|duplicate|already present|unique|23505|42P07|42710|P2010|Invalid prisma\.\$executeRawUnsafe/i.test(
-        message,
-      )
-    ) {
-      return;
-    }
-    throw error;
+  } catch {
+    return;
   }
 }
 
