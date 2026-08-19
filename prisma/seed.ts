@@ -120,44 +120,37 @@ async function main() {
   for (const dept of DEPARTMENT_CODES) {
     departments.push(
       await prisma.volunteerDepartment.create({
-        data: { code: dept.code, name: dept.name, leadUserId: volunteers[departments.length % volunteers.length]?.id },
+        data: { code: dept.code, name: dept.name },
       }),
     );
   }
-  for (const [index, volunteer] of volunteers.entries()) {
-    const primary = departments[index % departments.length];
-    const secondary = departments[(index + 3) % departments.length];
-    const isLead = index < departments.length;
-    await prisma.volunteerDepartmentMembership.create({
-      data: {
-        userId: volunteer.id,
-        departmentId: primary.id,
-        responsibility: isLead ? "LEAD" : "VOLUNTEER",
-      },
-    });
-    const kitchenLeadOnSeating =
-      isLead && primary.code === "KITCHEN" && secondary.code === "SEATING_SETUP";
-    if (secondary.id !== primary.id && !kitchenLeadOnSeating) {
+  const deptByCode = Object.fromEntries(departments.map((row) => [row.code, row]));
+  const roster: Array<{ code: (typeof DEPARTMENT_CODES)[number]["code"]; leads: number[]; members: number[] }> = [
+    { code: "KITCHEN", leads: [0, 1], members: [2, 3, 4, 5, 6, 7] },
+    { code: "GROCERIES", leads: [14], members: [2, 15, 16, 17, 18] },
+    { code: "TRANSPORTATION", leads: [8], members: [9, 10, 11, 12, 13] },
+    { code: "SEATING_SETUP", leads: [19], members: [15, 20, 21, 22] },
+    { code: "AUDIO_VIDEO", leads: [23], members: [16, 24, 25] },
+    { code: "RECREATION", leads: [26], members: [0, 27] },
+    { code: "RISEUP_SUPPORT", leads: [28], members: [1, 4] },
+    { code: "GENERAL_EVENT_SUPPORT", leads: [29], members: [3, 8] },
+  ];
+  for (const row of roster) {
+    const department = deptByCode[row.code];
+    const leadIndexes = [...new Set(row.leads)];
+    const memberIndexes = [...new Set([...row.leads, ...row.members])];
+    for (const index of memberIndexes) {
       await prisma.volunteerDepartmentMembership.create({
-        data: { userId: volunteer.id, departmentId: secondary.id, responsibility: "VOLUNTEER" },
+        data: {
+          userId: volunteers[index].id,
+          departmentId: department.id,
+          responsibility: leadIndexes.includes(index) ? "LEAD" : "VOLUNTEER",
+        },
       });
     }
-  }
-
-  const kitchenDept = departments.find((d) => d.code === "KITCHEN");
-  if (kitchenDept) {
     await prisma.volunteerDepartment.update({
-      where: { id: kitchenDept.id },
-      data: { leadUserId: volunteers[0].id },
-    });
-    await prisma.volunteerDepartmentMembership.updateMany({
-      where: { departmentId: kitchenDept.id, userId: { not: volunteers[0].id }, responsibility: "LEAD" },
-      data: { responsibility: "VOLUNTEER" },
-    });
-    await prisma.volunteerDepartmentMembership.upsert({
-      where: { userId_departmentId: { userId: volunteers[0].id, departmentId: kitchenDept.id } },
-      create: { userId: volunteers[0].id, departmentId: kitchenDept.id, responsibility: "LEAD" },
-      update: { responsibility: "LEAD" },
+      where: { id: department.id },
+      data: { leadUserId: volunteers[leadIndexes[0]].id },
     });
   }
 
@@ -363,8 +356,8 @@ async function main() {
       preparationLocation: "Community kitchen, Unit 4",
       kitchenNotes: "Prep starts mid-afternoon; serving at 8:00 PM.",
       knownAssignments: [
-        { label: "Grocery Person", userId: volunteers[8].id },
-        { label: "Food Delivery Person", userId: volunteers[16].id },
+        { label: "Grocery Person", userId: volunteers[2].id },
+        { label: "Food Delivery Person", userId: volunteers[5].id },
       ],
       createdById: volunteers[0].id,
       submittedAt: new Date(),
@@ -373,11 +366,11 @@ async function main() {
     },
   });
   const kitchenTasks = [
-    { task: "Chopping", neededCount: 10, requestDate: utcDate(2026, 8, 21), startTime: "15:00", endTime: "17:00", assign: [8, 16, 24, 5] },
-    { task: "Groceries", neededCount: 3, requestDate: utcDate(2026, 8, 20), startTime: "18:00", endTime: "20:00", assign: [8, 16, 24] },
-    { task: "Cooking / Food Preparation", neededCount: 8, requestDate: utcDate(2026, 8, 21), startTime: "15:00", endTime: "19:00", assign: [0, 13, 21, 29] },
-    { task: "Dishes / Cleanup", neededCount: 4, requestDate: utcDate(2026, 8, 21), startTime: "20:30", endTime: "22:00", assign: [8, 16, 24, 5] },
-    { task: "Food Delivery to Venue", neededCount: 1, requestDate: utcDate(2026, 8, 21), startTime: "17:30", endTime: "18:15", assign: [16] },
+    { task: "Chopping", neededCount: 10, requestDate: utcDate(2026, 8, 21), startTime: "15:00", endTime: "17:00", assign: [2, 3, 4, 5] },
+    { task: "Groceries", neededCount: 3, requestDate: utcDate(2026, 8, 20), startTime: "18:00", endTime: "20:00", assign: [2, 6, 7] },
+    { task: "Cooking / Food Preparation", neededCount: 8, requestDate: utcDate(2026, 8, 21), startTime: "15:00", endTime: "19:00", assign: [0, 1, 3, 7] },
+    { task: "Dishes / Cleanup", neededCount: 4, requestDate: utcDate(2026, 8, 21), startTime: "20:30", endTime: "22:00", assign: [4, 5, 6, 7] },
+    { task: "Food Delivery to Venue", neededCount: 1, requestDate: utcDate(2026, 8, 21), startTime: "17:30", endTime: "18:15", assign: [5] },
   ];
   for (const task of kitchenTasks) {
     const request = await prisma.volunteerStaffingRequest.create({
@@ -406,7 +399,7 @@ async function main() {
       meetupId: upcoming.id,
       departmentId: transport.id,
       status: "APPROVED",
-      createdById: volunteers[2].id,
+      createdById: volunteers[8].id,
       submittedAt: new Date(),
       reviewedAt: new Date(),
       reviewedById: coordinator.id,
@@ -414,10 +407,10 @@ async function main() {
     },
   });
   for (const route of [
-    { task: "Markham", neededCount: 3, assign: [10] },
-    { task: "Brampton", neededCount: 4, assign: [18, 26] },
+    { task: "Markham", neededCount: 3, assign: [9] },
+    { task: "Brampton", neededCount: 4, assign: [10, 11] },
     { task: "Mississauga", neededCount: 2, assign: [] },
-    { task: "Flexible / General", neededCount: 2, assign: [2] },
+    { task: "Flexible / General", neededCount: 2, assign: [12] },
   ]) {
     const request = await prisma.volunteerStaffingRequest.create({
       data: {
@@ -429,7 +422,7 @@ async function main() {
         requestDate: utcDate(2026, 8, 21),
         startTime: "18:30",
         endTime: "22:00",
-        createdById: volunteers[2].id,
+        createdById: volunteers[8].id,
         status: "APPROVED",
       },
     });
@@ -445,7 +438,7 @@ async function main() {
       meetupId: riseup.id,
       departmentId: setup.id,
       status: "PENDING_APPROVAL",
-      createdById: volunteers[3].id,
+      createdById: volunteers[19].id,
       submittedAt: new Date(),
     },
   });
@@ -459,7 +452,7 @@ async function main() {
       requestDate: utcDate(2026, 9, 20),
       startTime: "15:00",
       endTime: "17:00",
-      createdById: volunteers[3].id,
+      createdById: volunteers[19].id,
       status: "PENDING_APPROVAL",
     },
   });

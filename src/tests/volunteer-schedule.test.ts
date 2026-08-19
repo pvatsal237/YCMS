@@ -7,6 +7,7 @@ import {
   shiftIsoDate,
   staffingShortage,
   windowsOverlap,
+  isLeadForDepartment,
 } from "@/utils/volunteer-schedule";
 
 describe("volunteer schedule rules", () => {
@@ -47,5 +48,26 @@ describe("volunteer schedule rules", () => {
       "Kitchen leads stay with food preparation through the end of the event, so they cannot volunteer for Seating & Setup.",
     );
     expect(kitchenLeadMembershipConflict(["KITCHEN"], ["KITCHEN"])).toBeNull();
+  });
+
+  it("treats lead designation as per-department, not global", () => {
+    expect(
+      isLeadForDepartment(
+        [
+          { departmentId: "kitchen", responsibility: "LEAD" },
+          { departmentId: "recreation", responsibility: "VOLUNTEER" },
+        ],
+        "kitchen",
+      ),
+    ).toBe(true);
+    expect(
+      isLeadForDepartment(
+        [
+          { departmentId: "kitchen", responsibility: "LEAD" },
+          { departmentId: "recreation", responsibility: "VOLUNTEER" },
+        ],
+        "recreation",
+      ),
+    ).toBe(false);
   });
 });

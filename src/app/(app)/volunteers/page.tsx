@@ -21,7 +21,7 @@ export default async function VolunteersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Volunteers"
-        description="Assign departments and department leads. A Kitchen lead cannot also be placed on Seating & Setup — kitchen work continues through the end of the event."
+        description="Assign people as regular volunteers or designated department leads. A department can have several volunteers and more than one lead. Lead designation applies only to that department. A Kitchen lead cannot also be placed on Seating & Setup."
       />
       {pendingPlans.length > 0 ? (
         <Card>
@@ -90,7 +90,7 @@ export default async function VolunteersPage() {
                       <input type="checkbox" name="departmentId" value={dept.id} defaultChecked={Boolean(membership)} />
                       <span>{departmentLabel(dept.code)}</span>
                       <input type="checkbox" name="leadDepartmentId" value={dept.id} defaultChecked={membership?.responsibility === "LEAD"} />
-                      <span className="text-xs text-slate-500">Department lead</span>
+                      <span className="text-xs text-slate-500">Department lead for this department only</span>
                     </label>
                   );
                 })}

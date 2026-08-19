@@ -13,9 +13,7 @@ export default async function VolunteerHomePage() {
   const user = await requireRole(["ATTENDANCE_VOLUNTEER"]);
   const data = await getVolunteerHomeData(user.id);
 
-  const leadMemberships = data.memberships.filter(
-    (row) => row.responsibility === "LEAD" || row.department.leadUserId === user.id,
-  );
+  const leadMemberships = data.memberships.filter((row) => row.responsibility === "LEAD");
   const teamMemberships = data.memberships.filter((row) => row.responsibility !== "LEAD");
 
   return (
@@ -39,7 +37,7 @@ export default async function VolunteerHomePage() {
             action={
               lead.event && lead.canEditPlan !== false ? (
                 <Link href={`/volunteer/plan?meetupId=${lead.event.id}&departmentId=${lead.department.id}`}>
-                  <Button size="sm">Edit Plan</Button>
+                  <Button size="sm">Plan Department Requirements</Button>
                 </Link>
               ) : null
             }
@@ -104,7 +102,7 @@ export default async function VolunteerHomePage() {
                           href={`/volunteer/plan?meetupId=${lead.event.id}&departmentId=${lead.department.id}`}
                           className="text-sm font-medium text-teal-800"
                         >
-                          Edit Requirement
+                          Edit Plan
                         </Link>
                       ) : null}
                     </div>

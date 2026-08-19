@@ -76,6 +76,13 @@ export const KITCHEN_LEAD_BLOCKED_DEPARTMENTS = ["SEATING_SETUP"] as const;
 export const KITCHEN_LEAD_SEATING_MESSAGE =
   "Kitchen leads stay with food preparation through the end of the event, so they cannot volunteer for Seating & Setup.";
 
+export function isLeadForDepartment(
+  memberships: Array<{ departmentId: string; responsibility: string }>,
+  departmentId: string,
+): boolean {
+  return memberships.some((row) => row.departmentId === departmentId && row.responsibility === "LEAD");
+}
+
 export function kitchenLeadMembershipConflict(leadCodes: string[], memberCodes: string[]): string | null {
   if (leadCodes.includes("KITCHEN") && memberCodes.includes("SEATING_SETUP")) {
     return KITCHEN_LEAD_SEATING_MESSAGE;

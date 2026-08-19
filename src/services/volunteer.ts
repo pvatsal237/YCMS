@@ -15,6 +15,7 @@ import {
   staffingShortage,
   utcDateKey,
   windowsOverlap,
+  isLeadForDepartment,
   type ScheduleWindow,
 } from "@/utils/volunteer-schedule";
 
@@ -80,30 +81,31 @@ export async function isTransportationLead(userId: string) {
 }
 
 export async function isDepartmentLead(userId: string, departmentId?: string) {
-  if (departmentId) {
-    const [membership, department] = await Promise.all([
-      prisma.volunteerDepartmentMembership.findFirst({
-        where: { userId, departmentId, responsibility: "LEAD" },
-        select: { id: true },
-      }),
-      prisma.volunteerDepartment.findFirst({
-        where: { id: departmentId, leadUserId: userId },
-        select: { id: true },
-      }),
-    ]);
-    return Boolean(membership || department);
+  const memberships = await prisma.volunteerDepartmentMembership.findMany({
+    where: {
+      userId,
+      responsibility: "LEAD",
+      ...(departmentId ? { departmentId } : {}),
+    },
+    select: { departmentId: true, responsibility: true },
+  });
+  if (!departmentId) return memberships.length > 0;
+  return isLeadForDepartment(memberships, departmentId);
+}
+
+async function syncDepartmentPrimaryLead(departmentId: string) {
+  const lead = await prisma.volunteerDepartmentMembership.findFirst({
+    where: { departmentId, responsibility: "LEAD" },
+    orderBy: { createdAt: "asc" },
+    select: { userId: true },
+  });
+  if (!lead) {
+    throw new AppError("Every department must have at least one designated department lead.", 400);
   }
-  const [membership, department] = await Promise.all([
-    prisma.volunteerDepartmentMembership.findFirst({
-      where: { userId, responsibility: "LEAD" },
-      select: { id: true },
-    }),
-    prisma.volunteerDepartment.findFirst({
-      where: { leadUserId: userId },
-      select: { id: true },
-    }),
-  ]);
-  return Boolean(membership || department);
+  await prisma.volunteerDepartment.update({
+    where: { id: departmentId },
+    data: { leadUserId: lead.userId },
+  });
 }
 
 async function resolveDepartment(departmentId: string) {
@@ -163,8 +165,13 @@ export async function assignVolunteerDepartments(
       active: input.active ?? user.active,
     },
   });
+  const previous = await prisma.volunteerDepartmentMembership.findMany({
+    where: { userId: user.id },
+    select: { departmentId: true },
+  });
+  const memberIds = [...new Set([...input.departmentIds, ...input.leadDepartmentIds])];
   await prisma.volunteerDepartmentMembership.deleteMany({ where: { userId: user.id } });
-  for (const departmentId of input.departmentIds) {
+  for (const departmentId of memberIds) {
     await prisma.volunteerDepartmentMembership.create({
       data: {
         userId: user.id,
@@ -173,15 +180,9 @@ export async function assignVolunteerDepartments(
       },
     });
   }
-  for (const departmentId of input.leadDepartmentIds) {
-    await prisma.volunteerDepartmentMembership.updateMany({
-      where: { departmentId, userId: { not: user.id }, responsibility: "LEAD" },
-      data: { responsibility: "VOLUNTEER" },
-    });
-    await prisma.volunteerDepartment.update({
-      where: { id: departmentId },
-      data: { leadUserId: user.id },
-    });
+  const affected = [...new Set([...previous.map((row) => row.departmentId), ...memberIds])];
+  for (const departmentId of affected) {
+    await syncDepartmentPrimaryLead(departmentId);
   }
 }
 
@@ -716,13 +717,16 @@ export async function assignVolunteerToRequest(
   requestId: string,
   userId: string,
 ) {
-  const lead = actor.role === "ADMIN" || actor.role === "COORDINATOR" || (await isDepartmentLead(actor.id));
-  if (!lead) throw new AppError("You do not have permission to perform this action.", 403);
   const request = await prisma.volunteerStaffingRequest.findUnique({
     where: { id: requestId },
     include: { assignments: true, responses: true },
   });
   if (!request) throw new AppError("Request not found.", 404);
+  const allowed =
+    actor.role === "ADMIN" ||
+    actor.role === "COORDINATOR" ||
+    (await isDepartmentLead(actor.id, request.departmentId));
+  if (!allowed) throw new AppError("You do not have permission to perform this action.", 403);
   if (request.assignments.some((row) => row.userId === userId)) return request;
   if (staffingShortage(request.neededCount, request.assignments.length) <= 0) {
     throw new AppError("This requirement is already filled.", 400);
@@ -862,9 +866,7 @@ function summarizeRequests(
 export async function getVolunteerHomeData(userId: string) {
   const memberships = await getVolunteerContext(userId);
   const ledDepartments = await prisma.volunteerDepartment.findMany({
-    where: {
-      OR: [{ leadUserId: userId }, { members: { some: { userId, responsibility: "LEAD" } } }],
-    },
+    where: { members: { some: { userId, responsibility: "LEAD" } } },
   });
   const upcomingEvents = await prisma.meetup.findMany({
     where: { active: true, meetupDate: { gte: new Date() } },
