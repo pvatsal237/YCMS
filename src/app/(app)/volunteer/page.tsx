@@ -13,7 +13,9 @@ export default async function VolunteerHomePage() {
   const user = await requireRole(["ATTENDANCE_VOLUNTEER"]);
   const data = await getVolunteerHomeData(user.id);
 
-  const leadMemberships = data.memberships.filter((row) => row.responsibility === "LEAD");
+  const leadMemberships = data.memberships.filter(
+    (row) => row.responsibility === "LEAD" || row.department.leadUserId === user.id,
+  );
   const teamMemberships = data.memberships.filter((row) => row.responsibility !== "LEAD");
 
   return (
@@ -35,7 +37,7 @@ export default async function VolunteerHomePage() {
             title={lead.event ? lead.event.title : "No upcoming event"}
             description={`You are the ${departmentShortLabel(lead.department.code)} department lead`}
             action={
-              lead.event ? (
+              lead.event && lead.canEditPlan !== false ? (
                 <Link href={`/volunteer/plan?meetupId=${lead.event.id}&departmentId=${lead.department.id}`}>
                   <Button size="sm">Edit Plan</Button>
                 </Link>
@@ -97,7 +99,7 @@ export default async function VolunteerHomePage() {
                       <a href={`#requirement-${task.id}`} className="text-sm font-medium text-teal-800">
                         View Volunteers
                       </a>
-                      {lead.event ? (
+                      {lead.event && lead.canEditPlan !== false ? (
                         <Link
                           href={`/volunteer/plan?meetupId=${lead.event.id}&departmentId=${lead.department.id}`}
                           className="text-sm font-medium text-teal-800"

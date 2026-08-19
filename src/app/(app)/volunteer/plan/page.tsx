@@ -20,7 +20,7 @@ export default async function VolunteerPlanPage({
       </div>
     );
   }
-  const data = await getPlanEditorData(user.id, params.meetupId, params.departmentId);
+  const data = await getPlanEditorData(user, params.meetupId, params.departmentId);
   const locked = data.plan?.status === "CLOSED";
 
   return (

@@ -143,17 +143,21 @@ async function main() {
       });
     }
   }
-  const transportDept = departments.find((d) => d.code === "TRANSPORTATION");
-  if (transportDept) {
-    await prisma.volunteerDepartmentMembership.createMany({
-      data: [
-        {
-          userId: volunteers[0].id,
-          departmentId: transportDept.id,
-          responsibility: "VOLUNTEER",
-        },
-      ],
-      skipDuplicates: true,
+
+  const kitchenDept = departments.find((d) => d.code === "KITCHEN");
+  if (kitchenDept) {
+    await prisma.volunteerDepartment.update({
+      where: { id: kitchenDept.id },
+      data: { leadUserId: volunteers[0].id },
+    });
+    await prisma.volunteerDepartmentMembership.updateMany({
+      where: { departmentId: kitchenDept.id, userId: { not: volunteers[0].id }, responsibility: "LEAD" },
+      data: { responsibility: "VOLUNTEER" },
+    });
+    await prisma.volunteerDepartmentMembership.upsert({
+      where: { userId_departmentId: { userId: volunteers[0].id, departmentId: kitchenDept.id } },
+      create: { userId: volunteers[0].id, departmentId: kitchenDept.id, responsibility: "LEAD" },
+      update: { responsibility: "LEAD" },
     });
   }
 

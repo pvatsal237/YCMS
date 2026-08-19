@@ -80,11 +80,39 @@ export async function isTransportationLead(userId: string) {
 }
 
 export async function isDepartmentLead(userId: string, departmentId?: string) {
-  const where = departmentId
-    ? { userId, departmentId, responsibility: "LEAD" as const }
-    : { userId, responsibility: "LEAD" as const };
-  const row = await prisma.volunteerDepartmentMembership.findFirst({ where });
-  return Boolean(row);
+  if (departmentId) {
+    const [membership, department] = await Promise.all([
+      prisma.volunteerDepartmentMembership.findFirst({
+        where: { userId, departmentId, responsibility: "LEAD" },
+        select: { id: true },
+      }),
+      prisma.volunteerDepartment.findFirst({
+        where: { id: departmentId, leadUserId: userId },
+        select: { id: true },
+      }),
+    ]);
+    return Boolean(membership || department);
+  }
+  const [membership, department] = await Promise.all([
+    prisma.volunteerDepartmentMembership.findFirst({
+      where: { userId, responsibility: "LEAD" },
+      select: { id: true },
+    }),
+    prisma.volunteerDepartment.findFirst({
+      where: { leadUserId: userId },
+      select: { id: true },
+    }),
+  ]);
+  return Boolean(membership || department);
+}
+
+async function resolveDepartment(departmentId: string) {
+  const byId = await prisma.volunteerDepartment.findUnique({ where: { id: departmentId } });
+  if (byId) return byId;
+  const code = departmentId.trim().toUpperCase().replace(/-/g, "_");
+  return prisma.volunteerDepartment.findFirst({
+    where: { code: code as VolunteerDepartmentCode },
+  });
 }
 
 export async function listVolunteersForManage() {
@@ -833,7 +861,11 @@ function summarizeRequests(
 
 export async function getVolunteerHomeData(userId: string) {
   const memberships = await getVolunteerContext(userId);
-  const leadMemberships = memberships.filter((row) => row.responsibility === "LEAD");
+  const ledDepartments = await prisma.volunteerDepartment.findMany({
+    where: {
+      OR: [{ leadUserId: userId }, { members: { some: { userId, responsibility: "LEAD" } } }],
+    },
+  });
   const upcomingEvents = await prisma.meetup.findMany({
     where: { active: true, meetupDate: { gte: new Date() } },
     orderBy: { meetupDate: "asc" },
@@ -849,11 +881,11 @@ export async function getVolunteerHomeData(userId: string) {
   const openRequests = await listOpenStaffingForVolunteer(userId);
 
   const leadDashboards = [];
-  for (const membership of leadMemberships) {
+  for (const department of ledDepartments) {
     const plan = nextEvent
       ? await prisma.eventDepartmentPlan.findUnique({
           where: {
-            meetupId_departmentId: { meetupId: nextEvent.id, departmentId: membership.departmentId },
+            meetupId_departmentId: { meetupId: nextEvent.id, departmentId: department.id },
           },
           include: {
             staffingRequests: {
@@ -869,7 +901,7 @@ export async function getVolunteerHomeData(userId: string) {
       : null;
     const summary = plan ? summarizeRequests(plan.staffingRequests) : { needed: 0, confirmed: 0, remaining: 0, tasks: [] };
     let transport = null;
-    if (membership.department.code === "TRANSPORTATION" && nextEvent) {
+    if (department.code === "TRANSPORTATION" && nextEvent) {
       const rides = await prisma.rideRequest.findMany({
         where: { meetupId: nextEvent.id },
         select: { pickupArea: true, status: true, driverUserId: true },
@@ -891,28 +923,32 @@ export async function getVolunteerHomeData(userId: string) {
       };
     }
     leadDashboards.push({
-      department: membership.department,
+      department,
       event: nextEvent,
       plan,
       summary,
       transport,
+      canEditPlan: true,
     });
   }
 
   return { memberships, upcomingEvents, assignments, openRequests, leadDashboards, nextEvent };
 }
 
-export async function getPlanEditorData(userId: string, meetupId: string, departmentId: string) {
-  const lead = await isDepartmentLead(userId, departmentId);
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-  if (!lead && user?.role !== "ADMIN" && user?.role !== "COORDINATOR") {
+export async function getPlanEditorData(actor: SessionUser, meetupId: string, departmentKey: string) {
+  const department = await resolveDepartment(departmentKey);
+  if (!department) throw new AppError("Event or department not found.", 404);
+  const canEdit =
+    actor.role === "ADMIN" ||
+    actor.role === "COORDINATOR" ||
+    (actor.role === "ATTENDANCE_VOLUNTEER" && (await isDepartmentLead(actor.id, department.id)));
+  if (!canEdit) {
     throw new AppError("Only a department lead can open this plan.", 403);
   }
-  const [meetup, department, plan, members] = await Promise.all([
+  const [meetup, plan, members] = await Promise.all([
     prisma.meetup.findUnique({ where: { id: meetupId } }),
-    prisma.volunteerDepartment.findUnique({ where: { id: departmentId } }),
     prisma.eventDepartmentPlan.findUnique({
-      where: { meetupId_departmentId: { meetupId, departmentId } },
+      where: { meetupId_departmentId: { meetupId, departmentId: department.id } },
       include: {
         staffingRequests: {
           include: {
@@ -924,12 +960,12 @@ export async function getPlanEditorData(userId: string, meetupId: string, depart
       },
     }),
     prisma.volunteerDepartmentMembership.findMany({
-      where: { departmentId },
+      where: { departmentId: department.id },
       include: { user: { select: { id: true, name: true, phone: true, active: true } } },
       orderBy: { user: { name: "asc" } },
     }),
   ]);
-  if (!meetup || !department) throw new AppError("Event or department not found.", 404);
+  if (!meetup) throw new AppError("Event or department not found.", 404);
   return { meetup, department, plan, members };
 }
 

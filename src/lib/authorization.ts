@@ -138,10 +138,12 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export function navItemsForRole(role: UserRole, options?: { departmentCodes?: string[] }): NavItem[] {
+  const codes = new Set((options?.departmentCodes ?? []).map((code) => code.toUpperCase()));
   return NAV_ITEMS.filter((item) => {
     if (!item.roles.includes(role)) return false;
-    if (item.href === "/transportation" && role === "ATTENDANCE_VOLUNTEER") {
-      return (options?.departmentCodes ?? []).includes("TRANSPORTATION");
+    if (item.href === "/transportation") {
+      if (role === "ADMIN" || role === "COORDINATOR") return true;
+      return role === "ATTENDANCE_VOLUNTEER" && codes.has("TRANSPORTATION");
     }
     return true;
   });
