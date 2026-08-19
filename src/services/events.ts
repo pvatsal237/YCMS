@@ -3,6 +3,7 @@ import { AppError } from "@/lib/errors";
 import { parseDateOnly } from "@/lib/dates";
 import { createStaffNotification } from "@/services/staff-notifications";
 import { isTransportationAssignee, isTransportationLead } from "@/services/volunteer";
+import { ensureVolunteerEnrollmentSchema } from "@/lib/volunteer-enrollment-schema";
 import type { SessionUser } from "@/types";
 import type { EventType } from "@prisma/client";
 
@@ -178,6 +179,7 @@ export async function listMemberRideRequests(memberId: string) {
 }
 
 export async function listRideRequestsForStaff(actor: SessionUser) {
+  await ensureVolunteerEnrollmentSchema();
   const isTransportVol = actor.role === "ATTENDANCE_VOLUNTEER" && (await isTransportationAssignee(actor.id));
   if (actor.role !== "ADMIN" && actor.role !== "COORDINATOR" && !isTransportVol) {
     throw new AppError("You do not have permission to perform this action.", 403);
@@ -221,6 +223,7 @@ export async function reviewRideRequest(actor: SessionUser, id: string, status: 
 }
 
 export async function listEligibleRideDrivers(actor: SessionUser, meetupId: string) {
+  await ensureVolunteerEnrollmentSchema();
   if (actor.role !== "ADMIN" && actor.role !== "COORDINATOR" && !(await isTransportationLead(actor.id))) {
     throw new AppError("You do not have permission to perform this action.", 403);
   }

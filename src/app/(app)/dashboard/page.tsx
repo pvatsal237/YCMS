@@ -14,6 +14,7 @@ import { listPendingEnrollments } from "@/services/enrollment";
 import { EnrollmentReviewForm } from "@/components/volunteer/EnrollmentReviewForm";
 import { listDepartments } from "@/services/volunteer";
 import { departmentLabel } from "@/utils/format";
+import { ensureVolunteerEnrollmentSchema } from "@/lib/volunteer-enrollment-schema";
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
@@ -36,6 +37,7 @@ export default async function DashboardPage() {
   }
   const data = await getDashboardData(user);
   const showSensitive = canViewImmigration(user.role);
+  await ensureVolunteerEnrollmentSchema();
   const [pendingEnrollments, departments] = await Promise.all([
     listPendingEnrollments(user),
     listDepartments(),
@@ -72,7 +74,16 @@ export default async function DashboardPage() {
             ))}
           </CardBody>
         </Card>
-      ) : null}
+      ) : (
+        <Card className="mb-6">
+          <CardHeader title="People who would like to serve" />
+          <CardBody>
+            <p className="text-sm text-slate-600">
+              All serving requests have been reviewed. New Serve as Volunteer submissions will show here.
+            </p>
+          </CardBody>
+        </Card>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard label="Total active members" value={data.stats.totalActiveMembers} />

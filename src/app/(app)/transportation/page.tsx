@@ -10,9 +10,11 @@ import { formatDate } from "@/lib/dates";
 import { fullName, rideStatusLabel } from "@/utils/format";
 import { AssignRideForm } from "@/components/rides/AssignRideForm";
 import { TransportAvailabilityForm } from "@/components/volunteer/TransportAvailabilityForm";
+import { ensureVolunteerEnrollmentSchema } from "@/lib/volunteer-enrollment-schema";
 
 export default async function TransportationPage() {
   const user = await requireStaffSession();
+  await ensureVolunteerEnrollmentSchema();
   const [lead, upcoming, transportVolunteer] = await Promise.all([
     isTransportationLead(user.id),
     listUpcomingEvents(1),
@@ -45,9 +47,9 @@ export default async function TransportationPage() {
     <div className="space-y-6">
       <PageHeader
         title="Transportation"
-        description="Ride requests for upcoming events. If the driver does not answer, members should leave a voicemail with their name and callback number."
+        description="Review member ride requests, approve them, and assign a Transportation volunteer. Members request rides from the member portal, not from this tab."
       />
-      {nextEvent && transportVolunteer ? (
+      {nextEvent && transportVolunteer && user.role === "ATTENDANCE_VOLUNTEER" ? (
         <Card>
           <CardBody>
             <TransportAvailabilityForm meetupId={nextEvent.id} eventTitle={nextEvent.title} />
@@ -55,7 +57,13 @@ export default async function TransportationPage() {
         </Card>
       ) : null}
       {rows.length === 0 ? (
-        <Card><CardBody><p className="text-sm text-slate-500">No ride requests yet.</p></CardBody></Card>
+        <Card>
+          <CardBody>
+            <p className="text-sm text-slate-600">
+              There are no ride requests to review right now. When a member requests a ride from the member portal, it will appear here.
+            </p>
+          </CardBody>
+        </Card>
       ) : (
         rows.map((row) => (
           <Card key={row.id}>

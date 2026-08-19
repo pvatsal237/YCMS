@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/session";
 import { listDepartments, listPendingPlansForReview, listPendingStaffingForReview, listVolunteersForManage } from "@/services/volunteer";
 import { listPendingEnrollments } from "@/services/enrollment";
+import { ensureVolunteerEnrollmentSchema } from "@/lib/volunteer-enrollment-schema";
 import { EnrollmentReviewForm } from "@/components/volunteer/EnrollmentReviewForm";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -12,6 +13,7 @@ import { formatDate } from "@/lib/dates";
 
 export default async function VolunteersPage() {
   const actor = await requireRole(["ADMIN", "COORDINATOR"]);
+  await ensureVolunteerEnrollmentSchema();
   const [volunteers, departments, pending, pendingPlans, pendingEnrollments] = await Promise.all([
     listVolunteersForManage(),
     listDepartments(),
@@ -47,7 +49,16 @@ export default async function VolunteersPage() {
             ))}
           </CardBody>
         </Card>
-      ) : null}
+      ) : (
+        <Card>
+          <CardHeader title="People who would like to serve" />
+          <CardBody>
+            <p className="text-sm text-slate-600">
+              All serving requests have been reviewed. When a member submits Serve as Volunteer, it will appear here for you to assign a department.
+            </p>
+          </CardBody>
+        </Card>
+      )}
       {pendingPlans.length > 0 ? (
         <Card>
           <CardHeader title="Department plans to review" />

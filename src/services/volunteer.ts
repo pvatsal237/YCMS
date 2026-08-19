@@ -120,6 +120,7 @@ async function resolveDepartment(departmentId: string) {
 }
 
 export async function listVolunteersForManage() {
+  await ensureVolunteerEnrollmentSchema();
   return prisma.user.findMany({
     where: { role: "ATTENDANCE_VOLUNTEER" },
     orderBy: { name: "asc" },
