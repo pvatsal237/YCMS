@@ -143,6 +143,19 @@ async function main() {
       });
     }
   }
+  const transportDept = departments.find((d) => d.code === "TRANSPORTATION");
+  if (transportDept) {
+    await prisma.volunteerDepartmentMembership.createMany({
+      data: [
+        {
+          userId: volunteers[0].id,
+          departmentId: transportDept.id,
+          responsibility: "VOLUNTEER",
+        },
+      ],
+      skipDuplicates: true,
+    });
+  }
 
   await prisma.systemSetting.createMany({
     data: [

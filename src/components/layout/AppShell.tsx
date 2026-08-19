@@ -9,11 +9,13 @@ export function AppShell({
   user,
   notificationCount,
   displayTitle,
+  departmentCodes,
   children,
 }: {
   user: SessionUser;
   notificationCount: number;
   displayTitle?: string;
+  departmentCodes?: string[];
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -28,7 +30,12 @@ export function AppShell({
           onClick={() => setOpen(false)}
         />
       ) : null}
-      <Sidebar role={user.role} open={open} onClose={() => setOpen(false)} />
+      <Sidebar
+        role={user.role}
+        departmentCodes={departmentCodes}
+        open={open}
+        onClose={() => setOpen(false)}
+      />
       <div className="flex min-h-screen flex-1 flex-col">
         <Header
           user={user}

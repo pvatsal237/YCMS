@@ -137,8 +137,14 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/settings", label: "Settings", roles: ["ADMIN"] },
 ];
 
-export function navItemsForRole(role: UserRole): NavItem[] {
-  return NAV_ITEMS.filter((item) => item.roles.includes(role));
+export function navItemsForRole(role: UserRole, options?: { departmentCodes?: string[] }): NavItem[] {
+  return NAV_ITEMS.filter((item) => {
+    if (!item.roles.includes(role)) return false;
+    if (item.href === "/transportation" && role === "ATTENDANCE_VOLUNTEER") {
+      return (options?.departmentCodes ?? []).includes("TRANSPORTATION");
+    }
+    return true;
+  });
 }
 
 export function isPublicPath(pathname: string): boolean {

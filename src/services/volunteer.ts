@@ -61,6 +61,24 @@ export async function getVolunteerContext(userId: string) {
   });
 }
 
+export async function isTransportationAssignee(userId: string) {
+  return Boolean(
+    await prisma.volunteerDepartmentMembership.findFirst({
+      where: { userId, department: { code: "TRANSPORTATION" } },
+      select: { id: true },
+    }),
+  );
+}
+
+export async function isTransportationLead(userId: string) {
+  return Boolean(
+    await prisma.volunteerDepartmentMembership.findFirst({
+      where: { userId, department: { code: "TRANSPORTATION" }, responsibility: "LEAD" },
+      select: { id: true },
+    }),
+  );
+}
+
 export async function isDepartmentLead(userId: string, departmentId?: string) {
   const where = departmentId
     ? { userId, departmentId, responsibility: "LEAD" as const }

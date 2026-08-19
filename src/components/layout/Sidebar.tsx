@@ -39,15 +39,17 @@ const icons: Record<string, React.ComponentType<{ className?: string }>> = {
 
 export function Sidebar({
   role,
+  departmentCodes,
   open,
   onClose,
 }: {
   role: UserRole;
+  departmentCodes?: string[];
   open?: boolean;
   onClose?: () => void;
 }) {
   const pathname = usePathname();
-  const items = navItemsForRole(role);
+  const items = navItemsForRole(role, { departmentCodes });
 
   return (
     <aside

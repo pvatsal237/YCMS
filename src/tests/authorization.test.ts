@@ -11,6 +11,7 @@ import {
   canViewSensitiveMemberData,
   defaultHomePath,
   isPathAllowed,
+  navItemsForRole,
 } from "@/lib/authorization";
 
 describe("role authorization", () => {
@@ -51,6 +52,18 @@ describe("role authorization", () => {
     expect(isPathAllowed("/dashboard", "ATTENDANCE_VOLUNTEER")).toBe(false);
     expect(defaultHomePath("ATTENDANCE_VOLUNTEER")).toBe("/volunteer");
     expect(isPathAllowed("/events", "ATTENDANCE_VOLUNTEER")).toBe(true);
+    expect(navItemsForRole("ATTENDANCE_VOLUNTEER").some((item) => item.href === "/transportation")).toBe(false);
+    expect(
+      navItemsForRole("ATTENDANCE_VOLUNTEER", { departmentCodes: ["KITCHEN"] }).some(
+        (item) => item.href === "/transportation",
+      ),
+    ).toBe(false);
+    expect(
+      navItemsForRole("ATTENDANCE_VOLUNTEER", { departmentCodes: ["TRANSPORTATION"] }).some(
+        (item) => item.href === "/transportation",
+      ),
+    ).toBe(true);
+    expect(navItemsForRole("ADMIN").some((item) => item.href === "/transportation")).toBe(true);
     expect(isPathAllowed("/attendance/new", "ATTENDANCE_VOLUNTEER")).toBe(false);
     expect(isPathAllowed("/admin/users", "ATTENDANCE_VOLUNTEER")).toBe(false);
   });

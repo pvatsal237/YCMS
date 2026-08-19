@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { parseDateOnly } from "@/lib/dates";
 import { createStaffNotification } from "@/services/staff-notifications";
+import { isTransportationAssignee, isTransportationLead } from "@/services/volunteer";
 import type { SessionUser } from "@/types";
 import type { EventType } from "@prisma/client";
 
@@ -120,27 +121,13 @@ export async function listMemberRideRequests(memberId: string) {
 }
 
 export async function listRideRequestsForStaff(actor: SessionUser) {
-  const isTransportVol =
-    actor.role === "ATTENDANCE_VOLUNTEER" &&
-    Boolean(
-      await prisma.volunteerDepartmentMembership.findFirst({
-        where: { userId: actor.id, department: { code: "TRANSPORTATION" } },
-      }),
-    );
+  const isTransportVol = actor.role === "ATTENDANCE_VOLUNTEER" && (await isTransportationAssignee(actor.id));
   if (actor.role !== "ADMIN" && actor.role !== "COORDINATOR" && !isTransportVol) {
     throw new AppError("You do not have permission to perform this action.", 403);
   }
-  const lead =
-    actor.role !== "ATTENDANCE_VOLUNTEER" ||
-    Boolean(
-      await prisma.volunteerDepartmentMembership.findFirst({
-        where: { userId: actor.id, department: { code: "TRANSPORTATION" }, responsibility: "LEAD" },
-      }),
-    );
+  const lead = actor.role !== "ATTENDANCE_VOLUNTEER" || (await isTransportationLead(actor.id));
   return prisma.rideRequest.findMany({
-    where: lead
-      ? {}
-      : { status: { in: ["APPROVED", "ASSIGNED"] } },
+    where: lead ? {} : { status: { in: ["APPROVED", "ASSIGNED"] } },
     include: {
       meetup: true,
       member: { select: { id: true, firstName: true, lastName: true, phone: true } },
@@ -151,11 +138,8 @@ export async function listRideRequestsForStaff(actor: SessionUser) {
 }
 
 export async function reviewRideRequest(actor: SessionUser, id: string, status: "APPROVED" | "CANCELLED") {
-  if (actor.role !== "ADMIN" && actor.role !== "COORDINATOR") {
-    const lead = await prisma.volunteerDepartmentMembership.findFirst({
-      where: { userId: actor.id, department: { code: "TRANSPORTATION" }, responsibility: "LEAD" },
-    });
-    if (!lead) throw new AppError("You do not have permission to perform this action.", 403);
+  if (actor.role !== "ADMIN" && actor.role !== "COORDINATOR" && !(await isTransportationLead(actor.id))) {
+    throw new AppError("You do not have permission to perform this action.", 403);
   }
   return prisma.rideRequest.update({ where: { id }, data: { status } });
 }
@@ -171,10 +155,7 @@ export async function acceptRideRequest(actor: SessionUser, id: string) {
   if (existing.driverUserId) {
     throw new AppError("This ride is already assigned.", 400);
   }
-  const membership = await prisma.volunteerDepartmentMembership.findFirst({
-    where: { userId: actor.id, department: { code: "TRANSPORTATION" } },
-  });
-  if (!membership && actor.role !== "ADMIN" && actor.role !== "COORDINATOR") {
+  if (actor.role !== "ADMIN" && actor.role !== "COORDINATOR" && !(await isTransportationAssignee(actor.id))) {
     throw new AppError("You do not have permission to perform this action.", 403);
   }
   const { assertRideAcceptAllowed } = await import("@/services/volunteer");

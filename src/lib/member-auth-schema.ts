@@ -9,9 +9,9 @@ async function exec(sql: string) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (
-      message.includes("already exists") ||
-      message.includes("duplicate") ||
-      message.includes("already present")
+      /already exists|duplicate|already present|unique|23505|42P07|42710|P2010|Invalid prisma\.\$executeRawUnsafe/i.test(
+        message,
+      )
     ) {
       return;
     }
@@ -91,14 +91,26 @@ export async function ensureMemberAuthSchema() {
   await exec(
     `CREATE INDEX IF NOT EXISTS "StaffNotification_userId_createdAt_idx" ON "StaffNotification"("userId", "createdAt")`,
   );
-  await exec(`
-    DELETE FROM "StaffNotification" a
-    USING "StaffNotification" b
-    WHERE a."userId" = b."userId"
-      AND a."requestId" IS NOT NULL
-      AND a."requestId" = b."requestId"
-      AND a."createdAt" < b."createdAt"
-  `);
+  try {
+    await prisma.$executeRaw`
+      DELETE FROM "StaffNotification" AS t
+      WHERE t."requestId" IS NOT NULL
+        AND t.id IN (
+          SELECT id FROM (
+            SELECT id,
+              ROW_NUMBER() OVER (
+                PARTITION BY "userId", "requestId"
+                ORDER BY "createdAt" DESC, id DESC
+              ) AS rn
+            FROM "StaffNotification"
+            WHERE "requestId" IS NOT NULL
+          ) ranked
+          WHERE rn > 1
+        )
+    `;
+  } catch {
+    // Index creation below is best-effort if duplicate cleanup cannot run.
+  }
   await exec(
     `CREATE UNIQUE INDEX IF NOT EXISTS "StaffNotification_userId_requestId_key" ON "StaffNotification"("userId", "requestId") WHERE "requestId" IS NOT NULL`,
   );
