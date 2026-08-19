@@ -10,10 +10,11 @@ export const STAFF_ROLES: UserRole[] = [
 
 export const ALL_ROLES: UserRole[] = [...STAFF_ROLES, "MEMBER"];
 
-export function defaultHomePath(role: UserRole): string {
+export function defaultHomePath(role: UserRole | string | null | undefined): string {
   if (role === "MEMBER") return "/portal";
   if (role === "ATTENDANCE_VOLUNTEER") return "/volunteer";
-  return "/dashboard";
+  if (role === "ADMIN" || role === "COORDINATOR") return "/dashboard";
+  return "/";
 }
 
 export function canAccessMembers(role: UserRole): boolean {

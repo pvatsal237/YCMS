@@ -95,24 +95,6 @@ export async function getNotificationCounts(user: SessionUser) {
   if (user.role === "MEMBER") {
     return { total: 0, immigration: 0, followUps: 0, inbox: 0 };
   }
-  if (user.role === "ATTENDANCE_VOLUNTEER") {
-    const inbox = await countUnreadStaffNotifications(user.id);
-    return { total: inbox, immigration: 0, followUps: 0, inbox };
-  }
-  const [immigration, followUps, inbox] = await Promise.all([
-    listExpiringSoon(90, 50),
-    prisma.followUp.count({
-      where: { status: { in: ["PENDING", "CONTACTED"] } },
-    }),
-    countUnreadStaffNotifications(user.id),
-  ]);
-  const immigrationCount = immigration.filter(
-    (row) => row.level === "EXPIRED" || row.level === "EXPIRING_3_MONTHS",
-  ).length;
-  return {
-    immigration: immigrationCount,
-    followUps,
-    inbox,
-    total: immigrationCount + followUps + inbox,
-  };
+  const inbox = await countUnreadStaffNotifications(user.id);
+  return { total: inbox, immigration: 0, followUps: 0, inbox };
 }

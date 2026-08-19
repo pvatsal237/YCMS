@@ -6,7 +6,7 @@ import type { UserRole } from "@/types/roles";
 
 const { auth } = NextAuth(authConfig);
 
-export default auth((req) => {
+const handler = auth((req) => {
   const { pathname } = req.nextUrl;
   if (isPublicPath(pathname)) {
     return NextResponse.next();
@@ -31,6 +31,9 @@ export default auth((req) => {
 
   return NextResponse.next();
 });
+
+export default handler;
+export const proxy = handler;
 
 export const config = {
   matcher: [

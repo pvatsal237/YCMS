@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireStaffSession } from "@/lib/session";
 import { getDashboardData } from "@/services/dashboard";
 import { PageHeader } from "@/components/ui/Feedback";
@@ -23,6 +24,12 @@ function StatCard({ label, value }: { label: string; value: number }) {
 
 export default async function DashboardPage() {
   const user = await requireStaffSession();
+  if (user.role === "ATTENDANCE_VOLUNTEER") {
+    redirect("/volunteer");
+  }
+  if (user.role !== "ADMIN" && user.role !== "COORDINATOR") {
+    redirect("/unauthorized");
+  }
   const data = await getDashboardData(user);
   const showSensitive = canViewImmigration(user.role);
 

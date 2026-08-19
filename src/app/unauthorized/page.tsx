@@ -1,6 +1,13 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { defaultHomePath } from "@/lib/authorization";
 import Link from "next/link";
 
-export default function UnauthorizedPage() {
+export default async function UnauthorizedPage() {
+  const session = await auth();
+  if (session?.user?.role) {
+    redirect(defaultHomePath(session.user.role));
+  }
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
       <div className="max-w-md rounded-lg border border-slate-200 bg-white p-8 text-center">

@@ -1,5 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
-import { isPathAllowed, isPublicPath } from "@/lib/authorization";
+import { NextResponse } from "next/server";
+import { defaultHomePath, isPathAllowed, isPublicPath } from "@/lib/authorization";
 import { STAFF_SESSION_SECONDS, TRUSTED_MEMBER_SESSION_SECONDS } from "@/lib/session-ttl";
 import type { UserRole } from "@/types/roles";
 
@@ -27,7 +28,15 @@ export const authConfig = {
         return false;
       }
 
-      return isPathAllowed(pathname, role);
+      if (isPathAllowed(pathname, role)) {
+        return true;
+      }
+
+      const destination =
+        pathname === "/dashboard" || pathname.startsWith("/dashboard/")
+          ? defaultHomePath(role)
+          : "/unauthorized";
+      return NextResponse.redirect(new URL(destination, request.nextUrl.origin));
     },
     jwt({ token, user }) {
       if (user) {

@@ -58,13 +58,19 @@ export async function loginAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
+  const email = parsed.data.email.trim().toLowerCase();
+  const staffUser = await prisma.user.findUnique({
+    where: { email },
+    select: { role: true },
+  });
+  const home =
+    staffUser?.role === "ATTENDANCE_VOLUNTEER"
+      ? "/volunteer"
+      : staffUser
+        ? defaultHomePath(staffUser.role)
+        : "/";
+
   try {
-    const email = parsed.data.email.trim().toLowerCase();
-    const staffUser = await prisma.user.findUnique({
-      where: { email },
-      select: { role: true },
-    });
-    const home = staffUser ? defaultHomePath(staffUser.role) : "/";
     await signIn("credentials", {
       email,
       password: parsed.data.password,
@@ -72,7 +78,6 @@ export async function loginAction(
       redirect: false,
       redirectTo: home,
     });
-    redirect(home);
   } catch (error) {
     if (error instanceof AuthError) {
       const code = "code" in error ? String(error.code) : error.type;
@@ -83,6 +88,7 @@ export async function loginAction(
     }
     throw error;
   }
+  redirect(home);
 }
 
 export async function requestMemberOtpAction(
