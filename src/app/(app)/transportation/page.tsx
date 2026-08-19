@@ -120,10 +120,14 @@ export default async function TransportationPage() {
                 <div className="flex flex-wrap gap-2 pt-2">
                   {row.status === "REQUESTED" ? (
                     <>
-                      <form action={async () => { await reviewRideAction(row.id, "APPROVED"); }}>
+                      <form action={reviewRideAction}>
+                        <input type="hidden" name="id" value={row.id} />
+                        <input type="hidden" name="status" value="APPROVED" />
                         <Button type="submit" size="sm">Approve</Button>
                       </form>
-                      <form action={async () => { await reviewRideAction(row.id, "REJECTED"); }}>
+                      <form action={reviewRideAction}>
+                        <input type="hidden" name="id" value={row.id} />
+                        <input type="hidden" name="status" value="REJECTED" />
                         <Button type="submit" size="sm" variant="secondary">Reject</Button>
                       </form>
                     </>

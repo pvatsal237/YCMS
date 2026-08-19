@@ -58,10 +58,14 @@ export default async function EventsPage() {
                   {departmentLabel(row.department.code)} · {row.meetup.title} · {row.staffingRequests.length} requirements
                 </p>
                 <div className="flex gap-2">
-                  <form action={async () => { await reviewDepartmentPlanAction(row.id, "APPROVED"); }}>
+                  <form action={reviewDepartmentPlanAction}>
+                    <input type="hidden" name="id" value={row.id} />
+                    <input type="hidden" name="decision" value="APPROVED" />
                     <Button type="submit" size="sm">Approve</Button>
                   </form>
-                  <form action={async () => { await reviewDepartmentPlanAction(row.id, "CHANGES_REQUESTED"); }}>
+                  <form action={reviewDepartmentPlanAction}>
+                    <input type="hidden" name="id" value={row.id} />
+                    <input type="hidden" name="decision" value="CHANGES_REQUESTED" />
                     <Button type="submit" size="sm" variant="secondary">Request changes</Button>
                   </form>
                 </div>
@@ -80,18 +84,14 @@ export default async function EventsPage() {
                   {row.task} · {row.meetup.title} · {row.neededCount} needed · {formatDate(row.requestDate)}
                 </p>
                 <div className="flex gap-2">
-                  <form
-                    action={async () => {
-                      await reviewStaffingRequestAction(row.id, "APPROVED");
-                    }}
-                  >
+                  <form action={reviewStaffingRequestAction}>
+                    <input type="hidden" name="id" value={row.id} />
+                    <input type="hidden" name="status" value="APPROVED" />
                     <Button type="submit" size="sm">Approve</Button>
                   </form>
-                  <form
-                    action={async () => {
-                      await reviewStaffingRequestAction(row.id, "REJECTED");
-                    }}
-                  >
+                  <form action={reviewStaffingRequestAction}>
+                    <input type="hidden" name="id" value={row.id} />
+                    <input type="hidden" name="status" value="REJECTED" />
                     <Button type="submit" size="sm" variant="secondary">Reject</Button>
                   </form>
                 </div>

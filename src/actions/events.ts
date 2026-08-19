@@ -85,17 +85,19 @@ export async function cancelRideRequestAction(
   }
 }
 
-export async function reviewRideAction(id: string, status: "APPROVED" | "CANCELLED" | "REJECTED") {
+export async function reviewRideAction(formData: FormData) {
   try {
     const actor = await requireStaffSession();
-    await reviewRideRequest(actor, id, status);
+    const status = String(formData.get("status") ?? "") as "APPROVED" | "CANCELLED" | "REJECTED";
+    if (status !== "APPROVED" && status !== "CANCELLED" && status !== "REJECTED") {
+      return;
+    }
+    await reviewRideRequest(actor, String(formData.get("id") ?? ""), status);
     revalidatePath("/transportation");
     revalidatePath("/portal");
     revalidatePath("/notifications");
-    return { ok: true, message: "Ride request updated." } satisfies ActionResult;
   } catch (error) {
     logServerError("reviewRideAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to update ride request.") } satisfies ActionResult;
   }
 }
 

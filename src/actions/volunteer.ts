@@ -60,16 +60,18 @@ export async function createStaffingRequestAction(
   }
 }
 
-export async function reviewStaffingRequestAction(id: string, status: "APPROVED" | "REJECTED") {
+export async function reviewStaffingRequestAction(formData: FormData) {
   try {
     const actor = await requireRoleAction(["ADMIN", "COORDINATOR"]);
-    await reviewStaffingRequest(actor, id, status);
+    const status = String(formData.get("status") ?? "") as "APPROVED" | "REJECTED";
+    if (status !== "APPROVED" && status !== "REJECTED") {
+      return;
+    }
+    await reviewStaffingRequest(actor, String(formData.get("id") ?? ""), status);
     revalidatePath("/volunteers");
     revalidatePath("/events");
-    return { ok: true, message: "Request updated." } satisfies ActionResult;
   } catch (error) {
     logServerError("reviewStaffingRequestAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to review request.") } satisfies ActionResult;
   }
 }
 
@@ -155,19 +157,18 @@ export async function saveDepartmentPlanAction(
   }
 }
 
-export async function reviewDepartmentPlanAction(
-  planId: string,
-  decision: "APPROVED" | "CHANGES_REQUESTED" | "CLOSED",
-) {
+export async function reviewDepartmentPlanAction(formData: FormData) {
   try {
     const actor = await requireRoleAction(["ADMIN", "COORDINATOR"]);
-    await reviewDepartmentPlan(actor, planId, decision);
+    const decision = String(formData.get("decision") ?? "") as "APPROVED" | "CHANGES_REQUESTED" | "CLOSED";
+    if (decision !== "APPROVED" && decision !== "CHANGES_REQUESTED" && decision !== "CLOSED") {
+      return;
+    }
+    await reviewDepartmentPlan(actor, String(formData.get("id") ?? ""), decision);
     revalidatePath("/volunteers");
     revalidatePath("/events");
     revalidatePath("/volunteer");
-    return { ok: true, message: "Plan updated." } satisfies ActionResult;
   } catch (error) {
     logServerError("reviewDepartmentPlanAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to review plan.") } satisfies ActionResult;
   }
 }
