@@ -141,7 +141,7 @@ export function departmentShortLabel(code: string): string {
 export function staffDisplayTitle(role: UserRole, leadDepartmentCodes: string[] = []): string {
   if (role !== "ATTENDANCE_VOLUNTEER") return roleLabel(role);
   if (leadDepartmentCodes.length === 1) {
-    return `${departmentShortLabel(leadDepartmentCodes[0])} Lead`;
+    return `${departmentShortLabel(leadDepartmentCodes[0])} Department Lead`;
   }
   if (leadDepartmentCodes.length > 1) return "Department Lead";
   return "Volunteer";

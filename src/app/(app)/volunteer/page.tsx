@@ -31,7 +31,7 @@ export default async function VolunteerHomePage() {
           leadMemberships.length > 0
             ? teamMemberships.length > 0
               ? `You are the department lead for ${leadMemberships.map((row) => departmentShortLabel(row.department.code)).join(" and ")}. Listed separately are other teams you help on.`
-              : `You are the department lead for ${leadMemberships.map((row) => departmentShortLabel(row.department.code)).join(" and ")}. Kitchen leads stay with food preparation through the end of the event.`
+              : `You are the department lead for ${leadMemberships.map((row) => departmentShortLabel(row.department.code)).join(" and ")}.`
             : "Your volunteer teams, events, and assignments."
         }
       />

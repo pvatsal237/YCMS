@@ -107,7 +107,12 @@ async function main() {
       await prisma.user.create({
         data: {
           name,
-          email: index === 0 ? "volunteer@ycms.local" : `volunteer${index + 1}@ycms.local`,
+          email:
+            index === 0
+              ? "volunteer@ycms.local"
+              : index === 8
+                ? "isha.modi@ycms.local"
+                : `volunteer${index + 1}@ycms.local`,
           passwordHash,
           role: "ATTENDANCE_VOLUNTEER",
           phone: `647-555-${2000 + index}`,
@@ -135,7 +140,7 @@ async function main() {
     { code: "AUDIO_VIDEO", leads: [23], members: [16, 24, 25] },
     { code: "RECREATION", leads: [26], members: [0, 27] },
     { code: "RISEUP_SUPPORT", leads: [28], members: [1, 4] },
-    { code: "GENERAL_EVENT_SUPPORT", leads: [29], members: [3, 8] },
+    { code: "GENERAL_EVENT_SUPPORT", leads: [29], members: [3] },
   ];
   for (const row of roster) {
     const department = deptByCode[row.code];
@@ -162,6 +167,21 @@ async function main() {
       data: { leadUserId: volunteers[leadIndexes[0]].id },
     });
   }
+
+  const isha = volunteers[8];
+  const transportDept = deptByCode.TRANSPORTATION;
+  await prisma.volunteerDepartmentMembership.deleteMany({ where: { userId: isha.id } });
+  await prisma.volunteerDepartmentMembership.create({
+    data: {
+      userId: isha.id,
+      departmentId: transportDept.id,
+      responsibility: "LEAD",
+    },
+  });
+  await prisma.volunteerDepartment.update({
+    where: { id: transportDept.id },
+    data: { leadUserId: isha.id },
+  });
 
   await prisma.systemSetting.createMany({
     data: [
@@ -572,6 +592,7 @@ async function main() {
 
   await prisma.activityLog.create({ data: { userId: admin.id, action: "SEED", message: "Development seed data loaded" } });
   console.log("Seed complete. Demo: admin@ycms.local / coordinator@ycms.local / volunteer@ycms.local / YcmsDemo123!");
+  console.log("Transportation lead: isha.modi@ycms.local / YcmsDemo123!");
   console.log("Member OTP: hetvi.patel@example.test");
 }
 
