@@ -1,4 +1,4 @@
-# International Youth Community Meetup
+# International Youth Community Meetup (IYCM)
 
 Community meetups for international youth: event registration, waitlist, check-in, walk-ins, guidance requests, and coordinator reports.
 

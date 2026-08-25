@@ -1,4 +1,4 @@
-# Run YCMS on your Mac
+# Run IYCM on your Mac
 
 This cloud chat cannot type into your Mac. Do these steps **on your Mac**.
 
@@ -16,14 +16,13 @@ chmod +x scripts/setup-local.sh
 ./scripts/setup-local.sh
 ```
 
-That clones the project, installs dependencies, starts PostgreSQL, loads demo data, and starts the app.
+That clones the project, installs dependencies, starts PostgreSQL, loads demo data, and starts the app. The GitHub repository folder is still named `YCMS`; the application branding is International Youth Community Meetup (IYCM).
 
 ## 3. Open Safari
 
 Go to: http://localhost:3000
 
-- Email: `admin@ycms.local`
-- Password: `YcmsDemo123!`
+Sign in with Google. Coordinator access requires an allowlisted Google account.
 
 ## Prerequisites
 

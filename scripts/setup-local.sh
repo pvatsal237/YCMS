@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-echo "YCMS local setup"
+echo "IYCM local setup"
 echo "Working directory: $ROOT"
 echo
 
@@ -111,8 +111,7 @@ npx prisma db seed
 echo
 echo "Setup complete."
 echo "Open http://localhost:3000/login"
-echo "Staff: admin@ycms.local / YcmsDemo123!"
-echo "Member OTP: hetvi.patel@example.test (set DEV_SHOW_OTP=true in .env.local)"
+echo "Sign in with Google. Coordinators must use an allowlisted Google account."
 echo
 
 npm run dev

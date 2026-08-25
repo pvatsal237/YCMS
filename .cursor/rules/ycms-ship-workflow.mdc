@@ -3,9 +3,9 @@ description: After coding tasks, validate then commit and push to the production
 alwaysApply: true
 ---
 
-# YCMS ship workflow
+# IYCM ship workflow
 
-After completing a coding task in this repo (`pvatsal237/YCMS`), follow this workflow automatically. Do not wait for the user to ask to commit or push.
+After completing a coding task in this repo (`pvatsal237/YCMS`, app name IYCM), follow this workflow automatically. Do not wait for the user to ask to commit or push.
 
 ## 1. Make the requested changes
 

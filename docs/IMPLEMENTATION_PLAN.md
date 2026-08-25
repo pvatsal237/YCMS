@@ -1,6 +1,6 @@
-# YCMS Implementation Plan
+# IYCM Implementation Plan
 
-Youth Community Management System — a database-driven Next.js application for a community organization that runs weekly youth meetups and supports newcomers.
+International Youth Community Meetup (IYCM) — a database-driven Next.js application for community meetups, event registration, check-in, and guidance.
 
 ## Status
 

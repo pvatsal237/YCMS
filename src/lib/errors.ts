@@ -24,5 +24,5 @@ export function logServerError(context: string, error: unknown) {
     error instanceof Error
       ? { name: error.name, message: error.message, stack: error.stack }
       : { error };
-  console.error(`[YCMS] ${context}`, detail);
+  console.error(`[IYCM] ${context}`, detail);
 }
