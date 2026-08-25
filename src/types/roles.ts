@@ -1,5 +1,1 @@
-export type UserRole =
-  | "ADMIN"
-  | "COORDINATOR"
-  | "ATTENDANCE_VOLUNTEER"
-  | "MEMBER";
+export type UserRole = "COORDINATOR" | "MEMBER";

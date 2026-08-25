@@ -1,159 +1,92 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireMemberSession, requireStaffSession } from "@/lib/session";
-import {
-  acceptRideRequest,
-  assignRideToDriver,
-  cancelOwnRideRequest,
-  createEvent,
-  createRideRequest,
-  reviewRideRequest,
-  saveTransportAvailability,
-} from "@/services/events";
+import { redirect } from "next/navigation";
+import { requireRoleAction } from "@/lib/session";
+import { eventFormSchema } from "@/validations/forms";
+import { createEvent, publishEvent, setEventStatus, updateEvent } from "@/services/events";
+import { parseDateOnly } from "@/lib/dates";
 import { logServerError, toUserMessage } from "@/lib/errors";
 import type { ActionResult } from "@/types";
-import type { EventType } from "@prisma/client";
+import type { EventStatus } from "@prisma/client";
 
 export async function createEventAction(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
   try {
-    const actor = await requireStaffSession();
-    await createEvent(actor, {
-      title: String(formData.get("title") ?? ""),
-      meetupDate: String(formData.get("meetupDate") ?? ""),
-      location: String(formData.get("location") ?? ""),
-      eventType: String(formData.get("eventType") ?? "WEEKLY_MEETUP") as EventType,
-      startTime: String(formData.get("startTime") ?? "") || undefined,
-      endTime: String(formData.get("endTime") ?? "") || undefined,
-      cuisine: String(formData.get("cuisine") ?? "") || undefined,
-      topic: String(formData.get("topic") ?? "") || undefined,
-      speakerName: String(formData.get("speakerName") ?? "") || undefined,
-      speakerOrganization: String(formData.get("speakerOrganization") ?? "") || undefined,
-      speakerPosition: String(formData.get("speakerPosition") ?? "") || undefined,
-      careerSkillArea: String(formData.get("careerSkillArea") ?? "") || undefined,
-      description: String(formData.get("description") ?? "") || undefined,
-      expectedAttendance: Number(formData.get("expectedAttendance") ?? 0) || undefined,
-    });
-    revalidatePath("/events");
-    revalidatePath("/portal");
-    return { ok: true, message: "Event saved." };
-  } catch (error) {
-    logServerError("createEventAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to save event.") };
-  }
-}
-
-export async function requestRideAction(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  try {
-    const actor = await requireMemberSession();
-    await createRideRequest(actor, {
-      meetupId: String(formData.get("meetupId") ?? ""),
-      pickupArea: String(formData.get("pickupArea") ?? ""),
-      availableAfter: String(formData.get("availableAfter") ?? ""),
-      passengerCount: Number(formData.get("passengerCount") ?? 1),
-      note: String(formData.get("note") ?? "") || undefined,
-    });
-    revalidatePath("/portal");
-    revalidatePath("/transportation");
-    return { ok: true, message: "Ride request submitted." };
-  } catch (error) {
-    logServerError("requestRideAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to submit ride request.") };
-  }
-}
-
-export async function cancelRideRequestAction(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  try {
-    const actor = await requireMemberSession();
-    await cancelOwnRideRequest(actor, String(formData.get("rideId") ?? ""));
-    revalidatePath("/portal");
-    revalidatePath("/transportation");
-    revalidatePath("/notifications");
-    return { ok: true, message: "Your ride request was cancelled." };
-  } catch (error) {
-    logServerError("cancelRideRequestAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to cancel this ride request.") };
-  }
-}
-
-export async function reviewRideAction(formData: FormData) {
-  try {
-    const actor = await requireStaffSession();
-    const status = String(formData.get("status") ?? "") as "APPROVED" | "CANCELLED" | "REJECTED";
-    if (status !== "APPROVED" && status !== "CANCELLED" && status !== "REJECTED") {
-      return;
+    const actor = await requireRoleAction(["COORDINATOR"]);
+    const parsed = eventFormSchema.safeParse(Object.fromEntries(formData.entries()));
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Please check the form." };
     }
-    await reviewRideRequest(actor, String(formData.get("id") ?? ""), status);
-    revalidatePath("/transportation");
-    revalidatePath("/portal");
-    revalidatePath("/notifications");
+    const event = await createEvent(parsed.data, actor);
+    revalidatePath("/events");
+    revalidatePath("/dashboard");
+    redirect(`/events/${event.id}`);
   } catch (error) {
-    logServerError("reviewRideAction", error);
+    if (typeof error === "object" && error && "digest" in error) throw error;
+    logServerError("createEventAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to create the event.") };
   }
 }
 
-export async function assignRideAction(formData: FormData) {
+export async function updateEventAction(id: string, formData: FormData): Promise<ActionResult> {
   try {
-    const actor = await requireStaffSession();
-    await assignRideToDriver(actor, String(formData.get("rideId") ?? ""), String(formData.get("driverUserId") ?? ""));
-    revalidatePath("/transportation");
-    revalidatePath("/volunteer");
-    revalidatePath("/portal");
-    revalidatePath("/notifications");
-  } catch (error) {
-    logServerError("assignRideAction", error);
-  }
-}
-
-export async function saveTransportAvailabilityAction(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  try {
-    const actor = await requireStaffSession();
-    await saveTransportAvailability(actor, {
-      meetupId: String(formData.get("meetupId") ?? ""),
-      status: String(formData.get("status") ?? "") as "AVAILABLE" | "PARTIAL" | "NOT_AVAILABLE",
-      startTime: String(formData.get("startTime") ?? "") || undefined,
-      endTime: String(formData.get("endTime") ?? "") || undefined,
-      passengerCapacity: Number(formData.get("passengerCapacity") ?? 0) || undefined,
-      note: String(formData.get("note") ?? "") || undefined,
+    await requireRoleAction(["COORDINATOR"]);
+    const parsed = eventFormSchema.safeParse(Object.fromEntries(formData.entries()));
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Please check the form." };
+    }
+    await updateEvent(id, {
+      title: parsed.data.title,
+      description: parsed.data.description,
+      speakerName: parsed.data.speakerName || null,
+      speakerTitle: parsed.data.speakerTitle || null,
+      speakerOrganization: parsed.data.speakerOrganization || null,
+      eventDate: parseDateOnly(parsed.data.eventDate),
+      startTime: parsed.data.startTime,
+      endTime: parsed.data.endTime,
+      location: parsed.data.location,
+      capacity: parsed.data.capacity,
+      registrationDeadline: parsed.data.registrationDeadline
+        ? new Date(parsed.data.registrationDeadline)
+        : undefined,
+      walkInCapacity: parsed.data.walkInCapacity,
+      checkInOpensAt: parsed.data.checkInOpensAt || "08:00",
+      internalNotes: parsed.data.internalNotes || null,
     });
-    revalidatePath("/transportation");
-    revalidatePath("/volunteer");
-    return { ok: true, message: "Thank you. You can change your availability anytime." };
+    revalidatePath(`/events/${id}`);
+    return { ok: true, message: "Event updated." };
   } catch (error) {
-    logServerError("saveTransportAvailabilityAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to save availability.") };
+    logServerError("updateEventAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to update the event.") };
   }
 }
 
-export async function acceptRideAction(id: string) {
+export async function publishEventAction(id: string): Promise<ActionResult> {
   try {
-    const actor = await requireStaffSession();
-    await acceptRideRequest(actor, id);
-    revalidatePath("/transportation");
-    revalidatePath("/volunteer");
-    return { ok: true, message: "Ride accepted." } satisfies ActionResult;
+    await requireRoleAction(["COORDINATOR"]);
+    await publishEvent(id);
+    revalidatePath("/events");
+    revalidatePath("/dashboard");
+    revalidatePath("/portal");
+    return { ok: true, message: "Event published and members notified." };
   } catch (error) {
-    logServerError("acceptRideAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to accept ride.") } satisfies ActionResult;
+    logServerError("publishEventAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to publish the event.") };
   }
 }
 
-export async function createEventFormAction(formData: FormData) {
-  await createEventAction({ ok: true }, formData);
-}
-
-export async function requestRideFormAction(formData: FormData) {
-  await requestRideAction({ ok: true }, formData);
+export async function setEventStatusAction(id: string, status: EventStatus): Promise<ActionResult> {
+  try {
+    await requireRoleAction(["COORDINATOR"]);
+    await setEventStatus(id, status);
+    revalidatePath("/events");
+    revalidatePath(`/events/${id}`);
+    return { ok: true, message: "Event status updated." };
+  } catch (error) {
+    logServerError("setEventStatusAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to update status.") };
+  }
 }

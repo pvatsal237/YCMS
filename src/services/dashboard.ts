@@ -1,100 +1,49 @@
-import { getAssistanceDashboardStats } from "@/services/assistance";
 import { prisma } from "@/lib/prisma";
-import { currentMonthRange } from "@/lib/dates";
-import { listExpiringSoon } from "@/services/immigration";
-import { listOpenAbsenceFollowUps } from "@/services/follow-ups";
-import { countUnreadStaffNotifications } from "@/services/staff-notifications";
-import type { SessionUser } from "@/types";
+import { parseDateOnly } from "@/lib/dates";
+import { eventCounts } from "@/services/events";
 
-export async function getDashboardData(user: SessionUser) {
-  const role = user.role;
-  const { start, end } = currentMonthRange();
-  const latestMeetup = await prisma.meetup.findFirst({
-    where: { active: true },
-    orderBy: { meetupDate: "desc" },
-    include: { attendance: true },
-  });
-
-  const [
-    totalActiveMembers,
-    newMembersThisMonth,
-    followUpsRequired,
-    recentMembers,
-    recentMeetups,
-  ] = await Promise.all([
-    prisma.member.count({ where: { active: true } }),
-    prisma.member.count({
-      where: { dateJoined: { gte: start, lt: end } },
-    }),
-    prisma.followUp.count({
-      where: { status: { in: ["PENDING", "CONTACTED"] } },
-    }),
-    prisma.member.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 6,
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        dateJoined: true,
-        immigrationStatus: { select: { status: true } },
-      },
-    }),
-    prisma.meetup.findMany({
-      orderBy: { meetupDate: "asc" },
-      take: 8,
-      include: { attendance: true },
-    }),
-  ]);
-
-  const present = latestMeetup
-    ? latestMeetup.attendance.filter((row) => row.status === "PRESENT").length
-    : 0;
-  const absent = latestMeetup
-    ? latestMeetup.attendance.filter((row) => row.status === "ABSENT").length
-    : 0;
-
-  const sensitive = role === "ADMIN" || role === "COORDINATOR";
-  const immigrationAlerts = sensitive ? await listExpiringSoon(180, 8) : [];
-  const followUps = sensitive ? await listOpenAbsenceFollowUps(8) : [];
-  const assistance = sensitive
-    ? await getAssistanceDashboardStats(user)
-    : { newRequests: 0, highUrgency: 0, overdue: 0, assignedToMe: 0 };
-
-  const attendanceTrend = recentMeetups.map((meetup) => {
-    const recorded = meetup.attendance.length || 1;
-    const presentCount = meetup.attendance.filter((row) => row.status === "PRESENT").length;
-    return {
-      date: meetup.meetupDate.toISOString().slice(0, 10),
-      title: meetup.title,
-      present: presentCount,
-      percent: Math.round((presentCount / recorded) * 100),
-    };
-  });
-
-  return {
-    stats: {
-      totalActiveMembers,
-      presentLatest: present,
-      absentLatest: absent,
-      newMembersThisMonth,
-      immigrationExpiringSoon: immigrationAlerts.length,
-      followUpsRequired,
-      assistance,
+export async function coordinatorDashboard() {
+  const today = parseDateOnly(new Date().toISOString().slice(0, 10));
+  const upcoming = await prisma.event.findMany({
+    where: {
+      status: { in: ["PUBLISHED", "REGISTRATION_CLOSED", "DRAFT"] },
+      eventDate: { gte: today },
     },
-    latestMeetup,
-    immigrationAlerts,
-    followUps,
-    recentMembers: sensitive ? recentMembers : [],
-    attendanceTrend,
+    orderBy: [{ eventDate: "asc" }, { startTime: "asc" }],
+    take: 1,
+  });
+  const next = upcoming[0] ?? null;
+  const counts = next ? await eventCounts(next.id) : null;
+  const guidance = {
+    new: await prisma.guidanceRequest.count({ where: { status: "NEW" } }),
+    claimed: await prisma.guidanceRequest.count({ where: { status: "CLAIMED" } }),
+    waiting: await prisma.guidanceRequest.count({ where: { status: "WAITING_FOR_MEMBER" } }),
   };
+  return { next, counts, guidance };
 }
 
-export async function getNotificationCounts(user: SessionUser) {
-  if (user.role === "MEMBER") {
-    return { total: 0, immigration: 0, followUps: 0, inbox: 0 };
-  }
-  const inbox = await countUnreadStaffNotifications(user.id);
-  return { total: inbox, immigration: 0, followUps: 0, inbox };
+export async function memberUpcomingRegistrations(memberId: string) {
+  const today = parseDateOnly(new Date().toISOString().slice(0, 10));
+  return prisma.eventRegistration.findMany({
+    where: {
+      memberId,
+      status: { in: ["REGISTERED", "WAITLISTED"] },
+      event: { eventDate: { gte: today }, status: { not: "CANCELLED" } },
+    },
+    include: { event: true },
+    orderBy: { event: { eventDate: "asc" } },
+  });
+}
+
+export async function memberPastRegistrations(memberId: string) {
+  const today = parseDateOnly(new Date().toISOString().slice(0, 10));
+  return prisma.eventRegistration.findMany({
+    where: {
+      memberId,
+      status: { not: "CANCELLED" },
+      event: { eventDate: { lt: today } },
+    },
+    include: { event: true },
+    orderBy: { event: { eventDate: "desc" } },
+  });
 }

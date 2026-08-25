@@ -1,148 +1,105 @@
-import { requireRole } from "@/lib/session";
-import {
-  getAttendanceReport,
-  getImmigrationExpiryReport,
-  getMemberReport,
-} from "@/services/reports";
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { eventReport, guidanceReport, dateRangeForPreset } from "@/services/reports";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { Table } from "@/components/ui/Table";
 import { formatDate } from "@/lib/dates";
+import { fullName, guidanceCategoryLabel, guidanceStatusLabel } from "@/utils/format";
 
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ eventId?: string; range?: string; category?: string; status?: string; coordinatorId?: string }>;
 }) {
-  await requireRole(["ADMIN", "COORDINATOR"]);
   const params = await searchParams;
-  const [attendance, members, immigration] = await Promise.all([
-    getAttendanceReport(params.from, params.to),
-    getMemberReport(),
-    getImmigrationExpiryReport(),
-  ]);
+  const events = await prisma.event.findMany({ orderBy: { eventDate: "desc" }, take: 30 });
+  const coordinators = await prisma.user.findMany({ where: { role: "COORDINATOR" }, orderBy: { name: "asc" } });
+  const selectedEvent = params.eventId || events[0]?.id;
+  const report = selectedEvent ? await eventReport(selectedEvent) : null;
+  const range = dateRangeForPreset(params.range || "month");
+  const guidance = await guidanceReport({
+    from: range.start,
+    to: range.end,
+    category: params.category,
+    status: params.status,
+    coordinatorId: params.coordinatorId,
+  });
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Reports" description="Generated from live PostgreSQL data." />
-      <Card className="p-4">
-        <form className="flex flex-wrap items-end gap-3">
-          <label className="text-sm">
-            From
-            <input type="date" name="from" defaultValue={params.from} className="mt-1 block rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          </label>
-          <label className="text-sm">
-            To
-            <input type="date" name="to" defaultValue={params.to} className="mt-1 block rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          </label>
-          <button type="submit" className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white">
-            Apply date range
-          </button>
-        </form>
-        <div className="mt-4 flex flex-wrap gap-3 text-sm">
-          <a className="text-teal-700" href="/api/reports/export?type=attendance">
-            Export attendance CSV
-          </a>
-          <a className="text-teal-700" href="/api/reports/export?type=members">
-            Export members CSV
-          </a>
-          <a className="text-teal-700" href="/api/reports/export?type=immigration">
-            Export immigration CSV
-          </a>
-        </div>
-      </Card>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card>
-          <CardHeader title="Attendance report" />
-          <CardBody className="space-y-2 text-sm">
-            <p>Meetup count: {attendance.meetupCount}</p>
-            <p>Average attendance: {attendance.averageAttendance}%</p>
-            <p>Frequently absent members: {attendance.frequentlyAbsent.length}</p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader title="Member report" />
-          <CardBody className="space-y-2 text-sm">
-            <p>Total members: {members.total}</p>
-            <p>Active members: {members.active}</p>
-            <p>Inactive members: {members.inactive}</p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader title="Immigration expiry report" />
-          <CardBody className="space-y-2 text-sm">
-            <p>Expiring within 3 months: {immigration.buckets.within3}</p>
-            <p>Expiring within 6 months: {immigration.buckets.within6}</p>
-            <p>Expiring within 12 months: {immigration.buckets.within12}</p>
-            <p>Already expired: {immigration.buckets.expired}</p>
-          </CardBody>
-        </Card>
-      </div>
-
+      <PageHeader title="Reports" />
       <Card>
-        <CardHeader title="Immigration status distribution" />
-        <Table headers={["Status", "Count"]}>
-          {members.immigrationDistribution.map((row) => (
-            <tr key={row.status}>
-              <td className="px-4 py-3">{row.label}</td>
-              <td className="px-4 py-3">{row.count}</td>
-            </tr>
-          ))}
-        </Table>
+        <CardHeader title="Event report" action={selectedEvent ? <Link className="text-sm text-teal-800" href={`/api/reports/export?type=event&eventId=${selectedEvent}`}>Export CSV</Link> : null} />
+        <CardBody className="space-y-3">
+          <form className="flex gap-2">
+            <select name="eventId" defaultValue={selectedEvent} className="rounded-md border border-stone-300 px-3 py-2 text-sm">
+              {events.map((event) => (
+                <option key={event.id} value={event.id}>{event.title} · {formatDate(event.eventDate)}</option>
+              ))}
+            </select>
+            <button type="submit" className="text-sm text-teal-800">View</button>
+          </form>
+          {report ? (
+            <>
+              <p className="text-sm text-stone-600">
+                Registered {report.counts.registered} · Checked in {report.counts.checkedIn} · No shows {report.counts.noShows} · Walk-ins {report.counts.walkIns} · Waitlisted {report.counts.waitlisted}
+              </p>
+              <div className="overflow-x-auto text-sm">
+                <table className="min-w-full">
+                  <thead className="text-xs uppercase text-stone-500">
+                    <tr>
+                      <th className="py-2 text-left">Member</th>
+                      <th className="py-2 text-left">Type</th>
+                      <th className="py-2 text-left">Checked in</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.participants.map((row) => (
+                      <tr key={row.email} className="border-t border-stone-100">
+                        <td className="py-2">{row.name}</td>
+                        <td className="py-2">{row.type === "WALK_IN" ? "Walk-In" : "Normal"}</td>
+                        <td className="py-2">{row.checkedIn ? "Yes" : row.noShow ? "No Show" : "No"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : null}
+        </CardBody>
       </Card>
-
       <Card>
-        <CardHeader title="New members by month" />
-        <Table headers={["Month", "New members"]}>
-          {members.newMembersByMonth.map((row) => (
-            <tr key={row.month}>
-              <td className="px-4 py-3">{row.month}</td>
-              <td className="px-4 py-3">{row.count}</td>
-            </tr>
+        <CardHeader title="Guidance report" action={<Link className="text-sm text-teal-800" href="/api/reports/export?type=guidance">Export CSV</Link>} />
+        <CardBody className="space-y-3">
+          <form className="flex flex-wrap gap-2 text-sm">
+            <select name="range" defaultValue={params.range || "month"} className="rounded-md border border-stone-300 px-2 py-1">
+              <option value="today">Today</option>
+              <option value="month">This month</option>
+              <option value="quarter">This quarter</option>
+            </select>
+            <select name="status" defaultValue={params.status || ""} className="rounded-md border border-stone-300 px-2 py-1">
+              <option value="">All statuses</option>
+              <option value="NEW">New</option>
+              <option value="CLAIMED">Claimed</option>
+              <option value="WAITING_FOR_MEMBER">Waiting</option>
+              <option value="RESOLVED">Resolved</option>
+            </select>
+            <select name="coordinatorId" defaultValue={params.coordinatorId || ""} className="rounded-md border border-stone-300 px-2 py-1">
+              <option value="">All coordinators</option>
+              {coordinators.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+            </select>
+            <button type="submit">Filter</button>
+          </form>
+          <p className="text-sm text-stone-600">
+            Received {guidance.counts.received} · Unclaimed {guidance.counts.unclaimed} · Claimed {guidance.counts.claimed} · Waiting {guidance.counts.waiting} · Resolved {guidance.counts.resolved}
+          </p>
+          {guidance.rows.slice(0, 20).map((row) => (
+            <div key={row.id} className="text-sm">
+              {fullName(row.member)} · {guidanceCategoryLabel(row.category)} · {guidanceStatusLabel(row.status)}
+              {row.assignedTo ? ` · ${row.assignedTo.name}` : ""}
+            </div>
           ))}
-        </Table>
-      </Card>
-
-      <Card>
-        <CardHeader title="Member attendance percentage" />
-        <Table headers={["Member", "Present", "Absent", "Attendance %"]}>
-          {attendance.memberRows.slice(0, 25).map((row) => (
-            <tr key={row.id}>
-              <td className="px-4 py-3">{row.name}</td>
-              <td className="px-4 py-3">{row.present}</td>
-              <td className="px-4 py-3">{row.absent}</td>
-              <td className="px-4 py-3">{row.percent}%</td>
-            </tr>
-          ))}
-        </Table>
-      </Card>
-
-      <Card>
-        <CardHeader title="Frequently absent members" />
-        <Table headers={["Member", "Absences", "Attendance %"]}>
-          {attendance.frequentlyAbsent.map((row) => (
-            <tr key={row.id}>
-              <td className="px-4 py-3">{row.name}</td>
-              <td className="px-4 py-3">{row.absent}</td>
-              <td className="px-4 py-3">{row.percent}%</td>
-            </tr>
-          ))}
-        </Table>
-      </Card>
-
-      <Card>
-        <CardHeader title="Meetups in range" />
-        <Table headers={["Date", "Title", "Present", "Absent"]}>
-          {attendance.meetups.map((meetup) => (
-            <tr key={meetup.id}>
-              <td className="px-4 py-3">{formatDate(meetup.date)}</td>
-              <td className="px-4 py-3">{meetup.title}</td>
-              <td className="px-4 py-3">{meetup.present}</td>
-              <td className="px-4 py-3">{meetup.absent}</td>
-            </tr>
-          ))}
-        </Table>
+        </CardBody>
       </Card>
     </div>
   );

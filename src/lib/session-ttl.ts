@@ -1,2 +1,0 @@
-export const STAFF_SESSION_SECONDS = 8 * 60 * 60;
-export const TRUSTED_MEMBER_SESSION_SECONDS = 14 * 24 * 60 * 60;

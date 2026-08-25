@@ -9,698 +9,232 @@ datasource db {
 }
 
 enum UserRole {
-  ADMIN
   COORDINATOR
-  ATTENDANCE_VOLUNTEER
   MEMBER
 }
 
-enum Gender {
-  FEMALE
-  MALE
-  NON_BINARY
-  PREFER_NOT_TO_SAY
-  OTHER
-}
-
-enum AddressType {
-  CANADIAN
-  HOME_COUNTRY
-}
-
-enum ImmigrationStatus {
-  STUDENT
-  WORKER
-  PERMANENT_RESIDENT
-  CITIZEN
-  VISITOR
-  OTHER
-}
-
-enum ImmigrationDocumentType {
-  STUDY_PERMIT
-  WORK_PERMIT
-  PR_CARD
-  PASSPORT
-}
-
-enum EmploymentStatus {
-  EMPLOYED
-  UNEMPLOYED
-  SELF_EMPLOYED
-  STUDENT
-  OTHER
-}
-
-enum AttendanceStatus {
-  PRESENT
-  ABSENT
-  EXCUSED
-}
-
-enum FollowUpStatus {
-  PENDING
-  CONTACTED
-  COMPLETED
-  UNABLE_TO_REACH
-}
-
-enum FollowUpOutcome {
-  CALLED_SPOKE
-  CALLED_NO_ANSWER
-  CALLED_BUSY_CALLBACK
-  CALLED_IN_HURRY_CALLBACK
-  MESSAGE_SENT
-  WILL_ATTEND
-  COMPLETED
-  UNABLE_TO_REACH
-}
-
-enum AssistanceCategory {
-  IMMIGRATION_DOCUMENT
-  EDUCATION
-  EMPLOYMENT
-  ACCOMMODATION
-  MEETUP
-  PERSONAL
-  OTHER
-}
-
-enum AssistancePriority {
-  LOW
-  MEDIUM
-  HIGH
-}
-
-enum AssistanceStatus {
-  NEW
-  ASSIGNED
-  IN_PROGRESS
-  WAITING_FOR_MEMBER
-  RESOLVED
-  CLOSED
-}
-
-enum EventType {
-  WEEKLY_MEETUP
-  RISEUP
-  RECREATION
-  SPECIAL
-}
-
-enum VolunteerDepartmentCode {
-  KITCHEN
-  GROCERIES
-  TRANSPORTATION
-  SEATING_SETUP
-  AUDIO_VIDEO
-  RECREATION
-  RISEUP_SUPPORT
-  GENERAL_EVENT_SUPPORT
-}
-
-enum VolunteerDeptRole {
-  LEAD
-  VOLUNTEER
-}
-
-enum StaffingRequestStatus {
+enum EventStatus {
   DRAFT
-  PENDING_APPROVAL
-  APPROVED
-  REJECTED
-  FILLED
-  CLOSED
-}
-
-enum DepartmentPlanStatus {
-  DRAFT
-  PENDING_APPROVAL
-  APPROVED
-  CHANGES_REQUESTED
-  CLOSED
-}
-
-enum VolunteerResponseStatus {
-  AVAILABLE
-  PARTIAL
-  NOT_AVAILABLE
-}
-
-enum RideRequestStatus {
-  REQUESTED
-  APPROVED
-  ASSIGNED
+  PUBLISHED
+  REGISTRATION_CLOSED
   COMPLETED
   CANCELLED
-  REJECTED
 }
 
-enum VolunteerEnrollmentStatus {
-  PENDING
-  APPROVED
-  REJECTED
+enum RegistrationType {
+  NORMAL
+  WALK_IN
 }
 
-enum VolunteerInterestKind {
-  DEPARTMENT
-  WHEREVER
-  UNSURE
+enum RegistrationStatus {
+  REGISTERED
+  WAITLISTED
+  CANCELLED
+}
+
+enum CheckInStatus {
+  CHECKED_IN
+  NO_SHOW
+}
+
+enum GuidanceCategory {
+  IMMIGRATION
+  CAREER_DEVELOPMENT
+  RESUME_INTERVIEW
+  TECHNOLOGY_IT
+  AI
+  FINANCE
+  ENGINEERING
+  EDUCATION
+  ENTREPRENEURSHIP
+  OTHER
+}
+
+enum GuidanceStatus {
+  NEW
+  CLAIMED
+  WAITING_FOR_MEMBER
+  RESOLVED
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String?
-  phone        String?
-  role         UserRole
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  createdById  String?
-  createdBy    User?    @relation("UserCreatedBy", fields: [createdById], references: [id])
-  createdUsers User[]   @relation("UserCreatedBy")
-  memberId     String?  @unique
-  member       Member?  @relation("MemberLoginUser", fields: [memberId], references: [id], onDelete: SetNull)
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  image         String?
+  role          UserRole
+  active        Boolean   @default(true)
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  memberId      String?   @unique
+  member        Member?   @relation("MemberLoginUser", fields: [memberId], references: [id], onDelete: SetNull)
 
-  membersCreated     Member[]      @relation("MemberCreatedBy")
-  meetupsCreated     Meetup[]      @relation("MeetupCreatedBy")
-  attendanceRecorded Attendance[]  @relation("AttendanceRecordedBy")
-  followUpsAssigned  FollowUp[]        @relation("FollowUpAssignedTo")
-  followUpAttempts   FollowUpAttempt[] @relation("FollowUpAttemptCreatedBy")
-  activityLogs       ActivityLog[]
-  emailOtps          EmailOtp[]
-  assistanceRequested AssistanceRequest[] @relation("AssistanceRequestedUser")
-  assistanceAssigned  AssistanceRequest[] @relation("AssistanceAssignedTo")
-  assistanceUpdates   AssistanceRequestUpdate[]
-  volunteerMemberships VolunteerDepartmentMembership[]
-  departmentsLed       VolunteerDepartment[] @relation("DepartmentLead")
-  staffingCreated      VolunteerStaffingRequest[] @relation("StaffingCreatedBy")
-  staffingPreAssigned  VolunteerStaffingRequest[] @relation("StaffingPreAssigned")
-  staffingResponses    VolunteerStaffingResponse[]
-  volunteerAssignments VolunteerAssignment[]
-  ridesDriving         RideRequest[] @relation("RideDriver")
-  departmentPlansCreated EventDepartmentPlan[] @relation("DepartmentPlanCreatedBy")
-  departmentPlansReviewed EventDepartmentPlan[] @relation("DepartmentPlanReviewedBy")
-  enrollmentReviews    VolunteerEnrollmentRequest[] @relation("EnrollmentReviewedBy")
-  transportAvailability TransportEventAvailability[]
-  volunteerEnrollments VolunteerEnrollmentRequest[] @relation("EnrollmentVolunteerUser")
+  eventsCreated       Event[]              @relation("EventCreatedBy")
+  checkInsPerformed   EventCheckIn[]       @relation("CheckInBy")
+  guidanceAssigned    GuidanceRequest[]    @relation("GuidanceAssignedTo")
+  guidanceMessages    GuidanceMessage[]
+  notifications       Notification[]
+  coordinatorAllowlist CoordinatorAllowlist?
 
   @@index([role, active])
-  @@index([createdById])
+}
+
+model CoordinatorAllowlist {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
 }
 
 model Member {
-  id          String    @id @default(cuid())
-  firstName   String
-  middleName  String?
-  lastName    String
-  dateOfBirth DateTime  @db.Date
-  gender      Gender
-  phone       String
-  email       String    @unique
-  bloodGroup  String?
-  referredBy  String?
-  dateJoined  DateTime  @db.Date
-  active      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  createdById String?
-  createdBy   User?     @relation("MemberCreatedBy", fields: [createdById], references: [id])
-  loginUser   User?     @relation("MemberLoginUser")
+  id                String   @id @default(cuid())
+  firstName         String
+  lastName          String
+  email             String   @unique
+  image             String?
+  phone             String?
+  emergencyName     String?
+  emergencyPhone    String?
+  emergencyRelation String?
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  loginUser         User?    @relation("MemberLoginUser")
 
-  addresses          Address[]
-  emergencyContact   EmergencyContact?
-  education          Education[]
-  immigrationStatus  MemberImmigrationStatus?
-  documents          ImmigrationDocument[]
-  employment         Employment?
-  accommodation      AccommodationNeed?
-  attendance         Attendance[]
-  followUps          FollowUp[]
-  profileChangeRequests MemberProfileChangeRequest[]
-  assistanceRequests    AssistanceRequest[]
-  rideRequests          RideRequest[]
-  volunteerEnrollments  VolunteerEnrollmentRequest[]
+  registrations EventRegistration[]
+  checkIns      EventCheckIn[]
+  guidance      GuidanceRequest[]
+  feedback      EventFeedback[]
 
   @@index([lastName, firstName])
-  @@index([active, dateJoined])
-  @@index([phone])
+  @@index([active])
 }
 
-model Address {
-  id             String      @id @default(cuid())
-  memberId       String
-  member         Member      @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  type           AddressType
-  addressLine1   String
-  addressLine2   String?
-  city           String
-  provinceState  String
-  postalCode     String
-  country        String
+model Event {
+  id                   String      @id @default(cuid())
+  title                String
+  description          String
+  speakerName          String?
+  speakerTitle         String?
+  speakerOrganization  String?
+  eventDate            DateTime    @db.Date
+  startTime            String
+  endTime              String
+  location             String
+  capacity             Int
+  registrationDeadline DateTime
+  walkInCapacity       Int         @default(10)
+  checkInOpensAt       String      @default("08:00")
+  status               EventStatus @default(DRAFT)
+  walkInToken          String      @unique
+  internalNotes        String?
+  reminderSentAt       DateTime?
+  createdById          String?
+  createdBy            User?       @relation("EventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
 
-  @@unique([memberId, type])
-  @@index([city])
-  @@index([country])
+  registrations EventRegistration[]
+  checkIns      EventCheckIn[]
+  feedback      EventFeedback[]
+
+  @@index([status, eventDate])
+  @@index([eventDate])
 }
 
-model EmergencyContact {
-  id             String @id @default(cuid())
-  memberId       String @unique
-  member         Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  name           String
-  relationship   String
-  phone          String
-  alternatePhone String?
-}
-
-model Education {
-  id                String    @id @default(cuid())
-  memberId          String
-  member            Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  country           String
-  institution       String
-  program           String
-  fieldOfStudy      String
-  startDate         DateTime  @db.Date
-  endDate           DateTime? @db.Date
-  currentlyStudying Boolean   @default(false)
-
-  @@index([memberId])
-  @@index([institution])
-}
-
-model MemberImmigrationStatus {
-  id             String            @id @default(cuid())
-  memberId       String            @unique
-  member         Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  status         ImmigrationStatus
-  college        String?
-  program        String?
-  workPermitType String?
-  notes          String?
-  updatedAt      DateTime          @updatedAt
-}
-
-model ImmigrationDocument {
-  id             String                    @id @default(cuid())
-  memberId       String
-  member         Member                    @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  documentType   ImmigrationDocumentType
-  documentNumber String?
-  expiryDate     DateTime                  @db.Date
-  createdAt      DateTime                  @default(now())
-  updatedAt      DateTime                  @updatedAt
-  assistanceRequests AssistanceRequest[]
-
-  @@index([expiryDate])
-  @@index([documentType, expiryDate])
-  @@index([memberId])
-}
-
-model Employment {
-  id               String            @id @default(cuid())
-  memberId         String            @unique
-  member           Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  employmentStatus EmploymentStatus
-  employer         String?
-  jobTitle         String?
-  fieldRelated     Boolean           @default(false)
-  lookingForJob    Boolean           @default(false)
-  desiredField     String?
-  notes            String?
-
-  @@index([employer])
-}
-
-model AccommodationNeed {
-  id                 String    @id @default(cuid())
-  memberId           String    @unique
-  member             Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  looking            Boolean   @default(false)
-  preferredLocation  String?
-  moveInDate         DateTime? @db.Date
-  budget             String?
-  notes              String?
-}
-
-model Meetup {
-  id                  String    @id @default(cuid())
-  meetupDate          DateTime  @db.Date
-  title               String
-  location            String
-  active              Boolean   @default(true)
-  eventType           EventType @default(WEEKLY_MEETUP)
-  startTime           String?
-  endTime             String?
-  cuisine             String?
-  topic               String?
-  speakerName         String?
-  speakerOrganization String?
-  speakerPosition     String?
-  careerSkillArea     String?
-  description         String?
-  expectedAttendance  Int?
-  createdById         String?
-  createdBy           User?     @relation("MeetupCreatedBy", fields: [createdById], references: [id])
-  createdAt           DateTime  @default(now())
-
-  attendance       Attendance[]
-  staffingRequests VolunteerStaffingRequest[]
-  rideRequests     RideRequest[]
-  departmentPlans  EventDepartmentPlan[]
-  transportAvailability TransportEventAvailability[]
-
-  @@index([meetupDate])
-  @@index([active, meetupDate])
-  @@index([eventType, meetupDate])
-}
-
-model Attendance {
-  id          String           @id @default(cuid())
-  meetupId    String
-  meetup      Meetup           @relation(fields: [meetupId], references: [id], onDelete: Cascade)
-  memberId    String
-  member      Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  status      AttendanceStatus
-  recordedById String?
-  recordedBy  User?            @relation("AttendanceRecordedBy", fields: [recordedById], references: [id])
-  recordedAt  DateTime         @default(now())
-
-  @@unique([meetupId, memberId])
-  @@index([memberId, status])
-  @@index([meetupId, status])
-}
-
-model FollowUp {
-  id             String            @id @default(cuid())
-  memberId       String
-  member         Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  reason         String
-  assignedToId   String?
-  assignedTo     User?             @relation("FollowUpAssignedTo", fields: [assignedToId], references: [id])
-  status         FollowUpStatus    @default(PENDING)
-  lastOutcome    FollowUpOutcome?
-  notes          String?
-  nextFollowUpAt DateTime?
-  lastContactedAt DateTime?
-  createdAt      DateTime          @default(now())
-  completedAt    DateTime?
-  attempts       FollowUpAttempt[]
-
-  @@index([status, createdAt])
-  @@index([memberId, reason, status])
-  @@index([assignedToId])
-  @@index([nextFollowUpAt])
-}
-
-model FollowUpAttempt {
-  id             String           @id @default(cuid())
-  followUpId     String
-  followUp       FollowUp         @relation(fields: [followUpId], references: [id], onDelete: Cascade)
-  outcome        FollowUpOutcome
-  notes          String?
-  nextFollowUpAt DateTime?
-  createdById    String?
-  createdBy      User?            @relation("FollowUpAttemptCreatedBy", fields: [createdById], references: [id])
-  createdAt      DateTime         @default(now())
-
-  @@index([followUpId, createdAt])
-}
-
-model ActivityLog {
-  id         String   @id @default(cuid())
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id])
-  action     String
-  entityType String?
-  entityId   String?
-  message    String
-  timestamp  DateTime @default(now())
-  metadata   Json?
-
-  @@index([timestamp])
-  @@index([userId, timestamp])
-  @@index([action])
-  @@index([entityType, entityId])
-}
-
-model EmailOtp {
-  id         String    @id @default(cuid())
-  email      String
-  codeHash   String
-  expiresAt  DateTime
-  consumedAt DateTime?
-  attempts   Int       @default(0)
-  createdAt  DateTime  @default(now())
-  userId     String?
-  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([email, createdAt])
-  @@index([email, consumedAt])
-}
-
-model VolunteerDepartment {
-  id         String                   @id @default(cuid())
-  code       VolunteerDepartmentCode  @unique
-  name       String
-  leadUserId String?
-  lead       User?                    @relation("DepartmentLead", fields: [leadUserId], references: [id], onDelete: SetNull)
-  members    VolunteerDepartmentMembership[]
-  staffingRequests VolunteerStaffingRequest[]
-  departmentPlans  EventDepartmentPlan[]
-  enrollmentRequests VolunteerEnrollmentRequest[]
-
-  @@index([leadUserId])
-}
-
-model VolunteerDepartmentMembership {
-  id             String             @id @default(cuid())
-  userId         String
-  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  departmentId   String
-  department     VolunteerDepartment @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  responsibility VolunteerDeptRole  @default(VOLUNTEER)
-  notes          String?
-  isNewVolunteer Boolean            @default(false)
-  canHelpWherever Boolean           @default(false)
-  oneTime        Boolean            @default(false)
-  createdAt      DateTime           @default(now())
-
-  @@unique([userId, departmentId])
-  @@index([departmentId])
-}
-
-model EventDepartmentPlan {
-  id                    String                 @id @default(cuid())
-  meetupId              String
-  meetup                Meetup                 @relation(fields: [meetupId], references: [id], onDelete: Cascade)
-  departmentId          String
-  department            VolunteerDepartment    @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  status                DepartmentPlanStatus   @default(DRAFT)
-  cuisine               String?
-  sponsorName           String?
-  preparationLocation   String?
-  kitchenNotes          String?
-  reviewNote            String?
-  knownAssignments      Json?
-  submittedAt           DateTime?
-  reviewedAt            DateTime?
-  createdById           String?
-  createdBy             User?                  @relation("DepartmentPlanCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  reviewedById          String?
-  reviewedBy            User?                  @relation("DepartmentPlanReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  staffingRequests      VolunteerStaffingRequest[]
-
-  @@unique([meetupId, departmentId])
-  @@index([status, meetupId])
-}
-
-model VolunteerStaffingRequest {
-  id           String                 @id @default(cuid())
-  meetupId     String
-  meetup       Meetup                 @relation(fields: [meetupId], references: [id], onDelete: Cascade)
-  departmentId String
-  department   VolunteerDepartment    @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  planId       String?
-  plan         EventDepartmentPlan?   @relation(fields: [planId], references: [id], onDelete: Cascade)
-  task         String
-  neededCount  Int
-  requestDate  DateTime               @db.Date
-  startTime    String
-  endTime      String
-  notes        String?
-  createdById  String?
-  createdBy    User?                  @relation("StaffingCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  preAssignedUserId String?
-  preAssignedUser   User?             @relation("StaffingPreAssigned", fields: [preAssignedUserId], references: [id], onDelete: SetNull)
-  status       StaffingRequestStatus  @default(DRAFT)
-  createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
-  responses    VolunteerStaffingResponse[]
-  assignments  VolunteerAssignment[]
-
-  @@index([status, requestDate])
-  @@index([meetupId, departmentId])
-}
-
-model VolunteerStaffingResponse {
-  id          String                   @id @default(cuid())
-  requestId   String
-  request     VolunteerStaffingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status      VolunteerResponseStatus
-  startTime   String?
-  endTime     String?
-  note        String?
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
-
-  @@unique([requestId, userId])
-  @@index([userId])
-}
-
-model VolunteerAssignment {
-  id         String                   @id @default(cuid())
-  requestId  String
-  request    VolunteerStaffingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime                 @default(now())
-
-  @@unique([requestId, userId])
-  @@index([userId])
-}
-
-model RideRequest {
-  id              String            @id @default(cuid())
-  memberId        String
-  member          Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  meetupId        String
-  meetup          Meetup            @relation(fields: [meetupId], references: [id], onDelete: Cascade)
-  pickupArea      String
-  availableAfter  String
-  passengerCount  Int               @default(1)
-  note            String?
-  status          RideRequestStatus @default(REQUESTED)
-  driverUserId    String?
-  driver          User?             @relation("RideDriver", fields: [driverUserId], references: [id], onDelete: SetNull)
-  pickupNotes     String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-
-  @@index([status, meetupId])
-  @@index([memberId, createdAt])
-  @@index([driverUserId])
-}
-
-model VolunteerEnrollmentRequest {
-  id               String                     @id @default(cuid())
+model EventRegistration {
+  id               String             @id @default(cuid())
+  eventId          String
+  event            Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
   memberId         String
-  member           Member                     @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  volunteerUserId  String?
-  volunteerUser    User?                      @relation("EnrollmentVolunteerUser", fields: [volunteerUserId], references: [id], onDelete: SetNull)
-  departmentId     String?
-  department       VolunteerDepartment?       @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  interestKind     VolunteerInterestKind      @default(DEPARTMENT)
-  availability     VolunteerResponseStatus    @default(AVAILABLE)
-  availableFrom    String?
-  availableUntil   String?
-  notes            String?
-  isNewVolunteer   Boolean                    @default(false)
-  canHelpWherever  Boolean                    @default(false)
-  oneTime          Boolean                    @default(false)
-  status           VolunteerEnrollmentStatus  @default(PENDING)
-  reviewedAt       DateTime?
-  reviewedById     String?
-  reviewedBy       User?                      @relation("EnrollmentReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
-  createdAt        DateTime                   @default(now())
-  updatedAt        DateTime                   @updatedAt
+  member           Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  type             RegistrationType   @default(NORMAL)
+  status           RegistrationStatus @default(REGISTERED)
+  waitlistPosition Int?
+  promotedAt       DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
-  @@index([status, departmentId])
+  @@unique([eventId, memberId])
+  @@index([eventId, status])
   @@index([memberId, status])
 }
 
-model TransportEventAvailability {
-  id                 String                  @id @default(cuid())
-  userId             String
-  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  meetupId           String
-  meetup             Meetup                  @relation(fields: [meetupId], references: [id], onDelete: Cascade)
-  status             VolunteerResponseStatus
-  startTime          String?
-  endTime            String?
-  passengerCapacity  Int?
-  note               String?
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
+model EventCheckIn {
+  id              String        @id @default(cuid())
+  eventId         String
+  event           Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  memberId        String
+  member          Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  checkedInAt     DateTime      @default(now())
+  checkedInById   String?
+  checkedInBy     User?         @relation("CheckInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+  status          CheckInStatus @default(CHECKED_IN)
 
-  @@unique([userId, meetupId])
-  @@index([meetupId, status])
+  @@unique([eventId, memberId])
+  @@index([eventId])
 }
 
-model AssistanceRequest {
-  id                   String               @id @default(cuid())
-  memberId             String
-  member               Member               @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  category             AssistanceCategory
-  documentId           String?
-  document             ImmigrationDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
-  requestedRole        UserRole
-  requestedUserId      String?
-  requestedUser        User?                @relation("AssistanceRequestedUser", fields: [requestedUserId], references: [id], onDelete: SetNull)
-  urgency              AssistancePriority
-  impact               AssistancePriority
-  memberNote           String?
-  preferredResponseBy  DateTime?            @db.Date
-  assignedToId         String?
-  assignedTo           User?                @relation("AssistanceAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  status               AssistanceStatus     @default(NEW)
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  resolvedAt           DateTime?
-  updates              AssistanceRequestUpdate[]
+model GuidanceRequest {
+  id             String           @id @default(cuid())
+  memberId       String
+  member         Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  category       GuidanceCategory
+  otherTopic     String?
+  message        String
+  status         GuidanceStatus   @default(NEW)
+  assignedToId   String?
+  assignedTo     User?            @relation("GuidanceAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  claimedAt      DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  messages       GuidanceMessage[]
 
   @@index([status, createdAt])
-  @@index([memberId, createdAt])
-  @@index([requestedRole, status])
   @@index([assignedToId, status])
-  @@index([urgency, status])
-  @@index([category, status])
+  @@index([memberId, createdAt])
 }
 
-model AssistanceRequestUpdate {
-  id             String              @id @default(cuid())
-  requestId      String
-  request        AssistanceRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  status         AssistanceStatus?
-  assignedToId   String?
-  internalNote   String?
-  createdById    String?
-  createdBy      User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt      DateTime            @default(now())
+model GuidanceMessage {
+  id        String          @id @default(cuid())
+  requestId String
+  request   GuidanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime        @default(now())
 
   @@index([requestId, createdAt])
 }
 
-model MemberProfileChangeRequest {
-  id        String   @id @default(cuid())
-  memberId  String
-  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  message   String
-  status    String   @default("PENDING")
-  createdAt DateTime @default(now())
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
 
-  @@index([memberId, createdAt])
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
 }
 
-model SystemSetting {
-  key       String   @id
-  value     String
-  updatedAt DateTime @updatedAt
+model EventFeedback {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, memberId])
 }

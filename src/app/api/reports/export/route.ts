@@ -1,51 +1,54 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
-import { canViewReports } from "@/lib/authorization";
-import {
-  exportAttendanceCsv,
-  exportImmigrationCsv,
-  exportMembersCsv,
-} from "@/services/reports";
+import { requireCoordinator } from "@/lib/session";
+import { eventReport, guidanceReport } from "@/services/reports";
+import { toCsv } from "@/utils/csv";
+import { formatDateTime } from "@/lib/dates";
 
 export async function GET(request: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json(
-      { error: "Session expired. Please sign in again." },
-      { status: 401 },
+  await requireCoordinator();
+  const url = new URL(request.url);
+  const type = url.searchParams.get("type");
+  if (type === "event") {
+    const eventId = url.searchParams.get("eventId");
+    if (!eventId) return NextResponse.json({ error: "Missing event" }, { status: 400 });
+    const report = await eventReport(eventId);
+    const csv = toCsv(
+      ["Member", "Email", "Type", "Registered", "Checked In", "Check-In Time"],
+      report.participants.map((row) => [
+        row.name,
+        row.email,
+        row.type,
+        "yes",
+        row.checkedIn ? "yes" : "no",
+        row.checkInTime ? formatDateTime(row.checkInTime) : "",
+      ]),
     );
+    return new NextResponse(csv, {
+      headers: {
+        "Content-Type": "text/csv",
+        "Content-Disposition": `attachment; filename="${report.event.title.replaceAll(" ", "-")}-report.csv"`,
+      },
+    });
   }
-  if (!canViewReports(session.user.role)) {
-    return NextResponse.json(
-      { error: "You do not have permission to perform this action." },
-      { status: 403 },
+  if (type === "guidance") {
+    const report = await guidanceReport({});
+    const csv = toCsv(
+      ["Member", "Email", "Category", "Status", "Coordinator", "Submitted"],
+      report.rows.map((row) => [
+        `${row.member.firstName} ${row.member.lastName}`,
+        row.member.email,
+        row.category,
+        row.status,
+        row.assignedTo?.name ?? "",
+        formatDateTime(row.createdAt),
+      ]),
     );
+    return new NextResponse(csv, {
+      headers: {
+        "Content-Type": "text/csv",
+        "Content-Disposition": "attachment; filename=guidance-report.csv",
+      },
+    });
   }
-
-  const { searchParams } = new URL(request.url);
-  const type = searchParams.get("type");
-  const from = searchParams.get("from") ?? undefined;
-  const to = searchParams.get("to") ?? undefined;
-
-  let csv = "";
-  let filename = "ycms-report.csv";
-  if (type === "attendance") {
-    csv = await exportAttendanceCsv(from, to);
-    filename = "ycms-attendance.csv";
-  } else if (type === "members") {
-    csv = await exportMembersCsv();
-    filename = "ycms-members.csv";
-  } else if (type === "immigration") {
-    csv = await exportImmigrationCsv();
-    filename = "ycms-immigration.csv";
-  } else {
-    return NextResponse.json({ error: "Unknown export type." }, { status: 400 });
-  }
-
-  return new NextResponse(csv, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-    },
-  });
+  return NextResponse.json({ error: "Unknown export" }, { status: 400 });
 }

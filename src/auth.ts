@@ -1,115 +1,53 @@
-import NextAuth, { CredentialsSignin } from "next-auth";
-import Credentials from "next-auth/providers/credentials";
+import NextAuth from "next-auth";
+import Google from "next-auth/providers/google";
 import { authConfig } from "@/auth.config";
-import { prisma } from "@/lib/prisma";
-import { verifyPassword } from "@/lib/passwords";
-import { logActivity } from "@/lib/activity-log";
-import { consumeMemberOtp } from "@/services/member-auth";
+import { syncGoogleUser } from "@/lib/google-user";
 import type { UserRole } from "@/types/roles";
 
-class InvalidCredentialsError extends CredentialsSignin {
-  code = "invalid_credentials";
-}
-
-class DisabledAccountError extends CredentialsSignin {
-  code = "disabled";
-}
+const googleId = process.env.AUTH_GOOGLE_ID ?? process.env.GOOGLE_CLIENT_ID;
+const googleSecret = process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_CLIENT_SECRET;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   ...authConfig,
   providers: [
-    Credentials({
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-        loginType: { label: "Type", type: "text" },
-        trustDevice: { label: "Trust device", type: "text" },
-      },
-      async authorize(credentials) {
-        const email =
-          typeof credentials?.email === "string"
-            ? credentials.email.trim().toLowerCase()
-            : "";
-        const password =
-          typeof credentials?.password === "string" ? credentials.password : "";
-        const loginType =
-          typeof credentials?.loginType === "string" ? credentials.loginType : "staff";
-        const trustDevice = credentials?.trustDevice === "true";
-
-        if (!email || !password) {
-          throw new InvalidCredentialsError();
-        }
-
-        if (loginType === "member") {
-          const user = await consumeMemberOtp(email, password);
-          await logActivity({
-            userId: user.id,
-            action: "MEMBER_LOGIN",
-            entityType: "User",
-            entityId: user.id,
-            message: `${user.name} signed in with email code`,
-          });
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: "MEMBER" as UserRole,
-            active: user.active,
-            memberId: user.memberId,
-            trustDevice,
-          };
-        }
-
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || user.role === "MEMBER" || !user.passwordHash) {
-          await logActivity({
-            action: "LOGIN_FAILED",
-            message: `Failed login attempt for ${email}`,
-            metadata: { email },
-          });
-          throw new InvalidCredentialsError();
-        }
-
-        const valid = await verifyPassword(password, user.passwordHash);
-        if (!valid) {
-          await logActivity({
-            userId: user.id,
-            action: "LOGIN_FAILED",
-            entityType: "User",
-            entityId: user.id,
-            message: `Failed login attempt for ${email}`,
-          });
-          throw new InvalidCredentialsError();
-        }
-
-        if (!user.active) {
-          await logActivity({
-            userId: user.id,
-            action: "LOGIN_DISABLED",
-            entityType: "User",
-            entityId: user.id,
-            message: `Disabled account login blocked for ${email}`,
-          });
-          throw new DisabledAccountError();
-        }
-
-        await logActivity({
-          userId: user.id,
-          action: "LOGIN",
-          entityType: "User",
-          entityId: user.id,
-          message: `${user.name} signed in`,
-        });
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          active: user.active,
-        };
-      },
+    Google({
+      clientId: googleId,
+      clientSecret: googleSecret,
+      allowDangerousEmailAccountLinking: true,
     }),
   ],
+  callbacks: {
+    ...authConfig.callbacks,
+    async jwt({ token, account, profile, user }) {
+      if (account?.provider === "google" && profile) {
+        const synced = await syncGoogleUser({
+          email: profile.email,
+          name: profile.name,
+          given_name: (profile as { given_name?: string }).given_name,
+          family_name: (profile as { family_name?: string }).family_name,
+          picture: (profile as { picture?: string }).picture,
+        });
+        token.id = synced.id;
+        token.role = synced.role;
+        token.active = synced.active;
+        token.memberId = synced.memberId;
+        token.picture = synced.image;
+        token.name = synced.name;
+        token.email = synced.email;
+        return token;
+      }
+      return authConfig.callbacks.jwt({ token, user, account, profile });
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as UserRole;
+        session.user.active = Boolean(token.active);
+        session.user.memberId = (token.memberId as string | null | undefined) ?? null;
+        session.user.image = (token.picture as string | undefined) ?? null;
+      }
+      return session;
+    },
+  },
 });

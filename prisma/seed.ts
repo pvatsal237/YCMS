@@ -1,690 +1,231 @@
-import {
-  PrismaClient,
-  type AttendanceStatus,
-  type FollowUpStatus,
-  type ImmigrationStatus,
-} from "@prisma/client";
-import { hash, compare } from "bcryptjs";
-import { THREE_CONSECUTIVE_ABSENCE_REASON } from "../src/lib/constants";
-import { DEPARTMENT_CODES } from "../src/services/volunteer";
-import { createStaffNotification } from "../src/services/staff-notifications";
+import { PrismaClient } from "@prisma/client";
+import { randomBytes } from "crypto";
 
 const prisma = new PrismaClient();
-const DEMO_PASSWORD = "YcmsDemo123!";
 
-async function deleteAll(
-  delegate: { deleteMany: (args?: object) => Promise<unknown> } | undefined,
-  table: string,
-) {
-  if (typeof delegate?.deleteMany === "function") {
-    await delegate.deleteMany({});
-    return;
-  }
-  await prisma.$executeRawUnsafe(`DELETE FROM "${table}"`);
-}
-
-function utcDate(year: number, month: number, day: number) {
-  return new Date(Date.UTC(year, month - 1, day));
-}
-function addDays(base: Date, days: number) {
-  const next = new Date(base);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
-}
-
-const FIRST = [
-  "Harsh", "Dhruv", "Krisha", "Riya", "Meet", "Hetvi", "Devansh", "Mansi", "Parth", "Khushi",
-  "Jay", "Nirali", "Karan", "Pooja", "Yash", "Jahnvi", "Tirth", "Disha", "Aryan", "Kavya",
-  "Mihir", "Isha", "Vivek", "Nidhi", "Kunal", "Twisha", "Hiten", "Bansari", "Rushi", "Dhwani",
-  "Smit", "Foram", "Manan", "Hiral", "Darsh", "Kruti", "Veer", "Jinal", "Om", "Maitri",
-  "Shivam", "Diya", "Aayush", "Prisha", "Keyur", "Vrushti", "Neel", "Tanvi", "Jenil", "Yesha",
+const COORDINATORS = [
+  { name: "Piyush Patel", email: "piyush.patel@iycm.demo" },
+  { name: "Nisha Shah", email: "nisha.shah@iycm.demo" },
+  { name: "Rohan Mehta", email: "rohan.mehta@iycm.demo" },
+  { name: "Aisha Khan", email: "aisha.khan@iycm.demo" },
+  { name: "Daniel Chen", email: "daniel.chen@iycm.demo" },
+  { name: "Sofia Alvarez", email: "sofia.alvarez@iycm.demo" },
+  { name: "Priya Sharma", email: "priya.sharma@iycm.demo" },
+  { name: "Marcus Johnson", email: "marcus.johnson@iycm.demo" },
+  { name: "Leila Haddad", email: "leila.haddad@iycm.demo" },
+  { name: "Kenji Tanaka", email: "kenji.tanaka@iycm.demo" },
 ];
-const LAST = [
-  "Patel", "Shah", "Mehta", "Desai", "Trivedi", "Bhatt", "Joshi", "Vyas", "Modi", "Dave",
-  "Pandya", "Raval", "Thakkar", "Parikh", "Gandhi", "Amin", "Panchal", "Soni", "Jani", "Acharya",
-  "Choksi", "Kapadia", "Mistry", "Gajjar", "Buch", "Oza", "Vora", "Rawal", "Upadhyay", "Shukla",
+
+const MEMBERS = [
+  ["Hetvi", "Patel", "hetvi.patel@gmail.com", "4165553487"],
+  ["Krisha", "Shah", "krisha.shah@gmail.com", "6475552210"],
+  ["Aarav", "Sharma", "aarav.sharma@gmail.com", "4375550182"],
+  ["Riya", "Desai", "riya.desai@gmail.com", "9055557741"],
+  ["Meet", "Trivedi", "meet.trivedi@gmail.com", "2895559033"],
+  ["Ananya", "Iyer", "ananya.iyer@gmail.com", "4165556672"],
+  ["Omar", "Farouk", "omar.farouk@gmail.com", "6475554419"],
+  ["Mei", "Lin", "mei.lin@gmail.com", "4375558820"],
+  ["Lucas", "Silva", "lucas.silva@gmail.com", "9055553104"],
+  ["Fatima", "Noor", "fatima.noor@gmail.com", "4165551298"],
+  ["Jay", "Patel", "jay.patel@gmail.com", "6475557601"],
+  ["Sara", "Kim", "sara.kim@gmail.com", "2895554555"],
 ];
+
+function sundayOffset(weeks: number) {
+  const date = new Date();
+  const day = date.getDay();
+  const add = (day === 0 ? 0 : 7 - day) + weeks * 7;
+  date.setDate(date.getDate() + add);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function token() {
+  return randomBytes(18).toString("hex");
+}
 
 async function main() {
-  await deleteAll(prisma.volunteerEnrollmentRequest, "VolunteerEnrollmentRequest");
-  await deleteAll(prisma.transportEventAvailability, "TransportEventAvailability");
-  await prisma.volunteerAssignment.deleteMany();
-  await prisma.volunteerStaffingResponse.deleteMany();
-  await prisma.volunteerStaffingRequest.deleteMany();
-  await prisma.eventDepartmentPlan.deleteMany();
-  await prisma.volunteerDepartmentMembership.deleteMany();
-  await prisma.rideRequest.deleteMany();
-  await prisma.assistanceRequestUpdate.deleteMany();
-  await prisma.assistanceRequest.deleteMany();
-  await prisma.volunteerDepartment.deleteMany();
-  await prisma.emailOtp.deleteMany();
-  await prisma.memberProfileChangeRequest.deleteMany();
-  await prisma.attendance.deleteMany();
-  await prisma.followUp.deleteMany();
-  await prisma.activityLog.deleteMany();
-  await prisma.immigrationDocument.deleteMany();
-  await prisma.memberImmigrationStatus.deleteMany();
-  await prisma.education.deleteMany();
-  await prisma.address.deleteMany();
-  await prisma.emergencyContact.deleteMany();
-  await prisma.employment.deleteMany();
-  await prisma.accommodationNeed.deleteMany();
-  await prisma.meetup.deleteMany();
-  await prisma.user.deleteMany({ where: { role: "MEMBER" } });
-  await prisma.member.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.guidanceMessage.deleteMany();
+  await prisma.guidanceRequest.deleteMany();
+  await prisma.eventFeedback.deleteMany();
+  await prisma.eventCheckIn.deleteMany();
+  await prisma.eventRegistration.deleteMany();
+  await prisma.event.deleteMany();
+  await prisma.coordinatorAllowlist.deleteMany();
   await prisma.user.deleteMany();
-  await prisma.systemSetting.deleteMany();
+  await prisma.member.deleteMany();
 
-  const passwordHash = await hash(DEMO_PASSWORD, 12);
-
-  const admin = await prisma.user.create({
-    data: { name: "Harsh Patel", email: "admin@ycms.local", passwordHash, role: "ADMIN", phone: "416-555-1001", active: true },
-  });
-  await prisma.user.create({
-    data: { name: "Dhruv Shah", email: "admin2@ycms.local", passwordHash, role: "ADMIN", phone: "416-555-1002", active: true },
-  });
-
-  const coordinatorNames = [
-    "Krisha Mehta", "Riya Desai", "Meet Trivedi", "Devansh Bhatt", "Mansi Joshi", "Parth Vyas",
-    "Khushi Modi", "Jay Dave", "Nirali Pandya", "Karan Raval", "Pooja Thakkar", "Yash Parikh",
-  ];
-  const coordinators = [];
-  for (const [index, name] of coordinatorNames.entries()) {
-    coordinators.push(
-      await prisma.user.create({
-        data: {
-          name,
-          email: index === 0 ? "coordinator@ycms.local" : `coordinator${index + 1}@ycms.local`,
-          passwordHash,
-          role: "COORDINATOR",
-          phone: `416-555-${1100 + index}`,
-          active: true,
-          createdById: admin.id,
-        },
-      }),
-    );
-  }
-  const coordinator = coordinators[0];
-
-  const volunteerNames = [
-    "Hetvi Patel", "Jenil Shah", "Yesha Mehta", "Tirth Desai", "Disha Trivedi", "Aryan Bhatt",
-    "Kavya Joshi", "Mihir Vyas", "Isha Modi", "Vivek Dave", "Nidhi Pandya", "Kunal Raval",
-    "Twisha Thakkar", "Hiten Parikh", "Bansari Gandhi", "Rushi Amin", "Dhwani Panchal", "Smit Soni",
-    "Foram Jani", "Manan Acharya", "Hiral Choksi", "Darsh Kapadia", "Kruti Mistry", "Veer Gajjar",
-    "Jinal Buch", "Om Oza", "Maitri Vora", "Shivam Rawal", "Diya Upadhyay", "Aayush Shukla",
-  ];
-  const leadEmails: Record<number, string> = {
-    0: "volunteer@ycms.local",
-    1: "jenil.shah@ycms.local",
-    8: "isha.modi@ycms.local",
-    14: "bansari.gandhi@ycms.local",
-    19: "manan.acharya@ycms.local",
-    23: "veer.gajjar@ycms.local",
-    26: "maitri.vora@ycms.local",
-    28: "diya.upadhyay@ycms.local",
-    29: "aayush.shukla@ycms.local",
-  };
-  const volunteers = [];
-  for (const [index, name] of volunteerNames.entries()) {
-    volunteers.push(
-      await prisma.user.create({
-        data: {
-          name,
-          email: leadEmails[index] ?? `volunteer${index + 1}@ycms.local`,
-          passwordHash,
-          role: "ATTENDANCE_VOLUNTEER",
-          phone: `647-555-${2000 + index}`,
-          active: true,
-          createdById: coordinator.id,
-        },
-      }),
-    );
-  }
-
-  const departments = [];
-  for (const dept of DEPARTMENT_CODES) {
-    departments.push(
-      await prisma.volunteerDepartment.create({
-        data: { code: dept.code, name: dept.name },
-      }),
-    );
-  }
-  const deptByCode = Object.fromEntries(departments.map((row) => [row.code, row]));
-  const roster: Array<{ code: (typeof DEPARTMENT_CODES)[number]["code"]; leads: number[]; members: number[] }> = [
-    { code: "KITCHEN", leads: [0, 1], members: [2, 3, 4, 5, 6, 7] },
-    { code: "GROCERIES", leads: [14], members: [2, 15, 16, 17, 18] },
-    { code: "TRANSPORTATION", leads: [8], members: [9, 10, 11, 12, 13] },
-    { code: "SEATING_SETUP", leads: [19], members: [15, 20, 21, 22] },
-    { code: "AUDIO_VIDEO", leads: [23], members: [16, 24, 25] },
-    { code: "RECREATION", leads: [26], members: [27] },
-    { code: "RISEUP_SUPPORT", leads: [28], members: [4] },
-    { code: "GENERAL_EVENT_SUPPORT", leads: [29], members: [3] },
-  ];
-  for (const row of roster) {
-    const department = deptByCode[row.code];
-    const leadIndexes = [...new Set(row.leads)];
-    const memberIndexes = [...new Set([...row.leads, ...row.members])];
-    for (const index of memberIndexes) {
-      await prisma.volunteerDepartmentMembership.create({
-        data: {
-          userId: volunteers[index].id,
-          departmentId: department.id,
-          responsibility: leadIndexes.includes(index) ? "LEAD" : "VOLUNTEER",
-          isNewVolunteer: row.code === "KITCHEN" && [6, 7].includes(index),
-          notes:
-            row.code === "KITCHEN" && index === 2
-              ? "Good at Gujarati and Punjabi dishes"
-              : row.code === "TRANSPORTATION" && index === 9
-                ? "Can drive and take up to 4 passengers"
-                : undefined,
-        },
-      });
-    }
-    await prisma.volunteerDepartment.update({
-      where: { id: department.id },
-      data: { leadUserId: volunteers[leadIndexes[0]].id },
+  const coordinatorUsers = [];
+  for (const row of COORDINATORS) {
+    const user = await prisma.user.create({
+      data: { name: row.name, email: row.email, role: "COORDINATOR", active: true },
     });
-  }
-
-  const leadHomes: Array<{ index: number; code: (typeof DEPARTMENT_CODES)[number]["code"] }> = [
-    { index: 0, code: "KITCHEN" },
-    { index: 1, code: "KITCHEN" },
-    { index: 8, code: "TRANSPORTATION" },
-    { index: 14, code: "GROCERIES" },
-    { index: 19, code: "SEATING_SETUP" },
-    { index: 23, code: "AUDIO_VIDEO" },
-    { index: 26, code: "RECREATION" },
-    { index: 28, code: "RISEUP_SUPPORT" },
-    { index: 29, code: "GENERAL_EVENT_SUPPORT" },
-  ];
-  for (const home of leadHomes) {
-    const userId = volunteers[home.index].id;
-    const departmentId = deptByCode[home.code].id;
-    await prisma.volunteerDepartmentMembership.deleteMany({ where: { userId } });
-    await prisma.volunteerDepartmentMembership.create({
-      data: { userId, departmentId, responsibility: "LEAD" },
+    await prisma.coordinatorAllowlist.create({
+      data: { email: row.email, name: row.name, userId: user.id },
     });
+    coordinatorUsers.push(user);
   }
-  await prisma.volunteerDepartment.update({
-    where: { id: deptByCode.TRANSPORTATION.id },
-    data: { leadUserId: volunteers[8].id },
-  });
-  await prisma.volunteerDepartment.update({
-    where: { id: deptByCode.KITCHEN.id },
-    data: { leadUserId: volunteers[0].id },
-  });
 
-  await prisma.systemSetting.createMany({
-    data: [
-      { key: "organizationName", value: "Youth Community Management System" },
-      { key: "defaultMeetupLocation", value: "Riverside Community Centre" },
-    ],
-  });
-
-  const statuses: ImmigrationStatus[] = ["STUDENT", "WORKER", "PERMANENT_RESIDENT", "CITIZEN", "VISITOR"];
-  const createdMembers = [];
-  for (let i = 0; i < 180; i++) {
-    const firstName = i === 0 ? "Hetvi" : FIRST[i % FIRST.length];
-    const lastName = i === 0 ? "Patel" : LAST[(i + Math.floor(i / FIRST.length)) % LAST.length];
-    const email =
-      i === 0 ? "hetvi.patel@example.test" : i === 1 ? "krisha.shah@example.test" : `member${i + 1}@example.test`;
-    const status = statuses[i % statuses.length];
-    const expiryOffsetDays = i % 17 === 0 ? 40 : 200 + (i % 400);
-    const created = await prisma.member.create({
+  const members = [];
+  for (const [firstName, lastName, email, phone] of MEMBERS) {
+    const member = await prisma.member.create({
       data: {
         firstName,
         lastName,
-        dateOfBirth: utcDate(1997 + (i % 8), (i % 12) + 1, (i % 27) + 1),
-        gender: i % 2 === 0 ? "FEMALE" : "MALE",
-        phone: `416-555-${3000 + i}`,
         email,
-        bloodGroup: "O+",
-        referredBy: "Youth meetup",
-        dateJoined: utcDate(2025, (i % 12) + 1, 10),
-        active: i !== 22,
-        createdById: coordinator.id,
-        addresses: {
-          create: [
-            { type: "CANADIAN", addressLine1: `${100 + i} Community Way`, city: "Toronto", provinceState: "Ontario", postalCode: "M5V 2T6", country: "Canada" },
-            { type: "HOME_COUNTRY", addressLine1: `${i + 1} Home Street`, city: "Ahmedabad", provinceState: "Gujarat", postalCode: "380001", country: "India" },
-          ],
-        },
-        emergencyContact: { create: { name: `${LAST[(i + 3) % LAST.length]} family`, relationship: "Parent", phone: "416-555-0199" } },
-        immigrationStatus: { create: { status, college: status === "STUDENT" ? "University of Toronto" : undefined, program: status === "STUDENT" ? "General Studies" : undefined } },
-        documents: {
-          create: [
-            ...(status === "STUDENT" ? [{ documentType: "STUDY_PERMIT" as const, expiryDate: addDays(utcDate(2026, 8, 19), expiryOffsetDays) }] : []),
-            ...(status === "WORKER" ? [{ documentType: "WORK_PERMIT" as const, expiryDate: addDays(utcDate(2026, 8, 19), expiryOffsetDays) }] : []),
-            { documentType: "PASSPORT", expiryDate: addDays(utcDate(2026, 8, 19), 800) },
-          ],
-        },
-        employment: { create: { employmentStatus: status === "STUDENT" ? "STUDENT" : "EMPLOYED", lookingForJob: false } },
-        accommodation: { create: { looking: i % 20 === 0 } },
+        phone,
+        emergencyName: `${firstName}'s emergency contact`,
+        emergencyPhone: "4165550000",
+        emergencyRelation: "Family",
       },
     });
-    createdMembers.push(created);
     await prisma.user.create({
-      data: { name: `${created.firstName} ${created.lastName}`, email: created.email, role: "MEMBER", active: created.active, memberId: created.id },
-    });
-  }
-
-  const weeklyCuisines = [
-    "Gujarati thali",
-    "South Indian vegetarian",
-    "Indo-Chinese",
-    "Pasta night",
-    "Chaat & snacks",
-    "Biryani (veg & non-veg)",
-    "Mexican bowls",
-    "Pizza & salad",
-  ];
-  const pastDates = [
-    utcDate(2026, 7, 10),
-    utcDate(2026, 7, 17),
-    utcDate(2026, 7, 24),
-    utcDate(2026, 7, 31),
-    utcDate(2026, 8, 7),
-    utcDate(2026, 8, 14),
-  ];
-  const meetups = [];
-  for (const [index, date] of pastDates.entries()) {
-    meetups.push(
-      await prisma.meetup.create({
-        data: {
-          meetupDate: date,
-          title: `Weekly Youth Meetup #${index + 1}`,
-          location: "Riverside Community Centre",
-          eventType: "WEEKLY_MEETUP",
-          startTime: "20:00",
-          endTime: "22:00",
-          cuisine: weeklyCuisines[index],
-          createdById: coordinator.id,
-          expectedAttendance: 160,
-        },
-      }),
-    );
-  }
-  const upcoming = await prisma.meetup.create({
-    data: {
-      meetupDate: utcDate(2026, 8, 21),
-      title: "Weekly Youth Meetup",
-      location: "Riverside Community Centre",
-      eventType: "WEEKLY_MEETUP",
-      startTime: "20:00",
-      endTime: "22:00",
-      cuisine: "Punjabi vegetarian",
-      createdById: coordinator.id,
-      expectedAttendance: 180,
-    },
-  });
-  await prisma.meetup.create({
-    data: {
-      meetupDate: utcDate(2026, 9, 11),
-      title: "Weekly Youth Meetup",
-      location: "Riverside Community Centre",
-      eventType: "WEEKLY_MEETUP",
-      startTime: "20:00",
-      endTime: "22:00",
-      cuisine: "Mediterranean mezze",
-      createdById: coordinator.id,
-      expectedAttendance: 175,
-    },
-  });
-  const riseup = await prisma.meetup.create({
-    data: {
-      meetupDate: utcDate(2026, 9, 20),
-      title: "RiseUp: Artificial Intelligence",
-      location: "Riverside Hall",
-      eventType: "RISEUP",
-      startTime: "17:00",
-      endTime: "20:00",
-      topic: "Artificial Intelligence",
-      speakerName: "Dr. Nirav Patel",
-      speakerOrganization: "Northern Tech Institute",
-      speakerPosition: "Research Lead",
-      careerSkillArea: "Technology",
-      description: "Youth development session on AI careers and practical skills.",
-      createdById: coordinator.id,
-      expectedAttendance: 120,
-    },
-  });
-  await prisma.meetup.create({
-    data: {
-      meetupDate: utcDate(2026, 9, 27),
-      title: "Recreation Afternoon",
-      location: "Riverside Gym",
-      eventType: "RECREATION",
-      startTime: "14:00",
-      endTime: "17:00",
-      createdById: coordinator.id,
-    },
-  });
-
-  const activeMembers = createdMembers.filter((m) => m.active);
-  for (const [memberIndex, member] of activeMembers.entries()) {
-    for (const [index, meetup] of meetups.entries()) {
-      let status: AttendanceStatus = "PRESENT";
-      if (memberIndex < 8) {
-        status = index >= meetups.length - 3 ? "ABSENT" : "PRESENT";
-      } else if (memberIndex < 30) {
-        status = index === 2 || index === 5 ? "ABSENT" : "PRESENT";
-        if (index === 3) status = "EXCUSED";
-      } else if (index === memberIndex % meetups.length) {
-        status = memberIndex % 9 === 0 ? "EXCUSED" : "PRESENT";
-      }
-      await prisma.attendance.create({
-        data: { meetupId: meetup.id, memberId: member.id, status, recordedById: coordinator.id },
-      });
-    }
-  }
-
-  const serious = activeMembers.slice(0, 8);
-  for (const [i, member] of serious.entries()) {
-    const status: FollowUpStatus = i < 2 ? "PENDING" : i < 5 ? "CONTACTED" : "COMPLETED";
-    await prisma.followUp.create({
       data: {
+        name: `${firstName} ${lastName}`,
+        email,
+        role: "MEMBER",
         memberId: member.id,
-        reason: THREE_CONSECUTIVE_ABSENCE_REASON,
-        status,
-        lastOutcome: status === "COMPLETED" ? "WILL_ATTEND" : status === "CONTACTED" ? "CALLED_BUSY_CALLBACK" : undefined,
-        assignedToId: coordinator.id,
-        notes: i === 6 ? "Unable to reach on first call; later completed." : "Follow-up after consecutive absences.",
       },
     });
+    members.push(member);
   }
-  await prisma.followUp.create({
+
+  const career = await prisma.event.create({
     data: {
-      memberId: activeMembers[10].id,
-      reason: THREE_CONSECUTIVE_ABSENCE_REASON,
-      status: "UNABLE_TO_REACH",
-      lastOutcome: "UNABLE_TO_REACH",
-      assignedToId: coordinator.id,
+      title: "Building Your Career in Canada",
+      description: "Learn practical strategies for building your career and finding opportunities in Canada.",
+      speakerName: "Nisha Shah",
+      speakerTitle: "Career Coach",
+      speakerOrganization: "IYCM",
+      eventDate: sundayOffset(1),
+      startTime: "09:00",
+      endTime: "12:00",
+      location: "Community Hall A",
+      capacity: 8,
+      registrationDeadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+      walkInCapacity: 10,
+      status: "PUBLISHED",
+      walkInToken: token(),
+      createdById: coordinatorUsers[0].id,
+      internalNotes: "Registration desk near east entrance. Speaker arriving at 8:30 AM.",
     },
   });
 
-  const kitchen = departments.find((d) => d.code === "KITCHEN")!;
-  const memberVolunteerLogin = await prisma.user.findFirst({ where: { email: "krisha.shah@example.test" } });
-  if (memberVolunteerLogin) {
-    await prisma.volunteerDepartmentMembership.create({
+  const immigration = await prisma.event.create({
+    data: {
+      title: "Immigration Pathways in Canada",
+      description: "A practical overview of study, work, and permanent residence pathways.",
+      speakerName: "Piyush Patel",
+      eventDate: sundayOffset(2),
+      startTime: "09:00",
+      endTime: "12:00",
+      location: "Community Hall B",
+      capacity: 60,
+      registrationDeadline: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+      walkInCapacity: 10,
+      status: "PUBLISHED",
+      walkInToken: token(),
+      createdById: coordinatorUsers[0].id,
+    },
+  });
+
+  const past = await prisma.event.create({
+    data: {
+      title: "AI Mastery",
+      description: "Hands-on introduction to practical AI tools for school and work.",
+      eventDate: sundayOffset(-2),
+      startTime: "09:00",
+      endTime: "12:00",
+      location: "Lab 2",
+      capacity: 40,
+      registrationDeadline: sundayOffset(-3),
+      walkInCapacity: 10,
+      status: "COMPLETED",
+      walkInToken: token(),
+      createdById: coordinatorUsers[1].id,
+    },
+  });
+
+  const draft = await prisma.event.create({
+    data: {
+      title: "Financial Literacy",
+      description: "Budgeting, credit, and first jobs in Canada.",
+      eventDate: sundayOffset(3),
+      startTime: "09:00",
+      endTime: "12:00",
+      location: "Community Hall A",
+      capacity: 50,
+      registrationDeadline: new Date(Date.now() + 16 * 24 * 60 * 60 * 1000),
+      walkInCapacity: 10,
+      status: "DRAFT",
+      walkInToken: token(),
+      createdById: coordinatorUsers[2].id,
+    },
+  });
+  void draft;
+  void immigration;
+
+  for (let i = 0; i < 8; i += 1) {
+    await prisma.eventRegistration.create({
+      data: { eventId: career.id, memberId: members[i].id, status: "REGISTERED", type: "NORMAL" },
+    });
+  }
+  await prisma.eventRegistration.create({
+    data: { eventId: career.id, memberId: members[8].id, status: "WAITLISTED", waitlistPosition: 1 },
+  });
+  await prisma.eventRegistration.create({
+    data: { eventId: career.id, memberId: members[9].id, status: "WAITLISTED", waitlistPosition: 2 },
+  });
+  await prisma.eventRegistration.create({
+    data: { eventId: career.id, memberId: members[10].id, status: "REGISTERED", type: "WALK_IN" },
+  });
+
+  for (let i = 0; i < 6; i += 1) {
+    await prisma.eventRegistration.create({
+      data: { eventId: past.id, memberId: members[i].id, status: "REGISTERED" },
+    });
+    await prisma.eventCheckIn.create({
       data: {
-        userId: memberVolunteerLogin.id,
-        departmentId: kitchen.id,
-        responsibility: "VOLUNTEER",
+        eventId: past.id,
+        memberId: members[i].id,
+        status: i === 5 ? "NO_SHOW" : "CHECKED_IN",
+        checkedInById: coordinatorUsers[0].id,
       },
     });
   }
-  const transport = departments.find((d) => d.code === "TRANSPORTATION")!;
-  const setup = departments.find((d) => d.code === "SEATING_SETUP")!;
-  const av = departments.find((d) => d.code === "AUDIO_VIDEO")!;
 
-  const kitchenPlan = await prisma.eventDepartmentPlan.create({
+  const request = await prisma.guidanceRequest.create({
     data: {
-      meetupId: upcoming.id,
-      departmentId: kitchen.id,
-      status: "APPROVED",
-      cuisine: "Punjabi vegetarian",
-      sponsorName: "Mehta Family",
-      preparationLocation: "Community kitchen, Unit 4",
-      kitchenNotes: "Prep starts mid-afternoon; serving at 8:00 PM.",
-      knownAssignments: [
-        { label: "Grocery Person", userId: volunteers[2].id },
-        { label: "Food Delivery Person", userId: volunteers[5].id },
-      ],
-      createdById: volunteers[0].id,
-      submittedAt: new Date(),
-      reviewedAt: new Date(),
-      reviewedById: coordinator.id,
+      memberId: members[0].id,
+      category: "CAREER_DEVELOPMENT",
+      message: "I need help preparing for a co-op interview next week.",
+      status: "NEW",
     },
   });
-  const kitchenTasks = [
-    { task: "Chopping", neededCount: 10, requestDate: utcDate(2026, 8, 21), startTime: "15:00", endTime: "17:00", assign: [2, 3, 4, 5] },
-    { task: "Groceries", neededCount: 3, requestDate: utcDate(2026, 8, 20), startTime: "18:00", endTime: "20:00", assign: [2, 6, 7] },
-    { task: "Cooking / Food Preparation", neededCount: 8, requestDate: utcDate(2026, 8, 21), startTime: "15:00", endTime: "19:00", assign: [0, 1, 3, 7] },
-    { task: "Dishes / Cleanup", neededCount: 4, requestDate: utcDate(2026, 8, 21), startTime: "20:30", endTime: "22:00", assign: [4, 5, 6, 7] },
-    { task: "Food Delivery to Venue", neededCount: 1, requestDate: utcDate(2026, 8, 21), startTime: "17:30", endTime: "18:15", assign: [5] },
-  ];
-  for (const task of kitchenTasks) {
-    const request = await prisma.volunteerStaffingRequest.create({
-      data: {
-        meetupId: upcoming.id,
-        departmentId: kitchen.id,
-        planId: kitchenPlan.id,
-        task: task.task,
-        neededCount: task.neededCount,
-        requestDate: task.requestDate,
-        startTime: task.startTime,
-        endTime: task.endTime,
-        createdById: volunteers[0].id,
-        status: "APPROVED",
-      },
-    });
-    for (const index of task.assign) {
-      await prisma.volunteerAssignment.create({
-        data: { requestId: request.id, userId: volunteers[index].id },
-      });
-    }
-  }
-
-  const transportPlan = await prisma.eventDepartmentPlan.create({
+  await prisma.guidanceRequest.create({
     data: {
-      meetupId: upcoming.id,
-      departmentId: transport.id,
-      status: "APPROVED",
-      createdById: volunteers[8].id,
-      submittedAt: new Date(),
-      reviewedAt: new Date(),
-      reviewedById: coordinator.id,
-      knownAssignments: [{ label: "Known driver", userId: volunteers[10].id }],
+      memberId: members[1].id,
+      category: "IMMIGRATION",
+      message: "Can someone explain PGWP timelines?",
+      status: "CLAIMED",
+      assignedToId: coordinatorUsers[0].id,
+      claimedAt: new Date(),
     },
   });
-  for (const route of [
-    { task: "Markham", neededCount: 3, assign: [9] },
-    { task: "Brampton", neededCount: 4, assign: [10, 11] },
-    { task: "Mississauga", neededCount: 2, assign: [] },
-    { task: "Flexible / General", neededCount: 2, assign: [12] },
-  ]) {
-    const request = await prisma.volunteerStaffingRequest.create({
-      data: {
-        meetupId: upcoming.id,
-        departmentId: transport.id,
-        planId: transportPlan.id,
-        task: route.task,
-        neededCount: route.neededCount,
-        requestDate: utcDate(2026, 8, 21),
-        startTime: "18:30",
-        endTime: "22:00",
-        createdById: volunteers[8].id,
-        status: "APPROVED",
-      },
-    });
-    for (const index of route.assign) {
-      await prisma.volunteerAssignment.create({
-        data: { requestId: request.id, userId: volunteers[index].id },
-      });
-    }
-  }
-
-  const setupPlan = await prisma.eventDepartmentPlan.create({
+  await prisma.guidanceMessage.create({
     data: {
-      meetupId: riseup.id,
-      departmentId: setup.id,
-      status: "PENDING_APPROVAL",
-      createdById: volunteers[19].id,
-      submittedAt: new Date(),
-    },
-  });
-  await prisma.volunteerStaffingRequest.create({
-    data: {
-      meetupId: riseup.id,
-      departmentId: setup.id,
-      planId: setupPlan.id,
-      task: "Hall setup",
-      neededCount: 4,
-      requestDate: utcDate(2026, 9, 20),
-      startTime: "15:00",
-      endTime: "17:00",
-      createdById: volunteers[19].id,
-      status: "PENDING_APPROVAL",
+      requestId: request.id,
+      authorId: coordinatorUsers[0].id,
+      body: "I'm available Tuesday after 6 PM or Thursday between 7–8 PM. Let me know what works for you.",
     },
   });
 
-  const avPlan = await prisma.eventDepartmentPlan.create({
-    data: {
-      meetupId: riseup.id,
-      departmentId: av.id,
-      status: "APPROVED",
-      createdById: coordinator.id,
-      submittedAt: new Date(),
-      reviewedAt: new Date(),
-      reviewedById: coordinator.id,
-    },
-  });
-  await prisma.volunteerStaffingRequest.create({
-    data: {
-      meetupId: riseup.id,
-      departmentId: av.id,
-      planId: avPlan.id,
-      task: "AV support",
-      neededCount: 2,
-      requestDate: utcDate(2026, 9, 20),
-      startTime: "16:00",
-      endTime: "20:30",
-      createdById: coordinator.id,
-      status: "APPROVED",
-    },
-  });
-
-  await prisma.rideRequest.create({
-    data: {
-      memberId: createdMembers[0].id,
-      meetupId: upcoming.id,
-      pickupArea: "Markham",
-      availableAfter: "After 6:30 PM",
-      passengerCount: 2,
-      note: "Near Finch station",
-      status: "APPROVED",
-    },
-  });
-  await prisma.rideRequest.create({
-    data: {
-      memberId: createdMembers[1].id,
-      meetupId: upcoming.id,
-      pickupArea: "Brampton",
-      availableAfter: "After 6:00 PM",
-      passengerCount: 1,
-      status: "REQUESTED",
-    },
-  });
-  await prisma.rideRequest.create({
-    data: {
-      memberId: createdMembers[2].id,
-      meetupId: upcoming.id,
-      pickupArea: "Mississauga",
-      availableAfter: "After 7:00 PM",
-      passengerCount: 3,
-      status: "ASSIGNED",
-      driverUserId: volunteers[10].id,
-    },
-  });
-
-  await prisma.transportEventAvailability.createMany({
-    data: [
-      {
-        userId: volunteers[8].id,
-        meetupId: upcoming.id,
-        status: "AVAILABLE",
-        startTime: "18:00",
-        passengerCapacity: 4,
-        note: "Available from 6:00 PM onward",
-      },
-      {
-        userId: volunteers[9].id,
-        meetupId: upcoming.id,
-        status: "PARTIAL",
-        startTime: "19:00",
-        endTime: "22:00",
-        passengerCapacity: 3,
-        note: "Available 7–10 PM",
-      },
-      {
-        userId: volunteers[10].id,
-        meetupId: upcoming.id,
-        status: "AVAILABLE",
-        startTime: "18:30",
-        passengerCapacity: 4,
-      },
-    ],
-  });
-
-  const memberLogin = await prisma.user.findFirst({ where: { email: "hetvi.patel@example.test" } });
-  if (memberLogin) {
-    const enrollment = await prisma.volunteerEnrollmentRequest.create({
-      data: {
-        memberId: createdMembers[0].id,
-        volunteerUserId: memberLogin.id,
-        departmentId: kitchen.id,
-        interestKind: "DEPARTMENT",
-        availability: "AVAILABLE",
-        notes: "Good at Gujarati, Punjabi and Italian dishes",
-        isNewVolunteer: true,
-        status: "PENDING",
-      },
-    });
-    await createStaffNotification({
-      userId: coordinator.id,
-      memberId: createdMembers[0].id,
-      requestId: enrollment.id,
-      title: "Someone would like to serve",
-      message: "Hetvi Patel would like to help with Kitchen / Food Preparation.",
-    });
-    await createStaffNotification({
-      userId: admin.id,
-      memberId: createdMembers[0].id,
-      requestId: enrollment.id,
-      title: "Someone would like to serve",
-      message: "Hetvi Patel would like to help with Kitchen / Food Preparation.",
-    });
-  }
-
-  await prisma.activityLog.create({ data: { userId: admin.id, action: "SEED", message: "Development seed data loaded" } });
-  const leadLogins = [
-    "admin@ycms.local",
-    "coordinator@ycms.local",
-    "volunteer@ycms.local",
-    "jenil.shah@ycms.local",
-    "isha.modi@ycms.local",
-    "bansari.gandhi@ycms.local",
-    "manan.acharya@ycms.local",
-    "veer.gajjar@ycms.local",
-    "maitri.vora@ycms.local",
-    "diya.upadhyay@ycms.local",
-    "aayush.shukla@ycms.local",
-  ];
-  for (const email of leadLogins) {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user?.passwordHash || !(await compare(DEMO_PASSWORD, user.passwordHash))) {
-      throw new Error(`Demo login is not working for ${email}`);
-    }
-  }
-  const memberAccounts = await prisma.user.findMany({
-    where: { email: { in: ["hetvi.patel@example.test", "krisha.shah@example.test"] }, role: "MEMBER" },
-  });
-  if (memberAccounts.length !== 2) {
-    throw new Error("Demo member logins were not created.");
-  }
-
-  console.log("Seed complete. Password for all demo staff: YcmsDemo123!");
-  console.log("Admin: admin@ycms.local · Coordinator: coordinator@ycms.local");
-  console.log("Kitchen lead: volunteer@ycms.local (Hetvi Patel) · jenil.shah@ycms.local (Jenil Shah)");
-  console.log("Groceries lead: bansari.gandhi@ycms.local");
-  console.log("Transportation lead: isha.modi@ycms.local");
-  console.log("Seating & Setup lead: manan.acharya@ycms.local");
-  console.log("Audio / Video lead: veer.gajjar@ycms.local");
-  console.log("Recreation lead: maitri.vora@ycms.local");
-  console.log("RiseUp lead: diya.upadhyay@ycms.local");
-  console.log("General Event Support lead: aayush.shukla@ycms.local");
-  console.log("Member OTP (Serve as Volunteer, pending): hetvi.patel@example.test");
-  console.log("Member OTP (regular Kitchen volunteer): krisha.shah@example.test");
+  console.log("Seed complete.");
+  console.log("Coordinator Google allowlist (10):");
+  for (const row of COORDINATORS) console.log(`  ${row.name} <${row.email}>`);
+  console.log("Seeded members use Gmail-style addresses for database testing.");
+  console.log("Real Google Sign-In is required; these seed emails will become coordinator/member accounts only if they match the signed-in Google email.");
 }
 
 main()

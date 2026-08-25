@@ -12,41 +12,23 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
 export async function requireSession(): Promise<SessionUser> {
   const user = await getSessionUser();
-  if (!user) {
-    redirect("/login");
-  }
-  if (!user.active) {
-    redirect("/login?error=disabled");
-  }
+  if (!user) redirect("/login");
+  if (!user.active) redirect("/login?error=disabled");
   return user;
 }
 
 export async function requireMemberSession(): Promise<SessionUser> {
-  const user = await getSessionUser();
-  if (!user) {
-    redirect("/member-login");
-  }
-  if (!user.active) {
-    redirect("/member-login?error=session");
-  }
-  if (user.role !== "MEMBER") {
+  const user = await requireSession();
+  if (user.role !== "MEMBER" || !user.memberId) {
     redirect(defaultHomePath(user.role));
   }
   return user;
 }
 
-export async function requireStaffSession(): Promise<SessionUser> {
+export async function requireCoordinator(): Promise<SessionUser> {
   const user = await requireSession();
-  if (user.role === "MEMBER") {
-    redirect("/portal");
-  }
-  return user;
-}
-
-export async function requireRole(roles: UserRole[]): Promise<SessionUser> {
-  const user = await requireSession();
-  if (!roles.includes(user.role)) {
-    redirect("/unauthorized");
+  if (user.role !== "COORDINATOR") {
+    redirect(defaultHomePath(user.role));
   }
   return user;
 }
@@ -60,11 +42,7 @@ export async function requireRoleAction(roles: UserRole[]): Promise<SessionUser>
     throw new AppError("This account has been disabled.", 403, "DISABLED");
   }
   if (!roles.includes(user.role)) {
-    throw new AppError(
-      "You do not have permission to perform this action.",
-      403,
-      "FORBIDDEN",
-    );
+    throw new AppError("You do not have permission to perform this action.", 403, "FORBIDDEN");
   }
   return user;
 }

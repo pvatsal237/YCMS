@@ -8,25 +8,18 @@ const { auth } = NextAuth(authConfig);
 
 const handler = auth((req) => {
   const { pathname } = req.nextUrl;
-  if (isPublicPath(pathname)) {
-    return NextResponse.next();
-  }
+  if (isPublicPath(pathname)) return NextResponse.next();
 
   const role = req.auth?.user?.role as UserRole | undefined;
   if (!req.auth?.user || !role) {
     const url = req.nextUrl.clone();
-    url.pathname = pathname.startsWith("/portal") ? "/member-login" : "/login";
-    if (pathname !== "/") {
-      url.searchParams.set("error", "session");
-    }
+    url.pathname = "/login";
+    url.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(url);
   }
 
   if (!isPathAllowed(pathname, role)) {
-    if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
-      return NextResponse.redirect(new URL(defaultHomePath(role), req.nextUrl.origin));
-    }
-    return NextResponse.redirect(new URL("/unauthorized", req.nextUrl.origin));
+    return NextResponse.redirect(new URL(defaultHomePath(role), req.nextUrl.origin));
   }
 
   return NextResponse.next();
@@ -36,7 +29,5 @@ export default handler;
 export const proxy = handler;
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

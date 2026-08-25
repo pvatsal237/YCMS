@@ -1,93 +1,12 @@
-import type { SessionUser } from "@/types";
 import type { UserRole } from "@/types/roles";
-export type { UserRole } from "@/types/roles";
 
-export const STAFF_ROLES: UserRole[] = [
-  "ADMIN",
-  "COORDINATOR",
-  "ATTENDANCE_VOLUNTEER",
-];
-
-export const ALL_ROLES: UserRole[] = [...STAFF_ROLES, "MEMBER"];
+export const APP_NAME = "International Youth Community Meetup";
+export const APP_SHORT_NAME = "IYCM";
 
 export function defaultHomePath(role: UserRole | string | null | undefined): string {
   if (role === "MEMBER") return "/portal";
-  if (role === "ATTENDANCE_VOLUNTEER") return "/volunteer";
-  if (role === "ADMIN" || role === "COORDINATOR") return "/dashboard";
-  return "/";
-}
-
-export function canAccessMembers(role: UserRole): boolean {
-  return role === "ADMIN" || role === "COORDINATOR";
-}
-
-export function canMutateMembers(role: UserRole): boolean {
-  return role === "ADMIN" || role === "COORDINATOR";
-}
-
-export function canViewSensitiveMemberData(role: UserRole): boolean {
-  return role === "ADMIN" || role === "COORDINATOR";
-}
-
-export function canCreateMeetup(role: UserRole): boolean {
-  return role === "ADMIN" || role === "COORDINATOR";
-}
-
-export function canTakeAttendance(role: UserRole): boolean {
-  return STAFF_ROLES.includes(role);
-}
-
-export function canViewImmigration(role: UserRole): boolean {
-  return role === "ADMIN" || role === "COORDINATOR";
-}
-
-export function canViewFollowUps(role: UserRole): boolean {
-  return role === "ADMIN" || role === "COORDINATOR";
-}
-
-export function canViewAssistance(role: UserRole): boolean {
-  return role === "ADMIN" || role === "COORDINATOR";
-}
-
-export function canViewReports(role: UserRole): boolean {
-  return role === "ADMIN" || role === "COORDINATOR";
-}
-
-export function canManageAdminUsers(role: UserRole): boolean {
-  return role === "ADMIN";
-}
-
-export function canAccessSystemSettings(role: UserRole): boolean {
-  return role === "ADMIN";
-}
-
-export function canViewActivityLogs(role: UserRole): boolean {
-  return role === "ADMIN";
-}
-
-export function canCreateRole(actor: UserRole, target: UserRole): boolean {
-  if (actor === "ADMIN") {
-    return target === "COORDINATOR" || target === "ATTENDANCE_VOLUNTEER";
-  }
-  if (actor === "COORDINATOR") {
-    return target === "ATTENDANCE_VOLUNTEER";
-  }
-  return false;
-}
-
-export function canManageUser(
-  actor: SessionUser,
-  target: { id: string; role: UserRole; createdById?: string | null },
-): boolean {
-  if (actor.role === "ADMIN") {
-    return target.role !== "ADMIN" || target.id === actor.id;
-  }
-  if (actor.role === "COORDINATOR") {
-    return (
-      target.role === "ATTENDANCE_VOLUNTEER" && target.createdById === actor.id
-    );
-  }
-  return false;
+  if (role === "COORDINATOR") return "/dashboard";
+  return "/login";
 }
 
 export type NavItem = {
@@ -96,57 +15,25 @@ export type NavItem = {
   roles: UserRole[];
 };
 
-export const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", roles: ["ADMIN", "COORDINATOR"] },
-  { href: "/volunteer", label: "Home", roles: ["ATTENDANCE_VOLUNTEER"] },
-  { href: "/members", label: "Members", roles: ["ADMIN", "COORDINATOR"] },
-  { href: "/attendance", label: "Attendance", roles: ["ADMIN", "COORDINATOR"] },
-  { href: "/volunteers", label: "Volunteer requests", roles: ["ADMIN", "COORDINATOR"] },
-  { href: "/events", label: "Events", roles: ["ADMIN", "COORDINATOR", "ATTENDANCE_VOLUNTEER"] },
-  { href: "/volunteer/departments", label: "My Departments", roles: ["ATTENDANCE_VOLUNTEER"] },
-  { href: "/volunteer/assignments", label: "Assignments", roles: ["ATTENDANCE_VOLUNTEER"] },
-  { href: "/volunteer/availability", label: "Availability", roles: ["ATTENDANCE_VOLUNTEER"] },
-  {
-    href: "/notifications",
-    label: "Notifications",
-    roles: ["ADMIN", "COORDINATOR", "ATTENDANCE_VOLUNTEER"],
-  },
-  {
-    href: "/immigration",
-    label: "Immigration",
-    roles: ["ADMIN", "COORDINATOR"],
-  },
-  {
-    href: "/follow-ups",
-    label: "Follow-Ups",
-    roles: ["ADMIN", "COORDINATOR"],
-  },
-  {
-    href: "/assistance",
-    label: "Assistance Requests",
-    roles: ["ADMIN", "COORDINATOR"],
-  },
-  {
-    href: "/transportation",
-    label: "Transportation",
-    roles: ["ADMIN", "COORDINATOR", "ATTENDANCE_VOLUNTEER"],
-  },
-  { href: "/reports", label: "Reports", roles: ["ADMIN", "COORDINATOR"] },
-  { href: "/admin/users", label: "User Management", roles: ["ADMIN"] },
-  { href: "/admin/logs", label: "Activity Logs", roles: ["ADMIN"] },
-  { href: "/settings", label: "Settings", roles: ["ADMIN"] },
+export const COORDINATOR_NAV: NavItem[] = [
+  { href: "/dashboard", label: "Dashboard", roles: ["COORDINATOR"] },
+  { href: "/events", label: "Events", roles: ["COORDINATOR"] },
+  { href: "/members", label: "Members", roles: ["COORDINATOR"] },
+  { href: "/guidance", label: "Guidance", roles: ["COORDINATOR"] },
+  { href: "/reports", label: "Reports", roles: ["COORDINATOR"] },
+  { href: "/notifications", label: "Notifications", roles: ["COORDINATOR"] },
 ];
 
-export function navItemsForRole(role: UserRole, options?: { departmentCodes?: string[] }): NavItem[] {
-  const codes = new Set((options?.departmentCodes ?? []).map((code) => code.toUpperCase()));
-  return NAV_ITEMS.filter((item) => {
-    if (!item.roles.includes(role)) return false;
-    if (item.href === "/transportation") {
-      if (role === "ADMIN" || role === "COORDINATOR") return true;
-      return role === "ATTENDANCE_VOLUNTEER" && codes.has("TRANSPORTATION");
-    }
-    return true;
-  });
+export const MEMBER_NAV: NavItem[] = [
+  { href: "/portal", label: "Home", roles: ["MEMBER"] },
+  { href: "/portal/events", label: "My Events", roles: ["MEMBER"] },
+  { href: "/portal/guidance", label: "Request Guidance", roles: ["MEMBER"] },
+  { href: "/portal/profile", label: "Profile", roles: ["MEMBER"] },
+  { href: "/portal/notifications", label: "Notifications", roles: ["MEMBER"] },
+];
+
+export function navItemsForRole(role: UserRole): NavItem[] {
+  return role === "COORDINATOR" ? COORDINATOR_NAV : MEMBER_NAV;
 }
 
 export function isPublicPath(pathname: string): boolean {
@@ -154,18 +41,11 @@ export function isPublicPath(pathname: string): boolean {
     pathname === "/" ||
     pathname === "/unauthorized" ||
     pathname === "/login" ||
-    pathname.startsWith("/login/") ||
-    pathname === "/member-login" ||
-    pathname.startsWith("/api/auth")
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/walk-in") ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/cron")
   );
-}
-
-export function canViewVolunteerOps(role: UserRole): boolean {
-  return role === "ADMIN" || role === "COORDINATOR" || role === "ATTENDANCE_VOLUNTEER";
-}
-
-export function canManageVolunteers(role: UserRole): boolean {
-  return role === "ADMIN" || role === "COORDINATOR";
 }
 
 export function isPathAllowed(pathname: string, role: UserRole): boolean {
@@ -174,26 +54,12 @@ export function isPathAllowed(pathname: string, role: UserRole): boolean {
     return pathname.startsWith("/portal");
   }
   if (pathname.startsWith("/portal")) return false;
-
   const pathIs = (prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
-
-  if (pathIs("/volunteers")) return canManageVolunteers(role);
-  if (pathIs("/volunteer")) return role === "ATTENDANCE_VOLUNTEER";
-  if (pathIs("/dashboard")) return role === "ADMIN" || role === "COORDINATOR";
-  if (pathname.startsWith("/attendance/new")) return canCreateMeetup(role);
-  if (pathIs("/attendance")) return role === "ADMIN" || role === "COORDINATOR";
-  if (pathIs("/members")) return canAccessMembers(role);
-  if (pathIs("/events")) return canViewVolunteerOps(role);
-  if (pathIs("/transportation")) return canViewVolunteerOps(role);
-  if (pathIs("/notifications")) {
-    return role === "ADMIN" || role === "COORDINATOR" || role === "ATTENDANCE_VOLUNTEER";
-  }
-  if (pathIs("/immigration")) return canViewImmigration(role);
-  if (pathIs("/follow-ups")) return canViewFollowUps(role);
-  if (pathIs("/assistance")) return canViewAssistance(role);
-  if (pathIs("/reports")) return canViewReports(role);
-  if (pathIs("/admin/logs")) return canViewActivityLogs(role);
-  if (pathIs("/admin/users")) return role === "ADMIN";
-  if (pathIs("/settings")) return canAccessSystemSettings(role);
+  if (pathIs("/dashboard")) return true;
+  if (pathIs("/events")) return true;
+  if (pathIs("/members")) return true;
+  if (pathIs("/guidance")) return true;
+  if (pathIs("/reports")) return true;
+  if (pathIs("/notifications")) return true;
   return false;
 }

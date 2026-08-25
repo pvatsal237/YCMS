@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
+import { APP_NAME } from "@/lib/authorization";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -8,9 +9,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "YCMS — Youth Community Management System",
-  description:
-    "Secure member, attendance, immigration, and follow-up management for youth community programs.",
+  title: APP_NAME,
+  description: "Community meetups, event registration, check-in, and guidance for international youth.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

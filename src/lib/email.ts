@@ -7,7 +7,7 @@ export type EmailMessage = {
 export async function sendEmail(message: EmailMessage): Promise<void> {
   const host = process.env.SMTP_HOST;
   if (!host) {
-    console.info("[YCMS email:console]", {
+    console.info("[IYCM email:console]", {
       to: message.to,
       subject: message.subject,
       text: message.text,
@@ -23,21 +23,17 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
       secure: process.env.SMTP_SECURE === "true",
       auth:
         process.env.SMTP_USER && process.env.SMTP_PASSWORD
-          ? {
-              user: process.env.SMTP_USER,
-              pass: process.env.SMTP_PASSWORD,
-            }
+          ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
           : undefined,
     });
-
     await transporter.sendMail({
-      from: process.env.SMTP_FROM ?? "YCMS <no-reply@ycms.local>",
+      from: process.env.SMTP_FROM ?? "International Youth Community Meetup <no-reply@iycm.local>",
       to: message.to,
       subject: message.subject,
       text: message.text,
     });
   } catch (error) {
-    console.info("[YCMS email:fallback]", {
+    console.info("[IYCM email:fallback]", {
       to: message.to,
       subject: message.subject,
       text: message.text,

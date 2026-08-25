@@ -1,201 +1,49 @@
 import { formatDate } from "@/lib/dates";
 import type { UserRole } from "@/types/roles";
 
-export function fullName(member: {
-  firstName: string;
-  middleName?: string | null;
-  lastName: string;
-}): string {
-  return [member.firstName, member.middleName, member.lastName]
-    .filter(Boolean)
-    .join(" ");
+export function fullName(person: { firstName: string; lastName: string }) {
+  return `${person.firstName} ${person.lastName}`.trim();
 }
 
 export function roleLabel(role: UserRole): string {
-  switch (role) {
-    case "ADMIN":
-      return "Administrator";
-    case "COORDINATOR":
-      return "Youth Coordinator";
-    case "ATTENDANCE_VOLUNTEER":
-      return "Volunteer";
-    case "MEMBER":
-      return "Member";
-  }
+  return role === "COORDINATOR" ? "Coordinator" : "Member";
 }
 
-export function immigrationStatusLabel(status: string): string {
+export function eventStatusLabel(status: string) {
   const labels: Record<string, string> = {
-    STUDENT: "Student",
-    WORKER: "Worker",
-    PERMANENT_RESIDENT: "Permanent Resident",
-    CITIZEN: "Citizen",
-    VISITOR: "Visitor",
-    OTHER: "Other",
-  };
-  return labels[status] ?? status;
-}
-
-export function documentRequestTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    NEED_ASSISTANCE: "Needs to speak with staff",
-    RENEWAL_REQUESTED: "Applied for renewal",
-    RENEWED: "Already renewed",
-    IRCC_QUERY: "Has a query (for example IRCC)",
-  };
-  return labels[type] ?? type;
-}
-
-export function documentTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    STUDY_PERMIT: "Study Permit",
-    WORK_PERMIT: "Work Permit",
-    PR_CARD: "PR Card",
-    PASSPORT: "Passport",
-  };
-  return labels[type] ?? type;
-}
-
-export function attendanceStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    PRESENT: "Present",
-    ABSENT: "Absent",
-    EXCUSED: "Excused",
-  };
-  return labels[status] ?? status;
-}
-
-export function followUpStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    PENDING: "Pending",
-    CONTACTED: "Contacted",
+    DRAFT: "Draft",
+    PUBLISHED: "Published",
+    REGISTRATION_CLOSED: "Registration closed",
     COMPLETED: "Completed",
-    UNABLE_TO_REACH: "Unable to reach",
+    CANCELLED: "Cancelled",
   };
   return labels[status] ?? status;
 }
 
-export function assistanceCategoryLabel(category: string): string {
+export function guidanceCategoryLabel(category: string) {
   const labels: Record<string, string> = {
-    IMMIGRATION_DOCUMENT: "Immigration document",
+    IMMIGRATION: "Immigration",
+    CAREER_DEVELOPMENT: "Career Development",
+    RESUME_INTERVIEW: "Resume / Interview",
+    TECHNOLOGY_IT: "Technology / IT",
+    AI: "AI",
+    FINANCE: "Finance",
+    ENGINEERING: "Engineering",
     EDUCATION: "Education",
-    EMPLOYMENT: "Employment",
-    ACCOMMODATION: "Accommodation",
-    MEETUP: "Meetup",
-    PERSONAL: "Personal / general",
+    ENTREPRENEURSHIP: "Entrepreneurship",
     OTHER: "Other",
   };
   return labels[category] ?? category;
 }
 
-export function assistanceStatusLabel(status: string): string {
+export function guidanceStatusLabel(status: string) {
   const labels: Record<string, string> = {
     NEW: "New",
-    ASSIGNED: "Assigned",
-    IN_PROGRESS: "In progress",
+    CLAIMED: "Claimed",
     WAITING_FOR_MEMBER: "Waiting for member",
     RESOLVED: "Resolved",
-    CLOSED: "Closed",
   };
   return labels[status] ?? status;
-}
-
-export function eventTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    WEEKLY_MEETUP: "Weekly Youth Meetup",
-    RISEUP: "RiseUp",
-    RECREATION: "Recreation",
-    SPECIAL: "Special Event",
-  };
-  return labels[type] ?? type;
-}
-
-export function departmentLabel(code: string): string {
-  const labels: Record<string, string> = {
-    KITCHEN: "Kitchen / Food Preparation",
-    GROCERIES: "Groceries",
-    TRANSPORTATION: "Transportation",
-    SEATING_SETUP: "Seating & Setup",
-    AUDIO_VIDEO: "Audio / Video",
-    RECREATION: "Recreation",
-    RISEUP_SUPPORT: "RiseUp Event Support",
-    GENERAL_EVENT_SUPPORT: "General Event Support",
-  };
-  return labels[code] ?? code;
-}
-
-export function departmentShortLabel(code: string): string {
-  const labels: Record<string, string> = {
-    KITCHEN: "Kitchen",
-    GROCERIES: "Groceries",
-    TRANSPORTATION: "Transportation",
-    SEATING_SETUP: "Seating & Setup",
-    AUDIO_VIDEO: "Audio / Video",
-    RECREATION: "Recreation",
-    RISEUP_SUPPORT: "RiseUp",
-    GENERAL_EVENT_SUPPORT: "Event Support",
-  };
-  return labels[code] ?? departmentLabel(code);
-}
-
-export function staffDisplayTitle(role: UserRole, leadDepartmentCodes: string[] = []): string {
-  if (role !== "ATTENDANCE_VOLUNTEER") return roleLabel(role);
-  if (leadDepartmentCodes.length === 1) {
-    return `${departmentShortLabel(leadDepartmentCodes[0])} Department Lead`;
-  }
-  if (leadDepartmentCodes.length > 1) return "Department Lead";
-  return "Volunteer";
-}
-
-export function departmentPlanStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    DRAFT: "Draft",
-    PENDING_APPROVAL: "Pending approval",
-    APPROVED: "Approved",
-    CHANGES_REQUESTED: "Changes requested",
-    CLOSED: "Closed",
-  };
-  return labels[status] ?? status;
-}
-
-export function rideStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    REQUESTED: "Pending Approval",
-    APPROVED: "Approved",
-    ASSIGNED: "Assigned",
-    COMPLETED: "Completed",
-    CANCELLED: "Cancelled",
-    REJECTED: "Rejected",
-  };
-  return labels[status] ?? status;
-}
-
-export function staffingRequirementBadge(planStatus: string, needed: number, confirmed: number): string {
-  if (planStatus === "PENDING_APPROVAL" || planStatus === "DRAFT" || planStatus === "CHANGES_REQUESTED") {
-    return "Pending Approval";
-  }
-  return needed - confirmed > 0 ? "Open" : "Filled";
-}
-
-export function employmentSummary(employment?: {
-  employmentStatus: string;
-  employer?: string | null;
-  jobTitle?: string | null;
-} | null): string {
-  if (!employment) return "—";
-  if (employment.employer && employment.jobTitle) {
-    return `${employment.jobTitle} · ${employment.employer}`;
-  }
-  if (employment.employer) return employment.employer;
-  return employment.employmentStatus.replaceAll("_", " ").toLowerCase();
-}
-
-export function educationSummary(
-  education: Array<{ institution: string; program: string; currentlyStudying: boolean }>,
-): string {
-  const current = education.find((item) => item.currentlyStudying) ?? education[0];
-  if (!current) return "—";
-  return `${current.program} · ${current.institution}`;
 }
 
 export function cn(...classes: Array<string | false | null | undefined>): string {
