@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireCoordinator } from "@/lib/session";
-import { getMember, maskPhone } from "@/services/members";
+import { getMember, formatPhoneDisplay } from "@/services/members";
 import { memberHistory } from "@/services/reports";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody } from "@/components/ui/Card";
@@ -18,8 +18,15 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
       <PageHeader title={fullName(member)} description={member.email} />
       <Card>
         <CardBody className="text-sm">
-          <p>Phone: {maskPhone(member.phone)}</p>
-          <p className="mt-2 text-slate-500">Emergency contact is hidden from this list.</p>
+          <p>Phone: {formatPhoneDisplay(member.phone)}</p>
+          {member.emergencyContactName || member.emergencyContactPhone ? (
+            <p className="mt-2">
+              Emergency contact: {member.emergencyContactName ?? "—"}
+              {member.emergencyContactPhone ? ` · ${formatPhoneDisplay(member.emergencyContactPhone)}` : ""}
+            </p>
+          ) : (
+            <p className="mt-2 text-slate-500">No emergency contact on file.</p>
+          )}
         </CardBody>
       </Card>
       <Card>

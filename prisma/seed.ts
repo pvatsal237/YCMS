@@ -34,9 +34,9 @@ async function main() {
   }
 
   const members = [
-    { firstName: "Maya", lastName: "Patel", email: "maya.patel@example.test", phone: "4165553487" },
-    { firstName: "Arjun", lastName: "Shah", email: "arjun.shah@example.test", phone: "6475552211" },
-    { firstName: "Lila", lastName: "Nguyen", email: "lila.nguyen@example.test", phone: "4165559090" },
+    { firstName: "Maya", lastName: "Patel", email: "maya.patel@example.test", phone: "416-555-3487", emergencyContactName: "Ravi Patel", emergencyContactPhone: "416-555-3490" },
+    { firstName: "Arjun", lastName: "Shah", email: "arjun.shah@example.test", phone: "647-555-2211", emergencyContactName: "Neha Shah", emergencyContactPhone: "647-555-2218" },
+    { firstName: "Lila", lastName: "Nguyen", email: "lila.nguyen@example.test", phone: "905-555-9090", emergencyContactName: "Minh Nguyen", emergencyContactPhone: "905-555-9094" },
   ];
   const createdMembers = [];
   for (const row of members) {

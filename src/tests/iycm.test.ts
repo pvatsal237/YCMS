@@ -20,7 +20,7 @@ import {
   COORDINATOR_EMAIL_BLOCKED,
   DUPLICATE_MEMBER_EMAIL,
   evaluateMemberCreate,
-  maskPhone,
+  formatPhoneDisplay,
 } from "@/services/members";
 import { memberFacingStatus } from "@/services/events";
 
@@ -103,8 +103,10 @@ describe("manual member creation guards", () => {
 });
 
 describe("privacy and registration labels", () => {
-  it("masks phone numbers", () => {
-    expect(maskPhone("4165553487")).toBe("******3487");
+  it("shows full Canadian phone numbers to coordinators", () => {
+    expect(formatPhoneDisplay("4165553487")).toBe("416-555-3487");
+    expect(formatPhoneDisplay("647-555-2211")).toBe("647-555-2211");
+    expect(formatPhoneDisplay("")).toBe("—");
   });
 
   it("treats walk-in reserve as part of total capacity", () => {

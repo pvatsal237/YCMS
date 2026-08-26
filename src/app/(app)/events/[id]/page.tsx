@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EventForm } from "@/components/events/EventForm";
 import { formatDate, formatTime12h } from "@/lib/dates";
 import { checkInLabel, eventStatusLabel, fullName, registrationLabel } from "@/utils/format";
-import { maskPhone } from "@/services/members";
+import { formatPhoneDisplay } from "@/services/members";
 import { headers } from "next/headers";
 import { advanceRegistrationCapacity } from "@/lib/capacity";
 
@@ -75,7 +75,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                 <tr key={row.id} className="border-t border-slate-100">
                   <td className="py-2 pr-4">{fullName(row.member)}</td>
                   <td className="py-2 pr-4">{row.member.email}</td>
-                  <td className="py-2 pr-4">{maskPhone(row.member.phone)}</td>
+                  <td className="py-2 pr-4">{formatPhoneDisplay(row.member.phone)}</td>
                   <td className="py-2 pr-4">{registrationLabel(row.status)}{row.type === "WALK_IN" ? " · Walk-in" : ""}</td>
                   <td className="py-2 pr-4">{checkInLabel(row.checkInStatus)}</td>
                   <td className="py-2">{row.checkedInAt ? row.checkedInAt.toLocaleTimeString() : "—"}</td>

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { toCsv } from "@/utils/csv";
-import { maskPhone } from "@/services/members";
+import { formatPhoneDisplay } from "@/services/members";
 import { fullName } from "@/utils/format";
 import type { GuidanceCategory, GuidanceStatus } from "@prisma/client";
 
@@ -75,7 +75,7 @@ export async function exportEventCsv(eventId: string) {
     report.event.registrations.map((row) => [
       fullName(row.member),
       row.member.email,
-      maskPhone(row.member.phone),
+      formatPhoneDisplay(row.member.phone),
       row.type,
       row.status,
       row.checkInStatus,

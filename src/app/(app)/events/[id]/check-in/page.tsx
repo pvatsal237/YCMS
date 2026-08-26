@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { fullName } from "@/utils/format";
+import { formatPhoneDisplay } from "@/services/members";
 
 export default async function CheckInPage({
   params,
@@ -39,7 +40,11 @@ export default async function CheckInPage({
             <CardBody className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="font-medium">{fullName(row.member)}</p>
-                <p className="text-sm text-slate-500">{row.member.email}{row.type === "WALK_IN" ? " · Walk-in" : ""}</p>
+                <p className="text-sm text-slate-500">
+                  {row.member.email}
+                  {row.member.phone ? ` · ${formatPhoneDisplay(row.member.phone)}` : ""}
+                  {row.type === "WALK_IN" ? " · Walk-in" : ""}
+                </p>
               </div>
               {row.checkInStatus === "CHECKED_IN" ? (
                 <p className="text-sm text-emerald-700">Checked in</p>

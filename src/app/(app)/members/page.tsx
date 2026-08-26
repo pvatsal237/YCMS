@@ -1,5 +1,5 @@
 import { requireCoordinator } from "@/lib/session";
-import { listMembers, maskPhone } from "@/services/members";
+import { listMembers, formatPhoneDisplay } from "@/services/members";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody } from "@/components/ui/Card";
 import { AddMemberForm } from "@/components/members/AddMemberForm";
@@ -12,7 +12,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   const members = await listMembers(q);
   return (
     <div className="space-y-6">
-      <PageHeader title="Members" description="Name, email, and masked phone only." />
+      <PageHeader title="Members" description="Name, email, and phone number." />
       <AddMemberForm />
       <form>
         <input name="q" defaultValue={q} placeholder="Search" className="max-w-md rounded-md border px-3 py-2 text-sm" />
@@ -34,7 +34,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                     <Link href={`/members/${row.id}`} className="font-medium text-teal-800">{fullName(row)}</Link>
                   </td>
                   <td className="px-5 py-3">{row.email}</td>
-                  <td className="px-5 py-3">{maskPhone(row.phone)}</td>
+                  <td className="px-5 py-3">{formatPhoneDisplay(row.phone)}</td>
                 </tr>
               ))}
             </tbody>

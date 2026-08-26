@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { normalizeEmail } from "@/lib/otp";
+import { storePhone } from "@/lib/phone";
 import type { SessionUser } from "@/types";
+
+export { formatPhoneDisplay } from "@/lib/phone";
 
 export const COORDINATOR_EMAIL_BLOCKED = "This email is registered as a Coordinator.";
 export const DUPLICATE_MEMBER_EMAIL = "A member with this email already exists.";
@@ -18,13 +21,6 @@ export function evaluateMemberCreate(input: {
     return { ok: false, error: DUPLICATE_MEMBER_EMAIL };
   }
   return { ok: true };
-}
-
-export function maskPhone(phone: string | null | undefined) {
-  if (!phone) return "—";
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 4) return "****";
-  return `******${digits.slice(-4)}`;
 }
 
 export async function listMembers(q?: string) {
@@ -54,9 +50,9 @@ export async function createMember(input: {
   const email = normalizeEmail(input.email);
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
-  const phone = input.phone?.trim() || null;
+  const phone = storePhone(input.phone);
   const emergencyContactName = input.emergencyContactName?.trim() || null;
-  const emergencyContactPhone = input.emergencyContactPhone?.trim() || null;
+  const emergencyContactPhone = storePhone(input.emergencyContactPhone);
 
   const [existingMember, allow, existingUser] = await Promise.all([
     prisma.member.findUnique({ where: { email } }),
@@ -134,9 +130,9 @@ export async function updateMemberProfile(
     data: {
       firstName: input.firstName.trim(),
       lastName: input.lastName.trim(),
-      phone: input.phone?.trim() || null,
+      phone: storePhone(input.phone),
       emergencyContactName: input.emergencyContactName?.trim() || null,
-      emergencyContactPhone: input.emergencyContactPhone?.trim() || null,
+      emergencyContactPhone: storePhone(input.emergencyContactPhone),
     },
   });
   await prisma.user.update({
