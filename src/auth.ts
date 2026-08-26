@@ -1,24 +1,27 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { authConfig } from "@/auth.config";
-import { logAuthStageFailure, syncGoogleUser } from "@/lib/google-user";
+import { logAuthStageFailure } from "@/lib/auth-log";
+import { syncGoogleUser } from "@/lib/google-user";
 import type { UserRole } from "@/types/roles";
 
-const secret = process.env.AUTH_SECRET?.trim() || process.env.NEXTAUTH_SECRET?.trim();
-const googleId = process.env.AUTH_GOOGLE_ID?.trim() || process.env.GOOGLE_CLIENT_ID?.trim();
-const googleSecret =
-  process.env.AUTH_GOOGLE_SECRET?.trim() || process.env.GOOGLE_CLIENT_SECRET?.trim();
+function googleCredentials() {
+  const clientId = process.env.AUTH_GOOGLE_ID?.trim() || process.env.GOOGLE_CLIENT_ID?.trim() || undefined;
+  const clientSecret =
+    process.env.AUTH_GOOGLE_SECRET?.trim() || process.env.GOOGLE_CLIENT_SECRET?.trim() || undefined;
+  return { clientId, clientSecret };
+}
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut } = NextAuth(() => ({
   ...authConfig,
   trustHost: true,
-  secret,
+  secret: process.env.AUTH_SECRET?.trim() || process.env.NEXTAUTH_SECRET?.trim() || undefined,
   basePath: "/api/auth",
   providers: [
     Google({
-      clientId: googleId,
-      clientSecret: googleSecret,
+      ...googleCredentials(),
       allowDangerousEmailAccountLinking: true,
+      client: { token_endpoint_auth_method: "client_secret_post" },
     }),
   ],
   logger: {
@@ -80,4 +83,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
-});
+}));

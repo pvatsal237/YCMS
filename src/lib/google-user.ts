@@ -1,3 +1,4 @@
+import { logAuthStageFailure } from "@/lib/auth-log";
 import { prisma } from "@/lib/prisma";
 import { splitDisplayName } from "@/lib/privacy";
 
@@ -10,39 +11,10 @@ type GoogleProfile = {
 };
 
 function prismaCode(error: unknown): string | undefined {
-  if (typeof error === "object" && error && "code" in error && typeof error.code === "string") {
+  if (typeof error === "object" && error && "code" in error && typeof error.code === "string" && /^P\d{4}$/.test(error.code)) {
     return error.code;
   }
   return undefined;
-}
-
-function envPresence() {
-  return {
-    AUTH_SECRET: Boolean(process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET),
-    AUTH_GOOGLE_ID: Boolean(process.env.AUTH_GOOGLE_ID || process.env.GOOGLE_CLIENT_ID),
-    AUTH_GOOGLE_SECRET: Boolean(process.env.AUTH_GOOGLE_SECRET || process.env.GOOGLE_CLIENT_SECRET),
-    AUTH_URL: Boolean(process.env.AUTH_URL),
-    DATABASE_URL: Boolean(process.env.DATABASE_URL),
-  };
-}
-
-export function logAuthStageFailure(stage: string, error: unknown) {
-  const inner =
-    typeof error === "object" &&
-    error &&
-    "cause" in error &&
-    typeof error.cause === "object" &&
-    error.cause &&
-    "err" in error.cause
-      ? (error.cause as { err?: unknown }).err
-      : error;
-  const named = inner instanceof Error ? inner : error instanceof Error ? error : undefined;
-  console.error("[IYCM auth] failed", {
-    stage,
-    name: named?.name ?? "unknown",
-    prismaCode: prismaCode(inner) ?? prismaCode(error),
-    ...envPresence(),
-  });
 }
 
 export async function syncGoogleUser(profile: GoogleProfile) {

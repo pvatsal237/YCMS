@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { summarizeAuthError } from "@/lib/auth-log";
 import { maskEmail, maskPhone, splitDisplayName } from "@/lib/privacy";
 import { applyServerlessPrismaParams } from "@/lib/prisma-url";
 import { defaultDeadline, nextSundayDate } from "@/services/events";
@@ -17,6 +18,23 @@ describe("privacy", () => {
   it("masks emails", () => {
     expect(maskEmail("hetvi.patel@gmail.com")).toBe("h***@gmail.com");
     expect(maskEmail(null)).toBe("(none)");
+  });
+});
+
+describe("auth error summary", () => {
+  it("classifies OAUTH_RESPONSE_BODY_ERROR as token endpoint, not Prisma", () => {
+    const err = Object.assign(new Error("server responded with an error in the response body"), {
+      code: "OAUTH_RESPONSE_BODY_ERROR",
+      error: "invalid_client",
+      status: 401,
+    });
+    const wrapped = Object.assign(new Error("CallbackRouteError"), { cause: { err, provider: "google" } });
+    expect(summarizeAuthError(wrapped)).toEqual({
+      oauthStage: "token endpoint",
+      oauthError: "invalid_client",
+      oauthCode: "OAUTH_RESPONSE_BODY_ERROR",
+      httpStatus: 401,
+    });
   });
 });
 
