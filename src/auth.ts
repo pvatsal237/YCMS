@@ -35,13 +35,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   logger: {
     error(error) {
       const type = "type" in error ? String(error.type) : error.name;
-      console.error("[IYCM auth]", type);
+      const cause =
+        error instanceof Error && error.cause instanceof Error ? error.cause.name : undefined;
+      console.error("[IYCM auth] Auth.js callback exception", { type, cause });
     },
   },
   callbacks: {
     ...authConfig.callbacks,
+    async signIn({ account, profile }) {
+      if (account?.provider !== "google") return true;
+      console.info("[IYCM auth] signIn callback start", {
+        provider: account.provider,
+        hasEmail: Boolean(profile?.email),
+      });
+      console.info("[IYCM auth] signIn callback end");
+      return true;
+    },
     async jwt({ token, account, profile, user }) {
       if (account?.provider === "google") {
+        console.info("[IYCM auth] jwt Google sync start");
         try {
           const synced = await syncGoogleUser({
             email: profile?.email ?? (typeof token.email === "string" ? token.email : null),
@@ -57,8 +69,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.picture = synced.image;
           token.name = synced.name;
           token.email = synced.email;
+          console.info("[IYCM auth] jwt Google sync end", { role: synced.role });
           return token;
         } catch (error) {
+          console.error("[IYCM auth] jwt Google sync failed");
           logServerError("googleJwtSync", error);
           throw error;
         }

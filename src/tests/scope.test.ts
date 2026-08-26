@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { maskPhone, splitDisplayName } from "@/lib/privacy";
+import { maskEmail, maskPhone, splitDisplayName } from "@/lib/privacy";
 import { defaultDeadline, nextSundayDate } from "@/services/events";
 import { isPathAllowed, defaultHomePath } from "@/lib/authorization";
 
@@ -11,6 +11,11 @@ describe("privacy", () => {
 
   it("splits google display names", () => {
     expect(splitDisplayName("Hetvi Patel", "h@x.com")).toEqual({ firstName: "Hetvi", lastName: "Patel" });
+  });
+
+  it("masks emails", () => {
+    expect(maskEmail("hetvi.patel@gmail.com")).toBe("h***@gmail.com");
+    expect(maskEmail(null)).toBe("(none)");
   });
 });
 
