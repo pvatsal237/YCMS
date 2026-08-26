@@ -41,7 +41,7 @@ export async function verifyOtpAction(_prev: ActionResult, formData: FormData): 
   try {
     await signIn("credentials", {
       email,
-      otp: parsed.data.otp,
+      password: parsed.data.otp,
       redirect: false,
     });
   } catch (error) {

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   generateOtpCode,
   hashOtp,
+  isOtpExpired,
   isResendCoolingDown,
+  normalizeOtp,
+  otpExpiryDate,
   otpHashesMatch,
   tooManyOtpRequests,
   tooManyVerifyAttempts,
@@ -23,6 +26,21 @@ describe("OTP helpers", () => {
     expect(tooManyVerifyAttempts(5)).toBe(true);
     expect(isResendCoolingDown(new Date())).toBe(true);
     expect(canShowDevOtp()).toBe(process.env.NODE_ENV !== "production" && process.env.DEV_SHOW_OTP === "true");
+  });
+
+  it("preserves leading zeros and hashes the same after number-like input", () => {
+    expect(normalizeOtp("012345")).toBe("012345");
+    expect(normalizeOtp(12345)).toBe("012345");
+    expect(hashOtp("012345", "secret")).toBe(hashOtp(12345, "secret"));
+    expect(otpHashesMatch(hashOtp("012345", "secret"), hashOtp("012345", "secret"))).toBe(true);
+  });
+
+  it("compares expiry in UTC milliseconds", () => {
+    const from = new Date("2026-08-26T18:00:00.000Z");
+    const expiresAt = otpExpiryDate(from);
+    expect(expiresAt.toISOString()).toBe("2026-08-26T18:10:00.000Z");
+    expect(isOtpExpired(expiresAt, from)).toBe(false);
+    expect(isOtpExpired(expiresAt, new Date("2026-08-26T18:10:00.000Z"))).toBe(true);
   });
 });
 

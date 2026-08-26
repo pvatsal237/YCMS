@@ -20,16 +20,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Credentials({
       credentials: {
         email: { label: "Email", type: "email" },
-        otp: { label: "OTP", type: "text" },
+        password: { label: "One-time code", type: "text" },
       },
       async authorize(credentials) {
-        const email =
-          typeof credentials?.email === "string" ? credentials.email.trim().toLowerCase() : "";
-        const otp = typeof credentials?.otp === "string" ? credentials.otp : "";
-        if (!email || !otp) throw new InvalidCredentialsError();
+        const creds = credentials as { email?: unknown; password?: unknown; otp?: unknown } | undefined;
+        const email = String(creds?.email ?? "")
+          .trim()
+          .toLowerCase();
+        const rawCode = creds?.password ?? creds?.otp ?? "";
+        const otpLength = String(rawCode ?? "").replace(/\D/g, "").length;
+        logSafe("otp.authorize", {
+          emailDomain: email.split("@")[1] ?? "",
+          found: Boolean(email && otpLength > 0),
+          expired: false,
+          hashMatch: false,
+          used: false,
+          attempts: 0,
+          codeLength: otpLength,
+        });
+        if (!email || otpLength !== 6) throw new InvalidCredentialsError();
 
         try {
-          const user = await consumeOtp(email, otp);
+          const user = await consumeOtp(email, rawCode);
           if (!user.active) throw new DisabledAccountError();
           logSafe("login.success", { userId: user.id, role: user.role });
           return {

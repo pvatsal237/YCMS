@@ -12,11 +12,14 @@ import {
   hashOtp,
   isOtpExpired,
   isResendCoolingDown,
+  normalizeOtp,
   otpExpiryDate,
   otpHashesMatch,
   tooManyOtpRequests,
   tooManyVerifyAttempts,
 } from "@/lib/otp";
+
+const RECENT_CONSUME_WINDOW_MS = 30_000;
 
 function otpSecret() {
   return process.env.AUTH_SECRET ?? "iycm-dev-otp-secret";
@@ -54,18 +57,34 @@ export async function requestOtp(emailRaw: string) {
     throw new AppError(OTP_COOLDOWN_MESSAGE, 429, "OTP_COOLDOWN");
   }
 
-  await prisma.emailOtp.updateMany({
-    where: { email, consumedAt: null },
-    data: { consumedAt: new Date() },
-  });
-
+  const now = new Date();
   const code = generateOtpCode();
-  await prisma.emailOtp.create({
-    data: {
-      email,
-      codeHash: hashOtp(code, otpSecret()),
-      expiresAt: otpExpiryDate(),
-    },
+  const expiresAt = otpExpiryDate(now);
+  const [, created] = await prisma.$transaction([
+    prisma.emailOtp.updateMany({
+      where: { email, consumedAt: null },
+      data: { consumedAt: now },
+    }),
+    prisma.emailOtp.create({
+      data: {
+        email,
+        codeHash: hashOtp(code, otpSecret()),
+        expiresAt,
+      },
+    }),
+  ]);
+
+  logSafe("otp.created", {
+    recordId: created.id,
+    emailDomain: email.split("@")[1],
+    found: true,
+    expired: false,
+    hashMatch: false,
+    used: Boolean(created.consumedAt),
+    attempts: created.attempts,
+    expiresAt: created.expiresAt.toISOString(),
+    expiresAtMs: created.expiresAt.getTime(),
+    nowMs: Date.now(),
   });
 
   const sent = await sendEmail({
@@ -77,7 +96,7 @@ export async function requestOtp(emailRaw: string) {
     throw new AppError(sent.error ?? "Email could not be sent. Please try again later.", 503, "EMAIL_FAILED");
   }
 
-  logSafe("otp.request.sent", { emailDomain: email.split("@")[1] });
+  logSafe("otp.request.sent", { emailDomain: email.split("@")[1], recordId: created.id });
   return {
     ok: true as const,
     message: OTP_GENERIC_REQUEST_MESSAGE,
@@ -85,32 +104,89 @@ export async function requestOtp(emailRaw: string) {
   };
 }
 
-export async function consumeOtp(emailRaw: string, codeRaw: string) {
+export async function consumeOtp(emailRaw: string, codeRaw: unknown) {
   const email = emailRaw.trim().toLowerCase();
-  const code = codeRaw.trim();
-  const otp = await prisma.emailOtp.findFirst({
-    where: { email, consumedAt: null },
+  const code = normalizeOtp(codeRaw);
+  const now = new Date();
+  const record = await prisma.emailOtp.findFirst({
+    where: { email },
     orderBy: { createdAt: "desc" },
   });
-  if (!otp || tooManyVerifyAttempts(otp.attempts) || isOtpExpired(otp.expiresAt)) {
-    logSafe("otp.verify.rejected", { reason: "missing_or_expired" });
+
+  if (!record) {
+    logSafe("otp.verify", {
+      emailDomain: email.split("@")[1],
+      found: false,
+      expired: false,
+      hashMatch: false,
+      used: false,
+      attempts: 0,
+      nowMs: now.getTime(),
+    });
     throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
   }
 
-  const matches = otpHashesMatch(otp.codeHash, hashOtp(code, otpSecret()));
-  if (!matches) {
-    const attempts = otp.attempts + 1;
+  const expired = isOtpExpired(record.expiresAt, now);
+  const used = Boolean(record.consumedAt);
+  const hashMatch = otpHashesMatch(record.codeHash, hashOtp(code, otpSecret()));
+  const recentlyConsumed =
+    used &&
+    record.consumedAt != null &&
+    now.getTime() - record.consumedAt.getTime() <= RECENT_CONSUME_WINDOW_MS;
+
+  logSafe("otp.verify", {
+    recordId: record.id,
+    emailDomain: email.split("@")[1],
+    found: true,
+    expired,
+    hashMatch,
+    used,
+    attempts: record.attempts,
+    expiresAt: record.expiresAt.toISOString(),
+    expiresAtMs: record.expiresAt.getTime(),
+    nowMs: now.getTime(),
+    recentlyConsumed,
+  });
+
+  if (tooManyVerifyAttempts(record.attempts) && !recentlyConsumed) {
+    throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
+  }
+
+  if (expired) {
+    throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
+  }
+
+  if (used) {
+    if (recentlyConsumed && hashMatch) {
+      return resolveUserAfterOtp(email);
+    }
+    throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
+  }
+
+  if (!hashMatch) {
+    const attempts = record.attempts + 1;
     await prisma.emailOtp.update({
-      where: { id: otp.id },
-      data: { attempts, consumedAt: tooManyVerifyAttempts(attempts) ? new Date() : null },
+      where: { id: record.id },
+      data: {
+        attempts,
+        consumedAt: tooManyVerifyAttempts(attempts) ? now : undefined,
+      },
     });
-    logSafe("otp.verify.mismatch", { attempts });
+    logSafe("otp.attempt_incremented", {
+      recordId: record.id,
+      emailDomain: email.split("@")[1],
+      found: true,
+      expired: false,
+      hashMatch: false,
+      used: tooManyVerifyAttempts(attempts),
+      attempts,
+    });
     throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
   }
 
   await prisma.emailOtp.update({
-    where: { id: otp.id },
-    data: { consumedAt: new Date() },
+    where: { id: record.id },
+    data: { consumedAt: now },
   });
 
   return resolveUserAfterOtp(email);

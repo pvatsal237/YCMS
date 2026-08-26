@@ -12,12 +12,19 @@ export const OTP_GENERIC_INVALID_MESSAGE =
   "That code is invalid or expired. Request a new code and try again.";
 export const OTP_COOLDOWN_MESSAGE = "Please wait a minute before requesting another code.";
 
+/** Keep leading zeros. Never coerce the code through Number(). */
+export function normalizeOtp(value: unknown): string {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.slice(-6).padStart(6, "0");
+}
+
 export function generateOtpCode(): string {
   return String(randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
-export function hashOtp(code: string, secret: string): string {
-  return createHmac("sha256", secret).update(code.trim()).digest("hex");
+export function hashOtp(code: unknown, secret: string): string {
+  return createHmac("sha256", secret).update(normalizeOtp(code)).digest("hex");
 }
 
 export function otpHashesMatch(a: string, b: string): boolean {
