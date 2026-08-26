@@ -1,20 +1,31 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { saveEventAction } from "@/actions/events";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
+import { EventDatePicker } from "@/components/events/EventDatePicker";
 import type { ActionResult } from "@/types";
 import type { Event } from "@prisma/client";
-import { toDateInputValue } from "@/lib/dates";
+import { formatComputedDateTime, parseDateOnly, toDateInputValue } from "@/lib/dates";
+import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
 
 export function EventForm({ event }: { event?: Event }) {
   const [state, action, pending] = useActionState(saveEventAction, { ok: true } as ActionResult);
-  const deadlineValue = event
-    ? new Date(event.registrationDeadline).toISOString().slice(0, 16)
-    : "";
-  const checkInValue = event ? new Date(event.checkInOpensAt).toISOString().slice(0, 16) : "";
+  const [eventDate, setEventDate] = useState(event ? toDateInputValue(event.eventDate) : "");
+  const [startTime, setStartTime] = useState(event?.startTime ?? "10:00");
+
+  const computed = useMemo(() => {
+    if (!eventDate || !startTime) {
+      return { deadline: "", checkIn: "" };
+    }
+    const date = parseDateOnly(eventDate);
+    return {
+      deadline: formatComputedDateTime(defaultDeadline(date, startTime)),
+      checkIn: formatComputedDateTime(defaultCheckInOpensAt(date)),
+    };
+  }, [eventDate, startTime]);
 
   return (
     <form action={action} className="grid gap-4 sm:grid-cols-2">
@@ -42,14 +53,19 @@ export function EventForm({ event }: { event?: Event }) {
           <Input id="speakerOrganization" name="speakerOrganization" defaultValue={event?.speakerOrganization ?? ""} />
         </Field>
       </div>
-      <Field label="Date" htmlFor="eventDate">
-        <Input id="eventDate" name="eventDate" type="date" required defaultValue={event ? toDateInputValue(event.eventDate) : ""} />
-      </Field>
+      <EventDatePicker name="eventDate" value={eventDate} onChange={setEventDate} required />
       <Field label="Location" htmlFor="location">
         <Input id="location" name="location" required defaultValue={event?.location} />
       </Field>
       <Field label="Start time" htmlFor="startTime">
-        <Input id="startTime" name="startTime" type="time" required defaultValue={event?.startTime ?? "10:00"} />
+        <Input
+          id="startTime"
+          name="startTime"
+          type="time"
+          required
+          value={startTime}
+          onChange={(eventChange) => setStartTime(eventChange.target.value)}
+        />
       </Field>
       <Field label="End time" htmlFor="endTime">
         <Input id="endTime" name="endTime" type="time" required defaultValue={event?.endTime ?? "12:00"} />
@@ -63,11 +79,11 @@ export function EventForm({ event }: { event?: Event }) {
       <p className="sm:col-span-2 text-xs text-slate-500">
         Walk-in spaces are part of the total. Example: total 50 with a walk-in reserve of 10 leaves 40 advance member spots.
       </p>
-      <Field label="Registration deadline" htmlFor="registrationDeadline">
-        <Input id="registrationDeadline" name="registrationDeadline" type="datetime-local" defaultValue={deadlineValue} />
+      <Field label="Registration deadline (48 hours before start)">
+        <Input value={computed.deadline || "Select a date and start time"} readOnly disabled className="bg-slate-100 text-slate-700" />
       </Field>
-      <Field label="Check-in opens" htmlFor="checkInOpensAt">
-        <Input id="checkInOpensAt" name="checkInOpensAt" type="datetime-local" defaultValue={checkInValue} />
+      <Field label="Check-in opens (8:00 AM on event day)">
+        <Input value={computed.checkIn || "Select a date"} readOnly disabled className="bg-slate-100 text-slate-700" />
       </Field>
       <Field label="Status" htmlFor="status">
         <Select id="status" name="status" defaultValue={event?.status ?? "DRAFT"}>

@@ -20,8 +20,6 @@ function formEvent(formData: FormData): EventInput {
     location: String(formData.get("location") ?? ""),
     capacity: Number(formData.get("capacity") ?? 0),
     walkInCapacity: Number(formData.get("walkInCapacity") ?? 10),
-    registrationDeadline: String(formData.get("registrationDeadline") ?? "") || undefined,
-    checkInOpensAt: String(formData.get("checkInOpensAt") ?? "") || undefined,
     internalNotes: String(formData.get("internalNotes") ?? "") || undefined,
     status: (String(formData.get("status") ?? "DRAFT") as EventStatus) || "DRAFT",
   };

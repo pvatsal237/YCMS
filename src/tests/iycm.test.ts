@@ -22,6 +22,7 @@ import {
   evaluateMemberCreate,
   formatPhoneDisplay,
 } from "@/services/members";
+import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
 import { memberFacingStatus } from "@/services/events";
 
 describe("OTP helpers", () => {
@@ -123,6 +124,13 @@ describe("privacy and registration labels", () => {
         advanceRegisteredCount: 40,
       }),
     ).toBe("Spots Full");
+  });
+
+  it("calculates registration deadline 48 hours before start and check-in at 8:00 AM", () => {
+    const eventDate = new Date("2026-08-30T00:00:00.000Z");
+    expect(defaultDeadline(eventDate, "10:00").toISOString()).toBe("2026-08-28T10:00:00.000Z");
+    expect(defaultDeadline(eventDate, "09:00").toISOString()).toBe("2026-08-28T09:00:00.000Z");
+    expect(defaultCheckInOpensAt(eventDate).toISOString()).toBe("2026-08-30T08:00:00.000Z");
   });
 
   it("builds the registration confirmation email without logging the code", () => {

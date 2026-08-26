@@ -4,22 +4,11 @@ import { logSafe } from "@/lib/log";
 import { notifyUser } from "@/services/notifications";
 import { parseDateOnly } from "@/lib/dates";
 import { advanceRegistrationCapacity } from "@/lib/capacity";
+import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
 import type { EventStatus } from "@prisma/client";
 import type { SessionUser } from "@/types";
 
-export function defaultDeadline(eventDate: Date, startTime: string) {
-  const [hours, minutes] = startTime.split(":").map(Number);
-  const start = new Date(eventDate);
-  start.setUTCHours(hours || 0, minutes || 0, 0, 0);
-  return new Date(start.getTime() - 48 * 60 * 60 * 1000);
-}
-
-export function defaultCheckInOpensAt(eventDate: Date, checkInTime = "08:00") {
-  const [hours, minutes] = checkInTime.split(":").map(Number);
-  const opens = new Date(eventDate);
-  opens.setUTCHours(hours || 8, minutes || 0, 0, 0);
-  return opens;
-}
+export { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
 
 export type EventInput = {
   title: string;
@@ -41,12 +30,8 @@ export type EventInput = {
 
 function toData(input: EventInput, createdById?: string) {
   const eventDate = parseDateOnly(input.eventDate);
-  const registrationDeadline = input.registrationDeadline
-    ? new Date(input.registrationDeadline)
-    : defaultDeadline(eventDate, input.startTime);
-  const checkInOpensAt = input.checkInOpensAt
-    ? new Date(input.checkInOpensAt)
-    : defaultCheckInOpensAt(eventDate);
+  const registrationDeadline = defaultDeadline(eventDate, input.startTime);
+  const checkInOpensAt = defaultCheckInOpensAt(eventDate);
   if (input.endTime <= input.startTime) {
     throw new AppError("End time must be after start time.", 400);
   }
