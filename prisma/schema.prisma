@@ -234,10 +234,10 @@ model EmailOtp {
   id         String    @id @default(cuid())
   email      String
   codeHash   String
-  expiresAt  DateTime
-  consumedAt DateTime?
+  expiresAt  DateTime  @db.Timestamptz(3)
+  consumedAt DateTime? @db.Timestamptz(3)
   attempts   Int       @default(0)
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
   userId     String?
   user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 

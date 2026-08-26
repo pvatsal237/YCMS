@@ -1,5 +1,7 @@
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 
+export type OtpPepperSource = "AUTH_SECRET" | "NEXTAUTH_SECRET" | "fallback";
+
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_OTP_REQUESTS_PER_WINDOW = 3;
 const OTP_REQUEST_WINDOW_MS = 10 * 60 * 1000;
@@ -12,11 +14,23 @@ export const OTP_GENERIC_INVALID_MESSAGE =
   "That code is invalid or expired. Request a new code and try again.";
 export const OTP_COOLDOWN_MESSAGE = "Please wait a minute before requesting another code.";
 
+export function normalizeEmail(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 /** Keep leading zeros. Never coerce the code through Number(). */
 export function normalizeOtp(value: unknown): string {
   const digits = String(value ?? "").replace(/\D/g, "");
   if (!digits) return "";
   return digits.slice(-6).padStart(6, "0");
+}
+
+export function resolveOtpPepper(): { pepper: string; source: OtpPepperSource } {
+  if (process.env.AUTH_SECRET) return { pepper: process.env.AUTH_SECRET, source: "AUTH_SECRET" };
+  if (process.env.NEXTAUTH_SECRET) {
+    return { pepper: process.env.NEXTAUTH_SECRET, source: "NEXTAUTH_SECRET" };
+  }
+  return { pepper: "iycm-dev-otp-secret", source: "fallback" };
 }
 
 export function generateOtpCode(): string {

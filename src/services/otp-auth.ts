@@ -12,17 +12,58 @@ import {
   hashOtp,
   isOtpExpired,
   isResendCoolingDown,
+  normalizeEmail,
   normalizeOtp,
   otpExpiryDate,
   otpHashesMatch,
+  resolveOtpPepper,
   tooManyOtpRequests,
   tooManyVerifyAttempts,
 } from "@/lib/otp";
 
-const RECENT_CONSUME_WINDOW_MS = 30_000;
+function dbFingerprint() {
+  const raw = process.env.DATABASE_URL ?? "";
+  try {
+    const normalized = raw.replace(/^postgres(ql)?:/i, "http:");
+    const url = new URL(normalized);
+    return `${url.hostname}${url.pathname}`;
+  } catch {
+    return "unparsed";
+  }
+}
 
-function otpSecret() {
-  return process.env.AUTH_SECRET ?? "iycm-dev-otp-secret";
+function prismaErrorCode(error: unknown): string | undefined {
+  if (typeof error === "object" && error && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === "string" ? code : undefined;
+  }
+  return undefined;
+}
+
+function otpLog(
+  failingStage: string,
+  detail: Record<string, unknown> = {},
+) {
+  logSafe(failingStage, {
+    emailMatches: null,
+    recordCreated: false,
+    recordFound: false,
+    expired: false,
+    consumed: false,
+    attempts: 0,
+    hashMatch: false,
+    failingStage,
+    prismaErrorCode: undefined,
+    db: dbFingerprint(),
+    pepperSource: resolveOtpPepper().source,
+    ...detail,
+  });
+}
+
+export async function isCoordinatorEmail(email: string) {
+  return prisma.coordinatorAllowlist.findFirst({
+    where: { email: normalizeEmail(email), active: true },
+  });
 }
 
 function nameFromEmail(email: string) {
@@ -33,19 +74,12 @@ function nameFromEmail(email: string) {
   return { first, last, name: `${first} ${last}` };
 }
 
-export async function isCoordinatorEmail(email: string) {
-  const row = await prisma.coordinatorAllowlist.findFirst({
-    where: { email: email.trim().toLowerCase(), active: true },
-  });
-  return row;
-}
-
 export async function requestOtp(emailRaw: string) {
-  const email = emailRaw.trim().toLowerCase();
+  const email = normalizeEmail(emailRaw);
   const since = new Date(Date.now() - OTP_REQUEST_WINDOW_MS_VALUE);
   const recent = await prisma.emailOtp.count({ where: { email, createdAt: { gte: since } } });
   if (tooManyOtpRequests(recent)) {
-    logSafe("otp.request.rate_limited", { emailDomain: email.split("@")[1] });
+    otpLog("otp.request.rate_limited", { emailMatches: true });
     return { ok: true as const, message: OTP_GENERIC_REQUEST_MESSAGE, devOtp: undefined as string | undefined };
   }
 
@@ -60,31 +94,42 @@ export async function requestOtp(emailRaw: string) {
   const now = new Date();
   const code = generateOtpCode();
   const expiresAt = otpExpiryDate(now);
-  const [, created] = await prisma.$transaction([
-    prisma.emailOtp.updateMany({
-      where: { email, consumedAt: null },
-      data: { consumedAt: now },
-    }),
-    prisma.emailOtp.create({
+  const { pepper, source: pepperSource } = resolveOtpPepper();
+
+  let created;
+  try {
+    created = await prisma.emailOtp.create({
       data: {
         email,
-        codeHash: hashOtp(code, otpSecret()),
+        codeHash: hashOtp(code, pepper),
         expiresAt,
       },
-    }),
-  ]);
+    });
+    await prisma.emailOtp.updateMany({
+      where: { email, consumedAt: null, id: { not: created.id } },
+      data: { consumedAt: now },
+    });
+  } catch (error) {
+    otpLog("otp.request.create_failed", {
+      recordCreated: false,
+      prismaErrorCode: prismaErrorCode(error),
+      pepperSource,
+    });
+    throw error;
+  }
 
-  logSafe("otp.created", {
-    recordId: created.id,
-    emailDomain: email.split("@")[1],
-    found: true,
+  otpLog("otp.created", {
+    emailMatches: true,
+    recordCreated: true,
+    recordFound: true,
     expired: false,
-    hashMatch: false,
-    used: Boolean(created.consumedAt),
+    consumed: Boolean(created.consumedAt),
     attempts: created.attempts,
+    hashMatch: false,
+    pepperSource,
     expiresAt: created.expiresAt.toISOString(),
-    expiresAtMs: created.expiresAt.getTime(),
-    nowMs: Date.now(),
+    nowUtc: now.toISOString(),
+    recordId: created.id,
   });
 
   const sent = await sendEmail({
@@ -96,7 +141,6 @@ export async function requestOtp(emailRaw: string) {
     throw new AppError(sent.error ?? "Email could not be sent. Please try again later.", 503, "EMAIL_FAILED");
   }
 
-  logSafe("otp.request.sent", { emailDomain: email.split("@")[1], recordId: created.id });
   return {
     ok: true as const,
     message: OTP_GENERIC_REQUEST_MESSAGE,
@@ -104,92 +148,115 @@ export async function requestOtp(emailRaw: string) {
   };
 }
 
-export async function consumeOtp(emailRaw: string, codeRaw: unknown) {
-  const email = emailRaw.trim().toLowerCase();
+export type OtpAssertResult = {
+  recordId: string;
+  email: string;
+  emailMatches: boolean;
+  expired: boolean;
+  consumed: boolean;
+  attempts: number;
+  hashMatch: boolean;
+};
+
+export async function assertOtp(emailRaw: string, codeRaw: unknown): Promise<OtpAssertResult> {
+  const email = normalizeEmail(emailRaw);
   const code = normalizeOtp(codeRaw);
   const now = new Date();
-  const record = await prisma.emailOtp.findFirst({
-    where: { email },
-    orderBy: { createdAt: "desc" },
-  });
+  const { pepper, source: pepperSource } = resolveOtpPepper();
 
-  if (!record) {
-    logSafe("otp.verify", {
-      emailDomain: email.split("@")[1],
-      found: false,
-      expired: false,
-      hashMatch: false,
-      used: false,
-      attempts: 0,
-      nowMs: now.getTime(),
+  let record;
+  try {
+    record = await prisma.emailOtp.findFirst({
+      where: { email },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (error) {
+    otpLog("verify_prisma_error", {
+      emailMatches: false,
+      recordFound: false,
+      prismaErrorCode: prismaErrorCode(error),
+      pepperSource,
     });
     throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
   }
 
-  const expired = isOtpExpired(record.expiresAt, now);
-  const used = Boolean(record.consumedAt);
-  const hashMatch = otpHashesMatch(record.codeHash, hashOtp(code, otpSecret()));
-  const recentlyConsumed =
-    used &&
-    record.consumedAt != null &&
-    now.getTime() - record.consumedAt.getTime() <= RECENT_CONSUME_WINDOW_MS;
+  if (!record) {
+    otpLog("verify_not_found", {
+      emailMatches: false,
+      recordFound: false,
+      pepperSource,
+      nowUtc: now.toISOString(),
+    });
+    throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
+  }
 
-  logSafe("otp.verify", {
+  const emailMatches = record.email === email;
+  const expired = isOtpExpired(record.expiresAt, now);
+  const consumed = Boolean(record.consumedAt);
+  const hashMatch = otpHashesMatch(record.codeHash, hashOtp(code, pepper));
+  const result: OtpAssertResult = {
     recordId: record.id,
-    emailDomain: email.split("@")[1],
-    found: true,
+    email,
+    emailMatches,
     expired,
-    hashMatch,
-    used,
+    consumed,
     attempts: record.attempts,
+    hashMatch,
+  };
+
+  otpLog("otp.verify", {
+    ...result,
+    recordCreated: true,
+    recordFound: true,
+    pepperSource,
     expiresAt: record.expiresAt.toISOString(),
-    expiresAtMs: record.expiresAt.getTime(),
-    nowMs: now.getTime(),
-    recentlyConsumed,
+    nowUtc: now.toISOString(),
+    codeLength: code.length,
   });
 
-  if (tooManyVerifyAttempts(record.attempts) && !recentlyConsumed) {
+  if (tooManyVerifyAttempts(record.attempts)) {
+    otpLog("verify_too_many_attempts", { ...result, recordFound: true, recordCreated: true });
     throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
   }
-
   if (expired) {
+    otpLog("verify_expired", { ...result, recordFound: true, recordCreated: true });
     throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
   }
-
-  if (used) {
-    if (recentlyConsumed && hashMatch) {
-      return resolveUserAfterOtp(email);
-    }
+  if (consumed) {
+    otpLog("verify_consumed", { ...result, recordFound: true, recordCreated: true });
     throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
   }
-
   if (!hashMatch) {
     const attempts = record.attempts + 1;
     await prisma.emailOtp.update({
       where: { id: record.id },
-      data: {
-        attempts,
-        consumedAt: tooManyVerifyAttempts(attempts) ? now : undefined,
-      },
+      data: { attempts, consumedAt: tooManyVerifyAttempts(attempts) ? now : undefined },
     });
-    logSafe("otp.attempt_incremented", {
-      recordId: record.id,
-      emailDomain: email.split("@")[1],
-      found: true,
-      expired: false,
-      hashMatch: false,
-      used: tooManyVerifyAttempts(attempts),
+    otpLog("verify_hash_mismatch", {
+      ...result,
+      recordFound: true,
+      recordCreated: true,
       attempts,
+      consumed: tooManyVerifyAttempts(attempts),
     });
     throw new AppError(OTP_GENERIC_INVALID_MESSAGE, 401, "OTP_INVALID");
   }
 
-  await prisma.emailOtp.update({
-    where: { id: record.id },
-    data: { consumedAt: now },
-  });
+  otpLog("verify_ok", { ...result, recordFound: true, recordCreated: true, failingStage: "verify_ok" });
+  return result;
+}
 
-  return resolveUserAfterOtp(email);
+export async function markOtpConsumed(recordId: string) {
+  await prisma.emailOtp.update({
+    where: { id: recordId },
+    data: { consumedAt: new Date() },
+  });
+}
+
+export async function consumeOtp(emailRaw: string, codeRaw: unknown) {
+  const asserted = await assertOtp(emailRaw, codeRaw);
+  const user = await resolveUserAfterOtp(asserted.email);
+  return user;
 }
 
 export async function resolveUserAfterOtp(email: string) {
@@ -203,7 +270,6 @@ export async function resolveUserAfterOtp(email: string) {
         data: {
           role: nextRole,
           name: allow?.name ?? existing.name,
-          memberId: nextRole === "COORDINATOR" ? existing.memberId : existing.memberId,
         },
       });
     }
@@ -211,7 +277,6 @@ export async function resolveUserAfterOtp(email: string) {
   }
 
   if (allow) {
-    logSafe("auth.role.coordinator", { allowlist: true });
     return prisma.user.create({
       data: { email, name: allow.name, role: "COORDINATOR", active: true },
     });
@@ -223,7 +288,6 @@ export async function resolveUserAfterOtp(email: string) {
     (await prisma.member.create({
       data: { email, firstName: names.first, lastName: names.last, active: true },
     }));
-  logSafe("auth.role.member", { created: true });
   return prisma.user.create({
     data: {
       email,

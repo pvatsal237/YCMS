@@ -1,8 +1,9 @@
 import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { authConfig } from "@/auth.config";
-import { consumeOtp } from "@/services/otp-auth";
+import { assertOtp, resolveUserAfterOtp } from "@/services/otp-auth";
 import { logSafe } from "@/lib/log";
+import { normalizeEmail, normalizeOtp } from "@/lib/otp";
 import type { UserRole } from "@/types/roles";
 
 class InvalidCredentialsError extends CredentialsSignin {
@@ -11,6 +12,18 @@ class InvalidCredentialsError extends CredentialsSignin {
 
 class DisabledAccountError extends CredentialsSignin {
   code = "disabled";
+}
+
+function credentialCode(credentials: Record<string, unknown> | undefined) {
+  if (!credentials) return "";
+  const direct = credentials.password ?? credentials.otp ?? credentials.code;
+  const normalized = normalizeOtp(direct);
+  if (normalized.length === 6) return String(direct ?? "");
+  for (const [key, value] of Object.entries(credentials)) {
+    if (key === "email" || key === "callbackUrl" || key === "redirectTo") continue;
+    if (normalizeOtp(value).length === 6) return String(value ?? "");
+  }
+  return String(direct ?? "");
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -23,27 +36,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "One-time code", type: "text" },
       },
       async authorize(credentials) {
-        const creds = credentials as { email?: unknown; password?: unknown; otp?: unknown } | undefined;
-        const email = String(creds?.email ?? "")
-          .trim()
-          .toLowerCase();
-        const rawCode = creds?.password ?? creds?.otp ?? "";
-        const otpLength = String(rawCode ?? "").replace(/\D/g, "").length;
+        const creds = credentials as Record<string, unknown> | undefined;
+        const email = normalizeEmail(creds?.email);
+        const rawCode = credentialCode(creds);
+        const codeLength = normalizeOtp(rawCode).length;
         logSafe("otp.authorize", {
-          emailDomain: email.split("@")[1] ?? "",
-          found: Boolean(email && otpLength > 0),
+          emailMatches: Boolean(email),
+          recordCreated: false,
+          recordFound: false,
           expired: false,
-          hashMatch: false,
-          used: false,
+          consumed: false,
           attempts: 0,
-          codeLength: otpLength,
+          hashMatch: false,
+          failingStage: codeLength === 6 ? "authorize_received_code" : "authorize_missing_code",
+          codeLength,
         });
-        if (!email || otpLength !== 6) throw new InvalidCredentialsError();
+        if (!email || codeLength !== 6) throw new InvalidCredentialsError();
 
         try {
-          const user = await consumeOtp(email, rawCode);
+          await assertOtp(email, rawCode);
+          const user = await resolveUserAfterOtp(email);
           if (!user.active) throw new DisabledAccountError();
-          logSafe("login.success", { userId: user.id, role: user.role });
           return {
             id: user.id,
             name: user.name,
@@ -53,7 +66,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             memberId: user.memberId,
           };
         } catch (error) {
-          logSafe("login.failed", { emailDomain: email.split("@")[1] ?? "" });
           if (error instanceof DisabledAccountError) throw error;
           throw new InvalidCredentialsError();
         }

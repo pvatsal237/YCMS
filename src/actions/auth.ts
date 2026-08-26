@@ -5,11 +5,12 @@ import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/auth";
 import { otpRequestSchema, otpVerifySchema } from "@/validations/auth";
 import type { ActionResult } from "@/types";
-import { requestOtp } from "@/services/otp-auth";
-import { OTP_GENERIC_INVALID_MESSAGE } from "@/lib/otp";
+import { assertOtp, markOtpConsumed, requestOtp, resolveUserAfterOtp } from "@/services/otp-auth";
+import { OTP_GENERIC_INVALID_MESSAGE, normalizeEmail, normalizeOtp } from "@/lib/otp";
 import { logServerError, toUserMessage } from "@/lib/errors";
 import { defaultHomePath } from "@/lib/authorization";
-import { prisma } from "@/lib/prisma";
+import { setAuthjsSessionCookie } from "@/lib/auth-session-cookie";
+import { logSafe } from "@/lib/log";
 
 export async function requestOtpAction(
   _prev: ActionResult<{ devOtp?: string }>,
@@ -34,23 +35,93 @@ export async function verifyOtpAction(_prev: ActionResult, formData: FormData): 
     otp: formData.get("otp"),
   });
   if (!parsed.success) {
+    logSafe("verify_invalid_input", {
+      emailMatches: false,
+      recordCreated: false,
+      recordFound: false,
+      expired: false,
+      consumed: false,
+      attempts: 0,
+      hashMatch: false,
+      failingStage: "verify_invalid_input",
+      codeLength: normalizeOtp(formData.get("otp")).length,
+    });
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const email = parsed.data.email.trim().toLowerCase();
+
+  const email = normalizeEmail(parsed.data.email);
+  const code = parsed.data.otp;
   const next = String(formData.get("next") ?? "");
+
+  let asserted;
   try {
-    await signIn("credentials", {
-      email,
-      password: parsed.data.otp,
+    asserted = await assertOtp(email, code);
+  } catch (error) {
+    logServerError("verifyOtpAction.assert", error);
+    return { ok: false, error: OTP_GENERIC_INVALID_MESSAGE };
+  }
+
+  let user;
+  try {
+    user = await resolveUserAfterOtp(asserted.email);
+  } catch (error) {
+    logSafe("verify_user_resolve_failed", {
+      ...asserted,
+      recordCreated: true,
+      recordFound: true,
+      failingStage: "verify_user_resolve_failed",
+      prismaErrorCode: typeof error === "object" && error && "code" in error ? String((error as { code?: string }).code) : undefined,
+    });
+    return { ok: false, error: OTP_GENERIC_INVALID_MESSAGE };
+  }
+
+  if (!user.active) {
+    return { ok: false, error: "This account has been disabled." };
+  }
+
+  let sessionVia: "signin" | "cookie" = "signin";
+  try {
+    const result = await signIn("credentials", {
+      email: asserted.email,
+      password: code,
       redirect: false,
     });
+    if (typeof result === "string" && /[?&]error=/.test(result)) {
+      sessionVia = "cookie";
+      await setAuthjsSessionCookie(user);
+    }
   } catch (error) {
-    if (error instanceof AuthError) return { ok: false, error: OTP_GENERIC_INVALID_MESSAGE };
-    throw error;
+    if (error instanceof AuthError) {
+      sessionVia = "cookie";
+      try {
+        await setAuthjsSessionCookie(user);
+      } catch (cookieError) {
+        logSafe("session_create_failed", {
+          ...asserted,
+          recordCreated: true,
+          recordFound: true,
+          failingStage: "session_create_failed",
+        });
+        logServerError("verifyOtpAction.session", cookieError);
+        return { ok: false, error: OTP_GENERIC_INVALID_MESSAGE };
+      }
+    } else {
+      throw error;
+    }
   }
-  const user = await prisma.user.findUnique({ where: { email }, select: { role: true } });
-  const home = user ? defaultHomePath(user.role) : "/login";
-  if (next.startsWith("/walk-in") && user?.role === "MEMBER") redirect(next);
+
+  await markOtpConsumed(asserted.recordId);
+  logSafe("session_created", {
+    ...asserted,
+    recordCreated: true,
+    recordFound: true,
+    consumed: true,
+    failingStage: "session_created",
+    sessionVia,
+  });
+
+  const home = defaultHomePath(user.role);
+  if (next.startsWith("/walk-in") && user.role === "MEMBER") redirect(next);
   redirect(home);
 }
 

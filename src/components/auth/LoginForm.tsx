@@ -20,7 +20,7 @@ export function LoginForm({
     async (prev: ActionResult<{ devOtp?: string }>, formData: FormData) => {
       const result = await requestOtpAction(prev, formData);
       if (result.ok) {
-        setEmail(String(formData.get("email") ?? ""));
+        setEmail(String(formData.get("email") ?? "").trim().toLowerCase());
         setStep("otp");
       }
       return result;
