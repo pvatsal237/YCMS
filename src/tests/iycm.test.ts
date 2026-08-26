@@ -13,7 +13,12 @@ import {
   canShowDevOtp,
 } from "@/lib/otp";
 import { defaultHomePath, isPathAllowed, navItemsForRole } from "@/lib/authorization";
-import { maskPhone } from "@/services/members";
+import {
+  COORDINATOR_EMAIL_BLOCKED,
+  DUPLICATE_MEMBER_EMAIL,
+  evaluateMemberCreate,
+  maskPhone,
+} from "@/services/members";
 import { memberFacingStatus } from "@/services/events";
 
 describe("OTP helpers", () => {
@@ -72,6 +77,25 @@ describe("roles and navigation", () => {
       "Profile",
       "Notifications",
     ]);
+  });
+});
+
+describe("manual member creation guards", () => {
+  it("blocks active coordinator emails and duplicate member emails", () => {
+    expect(evaluateMemberCreate({ existingMember: false, activeCoordinator: true, userRole: null })).toEqual({
+      ok: false,
+      error: COORDINATOR_EMAIL_BLOCKED,
+    });
+    expect(
+      evaluateMemberCreate({ existingMember: false, activeCoordinator: false, userRole: "COORDINATOR" }),
+    ).toEqual({ ok: false, error: COORDINATOR_EMAIL_BLOCKED });
+    expect(evaluateMemberCreate({ existingMember: true, activeCoordinator: false, userRole: "MEMBER" })).toEqual({
+      ok: false,
+      error: DUPLICATE_MEMBER_EMAIL,
+    });
+    expect(evaluateMemberCreate({ existingMember: false, activeCoordinator: false, userRole: "MEMBER" })).toEqual({
+      ok: true,
+    });
   });
 });
 

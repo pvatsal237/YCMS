@@ -2,6 +2,7 @@ import { requireCoordinator } from "@/lib/session";
 import { listMembers, maskPhone } from "@/services/members";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody } from "@/components/ui/Card";
+import { AddMemberForm } from "@/components/members/AddMemberForm";
 import { fullName } from "@/utils/format";
 import Link from "next/link";
 
@@ -12,6 +13,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   return (
     <div className="space-y-6">
       <PageHeader title="Members" description="Name, email, and masked phone only." />
+      <AddMemberForm />
       <form>
         <input name="q" defaultValue={q} placeholder="Search" className="max-w-md rounded-md border px-3 py-2 text-sm" />
       </form>

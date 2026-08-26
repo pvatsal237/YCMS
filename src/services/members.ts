@@ -1,6 +1,24 @@
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
+import { normalizeEmail } from "@/lib/otp";
 import type { SessionUser } from "@/types";
+
+export const COORDINATOR_EMAIL_BLOCKED = "This email is registered as a Coordinator.";
+export const DUPLICATE_MEMBER_EMAIL = "A member with this email already exists.";
+
+export function evaluateMemberCreate(input: {
+  existingMember: boolean;
+  activeCoordinator: boolean;
+  userRole?: "COORDINATOR" | "MEMBER" | null;
+}): { ok: true } | { ok: false; error: string } {
+  if (input.activeCoordinator || input.userRole === "COORDINATOR") {
+    return { ok: false, error: COORDINATOR_EMAIL_BLOCKED };
+  }
+  if (input.existingMember) {
+    return { ok: false, error: DUPLICATE_MEMBER_EMAIL };
+  }
+  return { ok: true };
+}
 
 export function maskPhone(phone: string | null | undefined) {
   if (!phone) return "—";
@@ -23,6 +41,69 @@ export async function listMembers(q?: string) {
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     take: 200,
   });
+}
+
+export async function createMember(input: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+}) {
+  const email = normalizeEmail(input.email);
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const phone = input.phone?.trim() || null;
+  const emergencyContactName = input.emergencyContactName?.trim() || null;
+  const emergencyContactPhone = input.emergencyContactPhone?.trim() || null;
+
+  const [existingMember, allow, existingUser] = await Promise.all([
+    prisma.member.findUnique({ where: { email } }),
+    prisma.coordinatorAllowlist.findFirst({ where: { email, active: true } }),
+    prisma.user.findUnique({ where: { email } }),
+  ]);
+
+  const guard = evaluateMemberCreate({
+    existingMember: Boolean(existingMember),
+    activeCoordinator: Boolean(allow),
+    userRole: existingUser?.role ?? null,
+  });
+  if (!guard.ok) {
+    throw new AppError(guard.error, 409, "MEMBER_CREATE_BLOCKED");
+  }
+
+  try {
+    const member = await prisma.member.create({
+      data: {
+        email,
+        firstName,
+        lastName,
+        phone,
+        emergencyContactName,
+        emergencyContactPhone,
+        active: true,
+      },
+    });
+
+    if (existingUser?.role === "MEMBER" && !existingUser.memberId) {
+      await prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          memberId: member.id,
+          name: `${firstName} ${lastName}`.trim(),
+        },
+      });
+    }
+
+    return member;
+  } catch (error) {
+    const code = typeof error === "object" && error && "code" in error ? String((error as { code?: string }).code) : "";
+    if (code === "P2002") {
+      throw new AppError(DUPLICATE_MEMBER_EMAIL, 409, "MEMBER_CREATE_BLOCKED");
+    }
+    throw error;
+  }
 }
 
 export async function getMember(id: string) {
