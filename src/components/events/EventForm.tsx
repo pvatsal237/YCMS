@@ -10,9 +10,9 @@ import type { ActionResult } from "@/types";
 import type { Event } from "@prisma/client";
 import { formatComputedDateTime, parseDateOnly, toDateInputValue } from "@/lib/dates";
 import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
+import { sanitizeEventFormData } from "@/lib/sanitize-text";
 
 export function EventForm({ event }: { event?: Event }) {
-  const [state, action, pending] = useActionState(saveEventAction, { ok: true } as ActionResult);
   const [eventDate, setEventDate] = useState(event ? toDateInputValue(event.eventDate) : "");
   const [startTime, setStartTime] = useState(event?.startTime ?? "10:00");
 
@@ -26,6 +26,13 @@ export function EventForm({ event }: { event?: Event }) {
       checkIn: formatComputedDateTime(defaultCheckInOpensAt(date)),
     };
   }, [eventDate, startTime]);
+
+  async function saveAction(prev: ActionResult, formData: FormData) {
+    sanitizeEventFormData(formData);
+    return saveEventAction(prev, formData);
+  }
+
+  const [state, action, pending] = useActionState(saveAction, { ok: true } as ActionResult);
 
   return (
     <form action={action} className="grid gap-4 sm:grid-cols-2">

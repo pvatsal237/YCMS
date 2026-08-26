@@ -23,7 +23,8 @@ import {
   formatPhoneDisplay,
 } from "@/services/members";
 import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
-import { memberFacingStatus } from "@/services/events";
+import { sanitizeEventText, inspectEventTextFields } from "@/lib/sanitize-text";
+import { buildEventWriteData, memberFacingStatus } from "@/services/events";
 
 describe("OTP helpers", () => {
   it("generates a 6-digit code and hashes it", () => {
@@ -152,5 +153,58 @@ describe("privacy and registration labels", () => {
     expect(email.text).toContain("Hall A, The International Centre");
     expect(email.text).toContain("Dr. Elena Brooks");
     expect(email.text).toContain("Your registration is confirmed");
+  });
+});
+
+describe("event text sanitization", () => {
+  const base = {
+    title: "Mastering AI",
+    description: "Learn practical AI skills.\nAsk questions.",
+    speakerName: "Dr. Elena Brooks",
+    speakerTitle: "Director, Applied AI & Innovation",
+    speakerOrganization: "Microsoft Canada",
+    eventDate: "2026-08-30",
+    startTime: "10:00",
+    endTime: "12:00",
+    location: "Hall A, The International Centre",
+    capacity: 50,
+    walkInCapacity: 10,
+    internalNotes: "Demo only",
+  };
+
+  it("keeps normal event text unchanged", () => {
+    expect(sanitizeEventText("  Hello, world!  ")).toBe("Hello, world!");
+    const data = buildEventWriteData(base);
+    expect(data.title).toBe("Mastering AI");
+    expect(data.description).toBe("Learn practical AI skills.\nAsk questions.");
+    expect(data.speakerName).toBe("Dr. Elena Brooks");
+    expect(data.location).toBe("Hall A, The International Centre");
+  });
+
+  it("removes null characters and keeps Unicode", () => {
+    expect(sanitizeEventText("Hello\u0000World")).toBe("HelloWorld");
+    expect(sanitizeEventText("café – résumé\nline")).toBe("café – résumé\nline");
+    const dirty = {
+      ...base,
+      title: "AI\u0000 Session",
+      description: "Use AI\u0000 responsibly",
+      speakerName: "Renée\u0000 Dupont",
+      speakerTitle: "Lead\u0000",
+      speakerOrganization: "École\u0000 Polytechnique",
+      location: "Montréal\u0000",
+      internalNotes: "note\u0000",
+    };
+    expect(inspectEventTextFields(dirty).every((field) => field.hadNull)).toBe(true);
+    const created = buildEventWriteData(dirty);
+    const updated = buildEventWriteData({ ...dirty, title: "Updated\u0000 title" });
+    expect(created.title).toBe("AI Session");
+    expect(created.description).toBe("Use AI responsibly");
+    expect(created.speakerName).toBe("Renée Dupont");
+    expect(created.speakerOrganization).toBe("École Polytechnique");
+    expect(created.location).toBe("Montréal");
+    expect(created.internalNotes).toBe("note");
+    expect(updated.title).toBe("Updated title");
+    expect(created.title.includes("\u0000")).toBe(false);
+    expect(updated.title.includes("\u0000")).toBe(false);
   });
 });

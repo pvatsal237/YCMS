@@ -5,6 +5,7 @@ import { notifyUser } from "@/services/notifications";
 import { parseDateOnly } from "@/lib/dates";
 import { advanceRegistrationCapacity } from "@/lib/capacity";
 import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
+import { sanitizeEventText } from "@/lib/sanitize-text";
 import type { EventStatus } from "@prisma/client";
 import type { SessionUser } from "@/types";
 
@@ -28,7 +29,12 @@ export type EventInput = {
   status?: EventStatus;
 };
 
-function toData(input: EventInput, createdById?: string) {
+function optionalText(value?: string | null) {
+  const cleaned = sanitizeEventText(value);
+  return cleaned || null;
+}
+
+export function buildEventWriteData(input: EventInput, createdById?: string) {
   const eventDate = parseDateOnly(input.eventDate);
   const registrationDeadline = defaultDeadline(eventDate, input.startTime);
   const checkInOpensAt = defaultCheckInOpensAt(eventDate);
@@ -39,20 +45,20 @@ function toData(input: EventInput, createdById?: string) {
   const walkInCapacity = input.walkInCapacity ?? 10;
   advanceRegistrationCapacity(input.capacity, walkInCapacity);
   return {
-    title: input.title.trim(),
-    description: input.description.trim(),
-    speakerName: input.speakerName?.trim() || null,
-    speakerTitle: input.speakerTitle?.trim() || null,
-    speakerOrganization: input.speakerOrganization?.trim() || null,
+    title: sanitizeEventText(input.title),
+    description: sanitizeEventText(input.description),
+    speakerName: optionalText(input.speakerName),
+    speakerTitle: optionalText(input.speakerTitle),
+    speakerOrganization: optionalText(input.speakerOrganization),
     eventDate,
     startTime: input.startTime,
     endTime: input.endTime,
-    location: input.location.trim(),
+    location: sanitizeEventText(input.location),
     capacity: input.capacity,
     walkInCapacity,
     registrationDeadline,
     checkInOpensAt,
-    internalNotes: input.internalNotes?.trim() || null,
+    internalNotes: optionalText(input.internalNotes),
     status: input.status ?? "DRAFT",
     createdById,
   };
@@ -91,7 +97,7 @@ export async function getEvent(id: string) {
 }
 
 export async function createEvent(actor: SessionUser, input: EventInput) {
-  const event = await prisma.event.create({ data: toData(input, actor.id) });
+  const event = await prisma.event.create({ data: buildEventWriteData(input, actor.id) });
   logSafe("event.created", { eventId: event.id, status: event.status });
   if (event.status === "PUBLISHED") await announcePublished(event.id);
   return event;
@@ -100,7 +106,7 @@ export async function createEvent(actor: SessionUser, input: EventInput) {
 export async function updateEvent(actor: SessionUser, id: string, input: EventInput) {
   const existing = await prisma.event.findUnique({ where: { id } });
   if (!existing) throw new AppError("Event not found.", 404);
-  const event = await prisma.event.update({ where: { id }, data: toData(input, existing.createdById ?? actor.id) });
+  const event = await prisma.event.update({ where: { id }, data: buildEventWriteData(input, existing.createdById ?? actor.id) });
   if (existing.status !== "PUBLISHED" && event.status === "PUBLISHED") {
     await announcePublished(event.id);
   }

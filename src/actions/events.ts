@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireCoordinator } from "@/lib/session";
 import { createEvent, sendEventReminder, setEventStatus, updateEvent, type EventInput } from "@/services/events";
 import { logServerError, toUserMessage } from "@/lib/errors";
+import { inspectEventTextFields } from "@/lib/sanitize-text";
+import { logSafe } from "@/lib/log";
 import type { EventStatus } from "@prisma/client";
 import type { ActionResult } from "@/types";
 
@@ -26,15 +28,21 @@ function formEvent(formData: FormData): EventInput {
 }
 
 export async function saveEventAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const payload = formEvent(formData);
   try {
     const actor = await requireCoordinator();
     const id = String(formData.get("id") ?? "");
-    if (id) await updateEvent(actor, id, formEvent(formData));
-    else await createEvent(actor, formEvent(formData));
+    if (id) await updateEvent(actor, id, payload);
+    else await createEvent(actor, payload);
     revalidatePath("/events");
     revalidatePath("/home");
     return { ok: true, message: "Event saved." };
   } catch (error) {
+    const fields = inspectEventTextFields(payload as unknown as Record<string, unknown>);
+    logSafe("event.save_failed", {
+      hadNull: fields.some((field) => field.hadNull),
+      fields,
+    });
     logServerError("saveEventAction", error);
     return { ok: false, error: toUserMessage(error, "Unable to save event.") };
   }
