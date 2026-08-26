@@ -71,6 +71,7 @@ describe("roles and navigation", () => {
     expect(defaultHomePath("COORDINATOR")).toBe("/dashboard");
     expect(defaultHomePath("MEMBER")).toBe("/home");
     expect(isPathAllowed("/events", "COORDINATOR")).toBe(true);
+    expect(isPathAllowed("/events/new", "COORDINATOR")).toBe(true);
     expect(isPathAllowed("/events", "MEMBER")).toBe(false);
     expect(isPathAllowed("/home", "MEMBER")).toBe(true);
     expect(isPathAllowed("/dashboard", "MEMBER")).toBe(false);

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireCoordinator, requireRoleAction } from "@/lib/session";
 import { createEvent, sendEventReminder, setEventStatus, updateEvent, type EventInput } from "@/services/events";
 import { isNextInterruptError, logServerError, toUserMessage } from "@/lib/errors";
@@ -40,11 +41,17 @@ export async function saveEventAction(_prev: ActionResult, formData: FormData): 
   try {
     const actor = await requireRoleAction(["COORDINATOR"]);
     const id = sanitizeFormString(formData.get("id"));
-    if (id) await updateEvent(actor, id, payload);
-    else await createEvent(actor, payload);
+    if (id) {
+      await updateEvent(actor, id, payload);
+      revalidatePath("/events");
+      revalidatePath("/home");
+      revalidatePath(`/events/${id}`);
+      return { ok: true, message: "Event saved." };
+    }
+    await createEvent(actor, payload);
     revalidatePath("/events");
     revalidatePath("/home");
-    return { ok: true, message: "Event saved." };
+    redirect("/events");
   } catch (error) {
     if (isNextInterruptError(error)) throw error;
     const fields = inspectEventTextFields(payload as unknown as Record<string, unknown>);

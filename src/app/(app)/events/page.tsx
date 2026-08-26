@@ -1,48 +1,49 @@
 import Link from "next/link";
 import { requireCoordinator } from "@/lib/session";
 import { listCoordinatorEvents } from "@/services/events";
-import { PageHeader } from "@/components/ui/Feedback";
-import { Card, CardBody } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { PageHeader, EmptyState } from "@/components/ui/Feedback";
 import { Button } from "@/components/ui/Button";
-import { formatDate, formatTime12h } from "@/lib/dates";
-import { eventStatusLabel } from "@/utils/format";
-import { EventForm } from "@/components/events/EventForm";
-import { advanceRegistrationCapacity } from "@/lib/capacity";
+import { EventListCard } from "@/components/events/EventListCard";
+import { startOfUtcDay } from "@/lib/dates";
+
+function isCurrentEvent(event: { eventDate: Date; status: string }, today: Date) {
+  if (event.status === "COMPLETED" || event.status === "CANCELLED") return false;
+  return startOfUtcDay(event.eventDate).getTime() >= today.getTime();
+}
 
 export default async function EventsPage() {
   await requireCoordinator();
   const events = await listCoordinatorEvents();
+  const today = startOfUtcDay();
+  const current = events.filter((event) => isCurrentEvent(event, today));
+  const other = events.filter((event) => !isCurrentEvent(event, today));
+
   return (
-    <div className="space-y-6">
-      <PageHeader title="Events" description="Create and manage IYCM events. Only published events are visible to members." />
-      <Card>
-        <CardBody>
-          <h2 className="mb-4 text-base font-semibold">New event</h2>
-          <EventForm />
-        </CardBody>
-      </Card>
+    <div className="space-y-8">
+      <PageHeader
+        title="Events"
+        action={
+          <Link href="/events/new">
+            <Button size="sm">+ Create Event</Button>
+          </Link>
+        }
+      />
+      {events.length === 0 ? (
+        <EmptyState title="No events yet" description="Create an event to publish it for members." />
+      ) : null}
       <div className="space-y-3">
-        {events.map((event) => (
-          <Card key={event.id}>
-            <CardBody className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="font-medium text-slate-900">{event.title}</p>
-                <p className="text-sm text-slate-500">
-                  {formatDate(event.eventDate)} · {formatTime12h(event.startTime)}–{formatTime12h(event.endTime)} · {event.location}
-                </p>
-                <p className="text-sm text-slate-500">
-                  Total capacity {event.capacity} · Advance {advanceRegistrationCapacity(event.capacity, event.walkInCapacity)} · Walk-in reserve {event.walkInCapacity}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge>{eventStatusLabel(event.status)}</Badge>
-                <Link href={`/events/${event.id}`}><Button size="sm" variant="secondary">Open</Button></Link>
-              </div>
-            </CardBody>
-          </Card>
+        {current.map((event) => (
+          <EventListCard key={event.id} event={event} />
         ))}
       </div>
+      {other.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium text-slate-500">Other / Past Events</h2>
+          {other.map((event) => (
+            <EventListCard key={event.id} event={event} />
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }
