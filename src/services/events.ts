@@ -5,6 +5,11 @@ import { notifyUser } from "@/services/notifications";
 import { parseDateOnly, parseEventDate, parseTimeOfDay, timeToMinutes } from "@/lib/dates";
 import { advanceRegistrationCapacity } from "@/lib/capacity";
 import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
+import {
+  normalizeCreatedById,
+  normalizeEventStatus,
+  prepareEventWritePayload,
+} from "@/lib/event-write-payload";
 import { sanitizeEventText } from "@/lib/sanitize-text";
 import type { EventStatus } from "@prisma/client";
 import type { SessionUser } from "@/types";
@@ -78,8 +83,8 @@ export function buildEventWriteData(input: EventInput, createdById?: string) {
     registrationDeadline,
     checkInOpensAt,
     internalNotes: optionalText(input.internalNotes),
-    status: input.status ?? "DRAFT",
-    createdById,
+    status: normalizeEventStatus(input.status),
+    createdById: normalizeCreatedById(createdById),
   };
 }
 
@@ -125,7 +130,10 @@ async function announcePublishedSafe(eventId: string) {
 }
 
 export async function createEvent(actor: SessionUser, input: EventInput) {
-  const event = await prisma.event.create({ data: buildEventWriteData(input, actor.id) });
+  const { payload } = prepareEventWritePayload(buildEventWriteData(input, actor.id), {
+    assignId: true,
+  });
+  const event = await prisma.event.create({ data: payload });
   logSafe("event.created", { eventId: event.id, status: event.status });
   if (event.status === "PUBLISHED") await announcePublishedSafe(event.id);
   return event;
@@ -134,7 +142,11 @@ export async function createEvent(actor: SessionUser, input: EventInput) {
 export async function updateEvent(actor: SessionUser, id: string, input: EventInput) {
   const existing = await prisma.event.findUnique({ where: { id } });
   if (!existing) throw new AppError("Event not found.", 404);
-  const event = await prisma.event.update({ where: { id }, data: buildEventWriteData(input, existing.createdById ?? actor.id) });
+  const { payload } = prepareEventWritePayload(
+    buildEventWriteData(input, existing.createdById ?? actor.id),
+    { assignId: false },
+  );
+  const event = await prisma.event.update({ where: { id }, data: payload });
   if (existing.status !== "PUBLISHED" && event.status === "PUBLISHED") {
     await announcePublishedSafe(event.id);
   }

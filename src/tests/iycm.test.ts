@@ -26,6 +26,12 @@ import {
 import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
 import { sanitizeEventText, inspectEventTextFields } from "@/lib/sanitize-text";
 import { buildEventWriteData, memberFacingStatus } from "@/services/events";
+import {
+  inspectEventWriteStrings,
+  newEventId,
+  newWalkInToken,
+  prepareEventWritePayload,
+} from "@/lib/event-write-payload";
 
 describe("OTP helpers", () => {
   it("generates a 6-digit code and hashes it", () => {
@@ -223,5 +229,25 @@ describe("event text sanitization", () => {
     expect(() => buildEventWriteData({ ...base, startTime: "12:00", endTime: "10:00" })).toThrow(/after start time/i);
     expect(() => buildEventWriteData({ ...base, capacity: Number.NaN })).toThrow(/valid capacity/i);
     expect(toUserMessage(new Error("invalid byte sequence for encoding \"UTF8\": 0x00"), "Unable to save event.")).toMatch(/cannot be stored/i);
+  });
+
+  it("keeps every string in the Prisma event write payload free of null bytes", () => {
+    const binaryToken = Buffer.from([0x77, 0x00, 0x6b]).toString("utf8");
+    expect(binaryToken.includes("\u0000")).toBe(true);
+    expect(inspectEventWriteStrings({ walkInToken: binaryToken }).find((field) => field.field === "walkInToken")?.hasNull).toBe(true);
+    expect(newWalkInToken().includes("\u0000")).toBe(false);
+    expect(newEventId().includes("\u0000")).toBe(false);
+
+    const { payload, fields } = prepareEventWritePayload(
+      buildEventWriteData(base, "cluser\u0000id123"),
+      { assignId: true },
+    );
+    expect(fields.some((field) => field.field === "id")).toBe(true);
+    expect(payload.createdById).toBe("cluserid123");
+    for (const value of Object.values(payload)) {
+      if (typeof value === "string") {
+        expect(value.includes("\u0000")).toBe(false);
+      }
+    }
   });
 });
