@@ -6,6 +6,7 @@ import type { UserRole } from "@/types/roles";
 export const authConfig = {
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   session: {
     strategy: "jwt",
