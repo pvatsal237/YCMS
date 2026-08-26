@@ -5,29 +5,37 @@ import { syncGoogleUser } from "@/lib/google-user";
 import { logServerError } from "@/lib/errors";
 import type { UserRole } from "@/types/roles";
 
-function readEnv(name: string) {
-  const value = process.env[name]?.trim();
-  return value ? value : undefined;
+const secret = process.env.AUTH_SECRET?.trim() || process.env.NEXTAUTH_SECRET?.trim();
+const googleId = process.env.AUTH_GOOGLE_ID?.trim() || process.env.GOOGLE_CLIENT_ID?.trim();
+const googleSecret =
+  process.env.AUTH_GOOGLE_SECRET?.trim() || process.env.GOOGLE_CLIENT_SECRET?.trim();
+const authUrl = process.env.AUTH_URL?.trim();
+
+if (!secret || !googleId || !googleSecret) {
+  console.error("[IYCM auth] configuration incomplete", {
+    AUTH_SECRET: Boolean(secret),
+    AUTH_GOOGLE_ID: Boolean(googleId),
+    AUTH_GOOGLE_SECRET: Boolean(googleSecret),
+    AUTH_URL: Boolean(authUrl),
+  });
 }
 
-const googleId = readEnv("AUTH_GOOGLE_ID") ?? readEnv("GOOGLE_CLIENT_ID");
-const googleSecret = readEnv("AUTH_GOOGLE_SECRET") ?? readEnv("GOOGLE_CLIENT_SECRET");
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  trustHost: true,
   ...authConfig,
+  trustHost: true,
+  secret,
+  basePath: "/api/auth",
   providers: [
     Google({
-      ...(googleId ? { clientId: googleId } : {}),
-      ...(googleSecret ? { clientSecret: googleSecret } : {}),
+      clientId: googleId,
+      clientSecret: googleSecret,
       allowDangerousEmailAccountLinking: true,
     }),
   ],
   logger: {
     error(error) {
-      const name = error instanceof Error ? error.name : "Error";
-      const type = typeof error === "object" && error && "type" in error ? String(error.type) : "";
-      console.error("[IYCM auth]", type || name);
+      const type = "type" in error ? String(error.type) : error.name;
+      console.error("[IYCM auth]", type);
     },
   },
   callbacks: {
