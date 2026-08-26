@@ -8,11 +8,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: {
-    default: "IYCM — International Youth Community Meetup",
-    template: "%s · IYCM",
-  },
-  description: "Community meetups, event registration, check-in, and guidance for international youth.",
+  title: "IYCM — International Youth Community Meetup",
+  description: "Events, registration, check-in, and guidance for the International Youth Community Meetup.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

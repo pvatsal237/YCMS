@@ -13,16 +13,8 @@ export class AppError extends Error {
 }
 
 export function toUserMessage(error: unknown, fallback: string): string {
-  if (error instanceof AppError) {
-    return error.userMessage;
-  }
+  if (error instanceof AppError) return error.userMessage;
   return fallback;
 }
 
-export function logServerError(context: string, error: unknown) {
-  const detail =
-    error instanceof Error
-      ? { name: error.name, message: error.message, stack: error.stack }
-      : { error };
-  console.error(`[IYCM] ${context}`, detail);
-}
+export { logServerError } from "@/lib/log";

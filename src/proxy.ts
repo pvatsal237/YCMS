@@ -14,14 +14,14 @@ const handler = auth((req) => {
   if (!req.auth?.user || !role) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("callbackUrl", pathname);
+    if (pathname !== "/") url.searchParams.set("error", "session");
+    if (pathname.startsWith("/walk-in")) url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
   if (!isPathAllowed(pathname, role)) {
     return NextResponse.redirect(new URL(defaultHomePath(role), req.nextUrl.origin));
   }
-
   return NextResponse.next();
 });
 
@@ -29,7 +29,5 @@ export default handler;
 export const proxy = handler;
 
 export const config = {
-  matcher: [
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

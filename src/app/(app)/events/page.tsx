@@ -1,34 +1,41 @@
 import Link from "next/link";
-import { listCoordinatorEvents, eventTimeLabel } from "@/services/events";
+import { requireCoordinator } from "@/lib/session";
+import { listCoordinatorEvents } from "@/services/events";
 import { PageHeader } from "@/components/ui/Feedback";
-import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { formatDate } from "@/lib/dates";
 import { eventStatusLabel } from "@/utils/format";
+import { EventForm } from "@/components/events/EventForm";
 
 export default async function EventsPage() {
+  await requireCoordinator();
   const events = await listCoordinatorEvents();
   return (
-    <div>
-      <PageHeader title="Events" action={<Link href="/events/new"><Button>Create event</Button></Link>} />
+    <div className="space-y-6">
+      <PageHeader title="Events" description="Create and manage IYCM events. Only published events are visible to members." />
+      <Card>
+        <CardBody>
+          <h2 className="mb-4 text-base font-semibold">New event</h2>
+          <EventForm />
+        </CardBody>
+      </Card>
       <div className="space-y-3">
         {events.map((event) => (
           <Card key={event.id}>
-            <CardBody className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <CardBody className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <Link href={`/events/${event.id}`} className="font-semibold text-stone-900 hover:underline">
-                  {event.title}
-                </Link>
-                <p className="text-sm text-stone-500">{eventTimeLabel(event)} · {event.location}</p>
+                <p className="font-medium text-slate-900">{event.title}</p>
+                <p className="text-sm text-slate-500">{formatDate(event.eventDate)} · {event.location}</p>
               </div>
-              <div className="flex items-center gap-3 text-sm">
-                <span className="text-stone-600">{event._count.registrations} registered</span>
-                <Badge tone={event.status === "PUBLISHED" ? "teal" : "slate"}>{eventStatusLabel(event.status)}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge>{eventStatusLabel(event.status)}</Badge>
+                <Link href={`/events/${event.id}`}><Button size="sm" variant="secondary">Open</Button></Link>
               </div>
             </CardBody>
           </Card>
         ))}
-        {events.length === 0 ? <p className="text-sm text-stone-500">No events yet.</p> : null}
       </div>
     </div>
   );

@@ -1,185 +1,202 @@
-import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
-import { formatDate, formatTime12h, parseDateOnly } from "@/lib/dates";
-import { notifyMany } from "@/services/notifications";
-import { appUrl } from "@/lib/privacy";
-import type { EventStatus, Prisma } from "@prisma/client";
+import { logSafe } from "@/lib/log";
+import { notifyUser } from "@/services/notifications";
+import { parseDateOnly } from "@/lib/dates";
+import type { EventStatus } from "@prisma/client";
 import type { SessionUser } from "@/types";
 
-export function nextSundayDate(from = new Date()) {
-  const date = new Date(from);
-  const day = date.getDay();
-  const add = day === 0 ? 7 : 7 - day;
-  date.setDate(date.getDate() + add);
-  return date;
-}
-
-export function defaultDeadline(eventDate: Date, startTime = "09:00") {
-  const [h, m] = startTime.split(":").map(Number);
+export function defaultDeadline(eventDate: Date, startTime: string) {
+  const [hours, minutes] = startTime.split(":").map(Number);
   const start = new Date(eventDate);
-  start.setHours(h || 9, m || 0, 0, 0);
+  start.setUTCHours(hours || 0, minutes || 0, 0, 0);
   return new Date(start.getTime() - 48 * 60 * 60 * 1000);
 }
 
-export function newWalkInToken() {
-  return randomBytes(18).toString("hex");
+export function defaultCheckInOpensAt(eventDate: Date, checkInTime = "08:00") {
+  const [hours, minutes] = checkInTime.split(":").map(Number);
+  const opens = new Date(eventDate);
+  opens.setUTCHours(hours || 8, minutes || 0, 0, 0);
+  return opens;
+}
+
+export type EventInput = {
+  title: string;
+  description: string;
+  speakerName?: string;
+  speakerTitle?: string;
+  speakerOrganization?: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  capacity: number;
+  walkInCapacity?: number;
+  registrationDeadline?: string;
+  checkInOpensAt?: string;
+  internalNotes?: string;
+  status?: EventStatus;
+};
+
+function toData(input: EventInput, createdById?: string) {
+  const eventDate = parseDateOnly(input.eventDate);
+  const registrationDeadline = input.registrationDeadline
+    ? new Date(input.registrationDeadline)
+    : defaultDeadline(eventDate, input.startTime);
+  const checkInOpensAt = input.checkInOpensAt
+    ? new Date(input.checkInOpensAt)
+    : defaultCheckInOpensAt(eventDate);
+  if (input.endTime <= input.startTime) {
+    throw new AppError("End time must be after start time.", 400);
+  }
+  if (input.capacity < 1) throw new AppError("Capacity must be at least 1.", 400);
+  return {
+    title: input.title.trim(),
+    description: input.description.trim(),
+    speakerName: input.speakerName?.trim() || null,
+    speakerTitle: input.speakerTitle?.trim() || null,
+    speakerOrganization: input.speakerOrganization?.trim() || null,
+    eventDate,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    location: input.location.trim(),
+    capacity: input.capacity,
+    walkInCapacity: input.walkInCapacity ?? 10,
+    registrationDeadline,
+    checkInOpensAt,
+    internalNotes: input.internalNotes?.trim() || null,
+    status: input.status ?? "DRAFT",
+    createdById,
+  };
 }
 
 export async function listCoordinatorEvents() {
+  return prisma.event.findMany({ orderBy: [{ eventDate: "asc" }, { startTime: "asc" }] });
+}
+
+export async function listPublishedUpcomingEvents() {
   return prisma.event.findMany({
-    orderBy: [{ eventDate: "desc" }, { startTime: "desc" }],
+    where: {
+      status: { in: ["PUBLISHED", "REGISTRATION_CLOSED"] },
+      eventDate: { gte: parseDateOnly(new Date().toISOString().slice(0, 10)) },
+    },
+    orderBy: [{ eventDate: "asc" }, { startTime: "asc" }],
     include: {
-      _count: {
-        select: {
-          registrations: { where: { status: "REGISTERED" } },
-          checkIns: { where: { status: "CHECKED_IN" } },
-        },
+      registrations: {
+        where: { status: { in: ["REGISTERED", "WAITLISTED"] } },
+        select: { memberId: true, status: true, type: true },
       },
     },
   });
 }
 
-export async function listPublishedUpcomingEvents() {
-  const today = parseDateOnly(new Date().toISOString().slice(0, 10));
-  return prisma.event.findMany({
-    where: {
-      status: { in: ["PUBLISHED", "REGISTRATION_CLOSED"] },
-      eventDate: { gte: today },
+export async function getEvent(id: string) {
+  return prisma.event.findUnique({
+    where: { id },
+    include: {
+      registrations: {
+        include: { member: true, checkedInBy: { select: { name: true } } },
+        orderBy: [{ status: "asc" }, { createdAt: "asc" }],
+      },
     },
-    orderBy: [{ eventDate: "asc" }, { startTime: "asc" }],
   });
 }
 
-export async function getEvent(id: string) {
-  const event = await prisma.event.findUnique({ where: { id } });
-  if (!event) throw new AppError("Event not found.", 404, "NOT_FOUND");
+export async function createEvent(actor: SessionUser, input: EventInput) {
+  const event = await prisma.event.create({ data: toData(input, actor.id) });
+  logSafe("event.created", { eventId: event.id, status: event.status });
+  if (event.status === "PUBLISHED") await announcePublished(event.id);
   return event;
 }
 
-export async function eventCounts(eventId: string) {
-  const [registered, waitlisted, walkIns, checkedIn] = await Promise.all([
-    prisma.eventRegistration.count({ where: { eventId, status: "REGISTERED" } }),
-    prisma.eventRegistration.count({ where: { eventId, status: "WAITLISTED" } }),
-    prisma.eventRegistration.count({
-      where: { eventId, status: "REGISTERED", type: "WALK_IN" },
-    }),
-    prisma.eventCheckIn.count({ where: { eventId, status: "CHECKED_IN" } }),
-  ]);
-  return { registered, waitlisted, walkIns, checkedIn };
-}
-
-export async function createEvent(
-  input: {
-    title: string;
-    description: string;
-    speakerName?: string;
-    speakerTitle?: string;
-    speakerOrganization?: string;
-    eventDate: string;
-    startTime: string;
-    endTime: string;
-    location: string;
-    capacity: number;
-    registrationDeadline?: string;
-    walkInCapacity?: number;
-    checkInOpensAt?: string;
-  },
-  actor: SessionUser,
-) {
-  const eventDate = parseDateOnly(input.eventDate);
-  const deadline = input.registrationDeadline
-    ? new Date(input.registrationDeadline)
-    : defaultDeadline(eventDate, input.startTime);
-  return prisma.event.create({
-    data: {
-      title: input.title,
-      description: input.description,
-      speakerName: input.speakerName || null,
-      speakerTitle: input.speakerTitle || null,
-      speakerOrganization: input.speakerOrganization || null,
-      eventDate,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      location: input.location,
-      capacity: input.capacity,
-      registrationDeadline: deadline,
-      walkInCapacity: input.walkInCapacity ?? 10,
-      checkInOpensAt: input.checkInOpensAt || "08:00",
-      walkInToken: newWalkInToken(),
-      createdById: actor.id,
-      status: "DRAFT",
-    },
-  });
-}
-
-export async function updateEvent(
-  id: string,
-  input: Prisma.EventUncheckedUpdateInput,
-) {
-  return prisma.event.update({ where: { id }, data: input });
-}
-
-export async function publishEvent(id: string) {
-  const event = await prisma.event.update({
-    where: { id },
-    data: { status: "PUBLISHED" },
-  });
-  const members = await prisma.user.findMany({
-    where: { role: "MEMBER", active: true },
-    select: { id: true, email: true },
-  });
-  const when = `${formatDate(event.eventDate)} ${formatTime12h(event.startTime)}–${formatTime12h(event.endTime)}`;
-  const text = [
-    "A new community meetup has been announced.",
-    "",
-    event.title,
-    "",
-    when,
-    event.location,
-    "",
-    event.description,
-    "",
-    "Sign in to your Member Portal to register.",
-    appUrl("/portal"),
-  ].join("\n");
-  await notifyMany(members, {
-    title: "New International Youth Community Meetup",
-    body: `${event.title} · ${when}`,
-    href: "/portal",
-    subject: "New International Youth Community Meetup",
-    text,
-  });
+export async function updateEvent(actor: SessionUser, id: string, input: EventInput) {
+  const existing = await prisma.event.findUnique({ where: { id } });
+  if (!existing) throw new AppError("Event not found.", 404);
+  const event = await prisma.event.update({ where: { id }, data: toData(input, existing.createdById ?? actor.id) });
+  if (existing.status !== "PUBLISHED" && event.status === "PUBLISHED") {
+    await announcePublished(event.id);
+  }
+  logSafe("event.updated", { eventId: event.id, status: event.status });
   return event;
 }
 
 export async function setEventStatus(id: string, status: EventStatus) {
-  const event = await prisma.event.update({ where: { id }, data: { status } });
+  const existing = await prisma.event.findUnique({ where: { id } });
+  if (!existing) throw new AppError("Event not found.", 404);
   if (status === "COMPLETED") {
-    const registered = await prisma.eventRegistration.findMany({
-      where: { eventId: id, status: "REGISTERED" },
-      select: { memberId: true },
+    await prisma.eventRegistration.updateMany({
+      where: { eventId: id, status: "REGISTERED", checkInStatus: "REGISTERED" },
+      data: { checkInStatus: "NO_SHOW" },
     });
-    const checked = await prisma.eventCheckIn.findMany({
-      where: { eventId: id },
-      select: { memberId: true },
-    });
-    const checkedIds = new Set(checked.map((row) => row.memberId));
-    const missing = registered.filter((row) => !checkedIds.has(row.memberId));
-    if (missing.length) {
-      await prisma.eventCheckIn.createMany({
-        data: missing.map((row) => ({
-          eventId: id,
-          memberId: row.memberId,
-          status: "NO_SHOW",
-        })),
-        skipDuplicates: true,
-      });
-    }
   }
+  const event = await prisma.event.update({ where: { id }, data: { status } });
+  if (existing.status !== "PUBLISHED" && status === "PUBLISHED") await announcePublished(id);
+  logSafe("event.status", { eventId: id, status });
   return event;
 }
 
-export function eventTimeLabel(event: { eventDate: Date; startTime: string; endTime: string }) {
-  return `${formatDate(event.eventDate)} · ${formatTime12h(event.startTime)}–${formatTime12h(event.endTime)}`;
+async function announcePublished(eventId: string) {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) return;
+  const members = await prisma.user.findMany({ where: { role: "MEMBER", active: true } });
+  await Promise.all(
+    members.map((user) =>
+      notifyUser({
+        userId: user.id,
+        title: "New event published",
+        message: `${event.title} is open for registration.`,
+        href: "/home",
+        email: {
+          to: user.email,
+          subject: `IYCM: ${event.title}`,
+          text: `${event.title} is now open. Sign in to register.`,
+        },
+      }),
+    ),
+  );
+}
+
+export async function sendEventReminder(eventId: string) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      registrations: {
+        where: { status: "REGISTERED" },
+        include: { member: true, user: true },
+      },
+    },
+  });
+  if (!event || event.status === "CANCELLED") throw new AppError("Event is not available.", 400);
+  for (const row of event.registrations) {
+    const userId = row.userId ?? (await prisma.user.findUnique({ where: { email: row.member.email } }))?.id;
+    if (!userId) continue;
+    await notifyUser({
+      userId,
+      title: "Event reminder",
+      message: `${event.title} is coming up. We look forward to seeing you.`,
+      href: "/my-events",
+      email: {
+        to: row.member.email,
+        subject: `Reminder: ${event.title}`,
+        text: `This is a reminder for ${event.title}.`,
+      },
+    });
+  }
+  logSafe("event.reminder", { eventId, count: event.registrations.length });
+}
+
+export function memberFacingStatus(event: {
+  status: EventStatus;
+  registrationDeadline: Date;
+  capacity: number;
+  registeredCount: number;
+  myStatus?: string | null;
+}) {
+  if (event.myStatus === "REGISTERED") return "Registered";
+  if (event.myStatus === "WAITLISTED") return "Waitlisted";
+  if (event.status === "CANCELLED") return "Cancelled";
+  if (event.status === "COMPLETED" || event.status === "REGISTRATION_CLOSED") return "Registration Closed";
+  if (new Date() > event.registrationDeadline) return "Registration Closed";
+  if (event.registeredCount >= event.capacity) return "Spots Full";
+  return "Register";
 }

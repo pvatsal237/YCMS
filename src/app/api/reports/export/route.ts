@@ -1,54 +1,24 @@
 import { NextResponse } from "next/server";
-import { requireCoordinator } from "@/lib/session";
-import { eventReport, guidanceReport } from "@/services/reports";
-import { toCsv } from "@/utils/csv";
-import { formatDateTime } from "@/lib/dates";
+import { auth } from "@/auth";
+import { canViewReports } from "@/lib/authorization";
+import { exportEventCsv } from "@/services/reports";
 
 export async function GET(request: Request) {
-  await requireCoordinator();
-  const url = new URL(request.url);
-  const type = url.searchParams.get("type");
-  if (type === "event") {
-    const eventId = url.searchParams.get("eventId");
-    if (!eventId) return NextResponse.json({ error: "Missing event" }, { status: 400 });
-    const report = await eventReport(eventId);
-    const csv = toCsv(
-      ["Member", "Email", "Type", "Registered", "Checked In", "Check-In Time"],
-      report.participants.map((row) => [
-        row.name,
-        row.email,
-        row.type,
-        "yes",
-        row.checkedIn ? "yes" : "no",
-        row.checkInTime ? formatDateTime(row.checkInTime) : "",
-      ]),
-    );
-    return new NextResponse(csv, {
-      headers: {
-        "Content-Type": "text/csv",
-        "Content-Disposition": `attachment; filename="${report.event.title.replaceAll(" ", "-")}-report.csv"`,
-      },
-    });
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Session expired. Please sign in again." }, { status: 401 });
   }
-  if (type === "guidance") {
-    const report = await guidanceReport({});
-    const csv = toCsv(
-      ["Member", "Email", "Category", "Status", "Coordinator", "Submitted"],
-      report.rows.map((row) => [
-        `${row.member.firstName} ${row.member.lastName}`,
-        row.member.email,
-        row.category,
-        row.status,
-        row.assignedTo?.name ?? "",
-        formatDateTime(row.createdAt),
-      ]),
-    );
-    return new NextResponse(csv, {
-      headers: {
-        "Content-Type": "text/csv",
-        "Content-Disposition": "attachment; filename=guidance-report.csv",
-      },
-    });
+  if (!canViewReports(session.user.role)) {
+    return NextResponse.json({ error: "You do not have permission to perform this action." }, { status: 403 });
   }
-  return NextResponse.json({ error: "Unknown export" }, { status: 400 });
+  const { searchParams } = new URL(request.url);
+  const eventId = searchParams.get("eventId");
+  if (!eventId) return NextResponse.json({ error: "Unknown export." }, { status: 400 });
+  const csv = await exportEventCsv(eventId);
+  return new NextResponse(csv, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="iycm-event.csv"`,
+    },
+  });
 }

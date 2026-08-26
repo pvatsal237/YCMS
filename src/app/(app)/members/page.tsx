@@ -1,42 +1,44 @@
-import Link from "next/link";
-import { listMembers } from "@/services/members";
+import { requireCoordinator } from "@/lib/session";
+import { listMembers, maskPhone } from "@/services/members";
 import { PageHeader } from "@/components/ui/Feedback";
+import { Card, CardBody } from "@/components/ui/Card";
 import { fullName } from "@/utils/format";
-import { maskPhone } from "@/lib/privacy";
+import Link from "next/link";
 
 export default async function MembersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  await requireCoordinator();
   const { q } = await searchParams;
   const members = await listMembers(q);
   return (
-    <div>
-      <PageHeader title="Members" description="People who have signed in with Google." />
-      <form className="mb-4 max-w-sm">
-        <input name="q" defaultValue={q} placeholder="Search name or email" className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
+    <div className="space-y-6">
+      <PageHeader title="Members" description="Name, email, and masked phone only." />
+      <form>
+        <input name="q" defaultValue={q} placeholder="Search" className="max-w-md rounded-md border px-3 py-2 text-sm" />
       </form>
-      <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
-        <table className="min-w-full text-sm">
-          <thead className="bg-stone-50 text-xs uppercase text-stone-500">
-            <tr>
-              <th className="px-4 py-2 text-left">Name</th>
-              <th className="px-4 py-2 text-left">Email</th>
-              <th className="px-4 py-2 text-left">Phone</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-stone-100">
-            {members.map((member) => (
-              <tr key={member.id}>
-                <td className="px-4 py-2">
-                  <Link className="font-medium text-teal-800 hover:underline" href={`/members/${member.id}`}>
-                    {fullName(member)}
-                  </Link>
-                </td>
-                <td className="px-4 py-2">{member.email}</td>
-                <td className="px-4 py-2">{maskPhone(member.phone)}</td>
+      <Card>
+        <CardBody className="overflow-x-auto p-0">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-500">
+                <th className="px-5 py-3">Name</th>
+                <th className="px-5 py-3">Email</th>
+                <th className="px-5 py-3">Phone</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {members.map((row) => (
+                <tr key={row.id} className="border-t border-slate-100">
+                  <td className="px-5 py-3">
+                    <Link href={`/members/${row.id}`} className="font-medium text-teal-800">{fullName(row)}</Link>
+                  </td>
+                  <td className="px-5 py-3">{row.email}</td>
+                  <td className="px-5 py-3">{maskPhone(row.phone)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardBody>
+      </Card>
     </div>
   );
 }

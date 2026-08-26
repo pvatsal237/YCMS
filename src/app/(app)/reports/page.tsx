@@ -1,104 +1,99 @@
-import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import { eventReport, guidanceReport, dateRangeForPreset } from "@/services/reports";
+import { requireCoordinator } from "@/lib/session";
+import { eventReport, guidanceReport } from "@/services/reports";
+import { listCoordinatorEvents } from "@/services/events";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { formatDate } from "@/lib/dates";
-import { fullName, guidanceCategoryLabel, guidanceStatusLabel } from "@/utils/format";
+import { prisma } from "@/lib/prisma";
+import { GUIDANCE_LABELS } from "@/utils/format";
 
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ eventId?: string; range?: string; category?: string; status?: string; coordinatorId?: string }>;
+  searchParams: Promise<{ eventId?: string; range?: string; category?: string; status?: string; coordinator?: string }>;
 }) {
+  await requireCoordinator();
   const params = await searchParams;
-  const events = await prisma.event.findMany({ orderBy: { eventDate: "desc" }, take: 30 });
-  const coordinators = await prisma.user.findMany({ where: { role: "COORDINATOR" }, orderBy: { name: "asc" } });
-  const selectedEvent = params.eventId || events[0]?.id;
-  const report = selectedEvent ? await eventReport(selectedEvent) : null;
-  const range = dateRangeForPreset(params.range || "month");
+  const events = await listCoordinatorEvents();
+  const eventId = params.eventId ?? events[0]?.id;
+  const report = eventId ? await eventReport(eventId) : null;
+  const now = new Date();
+  const from =
+    params.range === "today"
+      ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      : params.range === "quarter"
+        ? new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
+        : new Date(now.getFullYear(), now.getMonth(), 1);
+  const coordinators = await prisma.user.findMany({ where: { role: "COORDINATOR" }, select: { id: true, name: true } });
   const guidance = await guidanceReport({
-    from: range.start,
-    to: range.end,
-    category: params.category,
-    status: params.status,
-    coordinatorId: params.coordinatorId,
+    from,
+    to: now,
+    category: params.category as never,
+    status: params.status as never,
+    coordinatorId: params.coordinator,
+    eventId: params.eventId,
   });
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Reports" />
+      <PageHeader title="Reports" description="Simple counts for events and guidance." />
       <Card>
-        <CardHeader title="Event report" action={selectedEvent ? <Link className="text-sm text-teal-800" href={`/api/reports/export?type=event&eventId=${selectedEvent}`}>Export CSV</Link> : null} />
+        <CardHeader title="Event report" />
         <CardBody className="space-y-3">
           <form className="flex gap-2">
-            <select name="eventId" defaultValue={selectedEvent} className="rounded-md border border-stone-300 px-3 py-2 text-sm">
+            <select name="eventId" defaultValue={eventId} className="rounded-md border px-3 py-2 text-sm">
               {events.map((event) => (
-                <option key={event.id} value={event.id}>{event.title} · {formatDate(event.eventDate)}</option>
+                <option key={event.id} value={event.id}>{event.title}</option>
               ))}
             </select>
-            <button type="submit" className="text-sm text-teal-800">View</button>
+            <button className="rounded-md border px-3 py-2 text-sm" type="submit">View</button>
+            {eventId ? (
+              <a className="rounded-md border px-3 py-2 text-sm" href={`/api/reports/export?type=event&eventId=${eventId}`}>
+                Export CSV
+              </a>
+            ) : null}
           </form>
           {report ? (
-            <>
-              <p className="text-sm text-stone-600">
-                Registered {report.counts.registered} · Checked in {report.counts.checkedIn} · No shows {report.counts.noShows} · Walk-ins {report.counts.walkIns} · Waitlisted {report.counts.waitlisted}
-              </p>
-              <div className="overflow-x-auto text-sm">
-                <table className="min-w-full">
-                  <thead className="text-xs uppercase text-stone-500">
-                    <tr>
-                      <th className="py-2 text-left">Member</th>
-                      <th className="py-2 text-left">Type</th>
-                      <th className="py-2 text-left">Checked in</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.participants.map((row) => (
-                      <tr key={row.email} className="border-t border-stone-100">
-                        <td className="py-2">{row.name}</td>
-                        <td className="py-2">{row.type === "WALK_IN" ? "Walk-In" : "Normal"}</td>
-                        <td className="py-2">{row.checkedIn ? "Yes" : row.noShow ? "No Show" : "No"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          ) : null}
+            <p className="text-sm">
+              Registered {report.counts.registered} · Checked in {report.counts.checkedIn} · No shows {report.counts.noShows} · Walk-ins {report.counts.walkIns} · Waitlisted {report.counts.waitlisted}
+            </p>
+          ) : (
+            <p className="text-sm text-slate-500">No event selected.</p>
+          )}
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Guidance report" action={<Link className="text-sm text-teal-800" href="/api/reports/export?type=guidance">Export CSV</Link>} />
+        <CardHeader title="Guidance report" />
         <CardBody className="space-y-3">
-          <form className="flex flex-wrap gap-2 text-sm">
-            <select name="range" defaultValue={params.range || "month"} className="rounded-md border border-stone-300 px-2 py-1">
+          <form className="flex flex-wrap gap-2">
+            <select name="range" defaultValue={params.range ?? "month"} className="rounded-md border px-3 py-2 text-sm">
               <option value="today">Today</option>
-              <option value="month">This month</option>
-              <option value="quarter">This quarter</option>
+              <option value="month">Month</option>
+              <option value="quarter">Quarter</option>
             </select>
-            <select name="status" defaultValue={params.status || ""} className="rounded-md border border-stone-300 px-2 py-1">
+            <select name="category" defaultValue={params.category ?? ""} className="rounded-md border px-3 py-2 text-sm">
+              <option value="">All categories</option>
+              {Object.entries(GUIDANCE_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+            <select name="status" defaultValue={params.status ?? ""} className="rounded-md border px-3 py-2 text-sm">
               <option value="">All statuses</option>
               <option value="NEW">New</option>
               <option value="CLAIMED">Claimed</option>
-              <option value="WAITING_FOR_MEMBER">Waiting</option>
+              <option value="WAITING_FOR_MEMBER">Waiting for Member</option>
               <option value="RESOLVED">Resolved</option>
             </select>
-            <select name="coordinatorId" defaultValue={params.coordinatorId || ""} className="rounded-md border border-stone-300 px-2 py-1">
+            <select name="coordinator" defaultValue={params.coordinator ?? ""} className="rounded-md border px-3 py-2 text-sm">
               <option value="">All coordinators</option>
-              {coordinators.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+              {coordinators.map((row) => (
+                <option key={row.id} value={row.id}>{row.name}</option>
+              ))}
             </select>
-            <button type="submit">Filter</button>
+            <button className="rounded-md border px-3 py-2 text-sm" type="submit">Filter</button>
           </form>
-          <p className="text-sm text-stone-600">
-            Received {guidance.counts.received} · Unclaimed {guidance.counts.unclaimed} · Claimed {guidance.counts.claimed} · Waiting {guidance.counts.waiting} · Resolved {guidance.counts.resolved}
+          <p className="text-sm">
+            Total {guidance.counts.total} · New {guidance.counts.new} · Claimed {guidance.counts.claimed} · Waiting {guidance.counts.waiting} · Resolved {guidance.counts.resolved}
           </p>
-          {guidance.rows.slice(0, 20).map((row) => (
-            <div key={row.id} className="text-sm">
-              {fullName(row.member)} · {guidanceCategoryLabel(row.category)} · {guidanceStatusLabel(row.status)}
-              {row.assignedTo ? ` · ${row.assignedTo.name}` : ""}
-            </div>
-          ))}
         </CardBody>
       </Card>
     </div>

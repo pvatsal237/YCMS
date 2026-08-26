@@ -1,92 +1,55 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { requireRoleAction } from "@/lib/session";
-import { eventFormSchema } from "@/validations/forms";
-import { createEvent, publishEvent, setEventStatus, updateEvent } from "@/services/events";
-import { parseDateOnly } from "@/lib/dates";
+import { requireCoordinator } from "@/lib/session";
+import { createEvent, sendEventReminder, setEventStatus, updateEvent, type EventInput } from "@/services/events";
 import { logServerError, toUserMessage } from "@/lib/errors";
-import type { ActionResult } from "@/types";
 import type { EventStatus } from "@prisma/client";
+import type { ActionResult } from "@/types";
 
-export async function createEventAction(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
+function formEvent(formData: FormData): EventInput {
+  return {
+    title: String(formData.get("title") ?? ""),
+    description: String(formData.get("description") ?? ""),
+    speakerName: String(formData.get("speakerName") ?? "") || undefined,
+    speakerTitle: String(formData.get("speakerTitle") ?? "") || undefined,
+    speakerOrganization: String(formData.get("speakerOrganization") ?? "") || undefined,
+    eventDate: String(formData.get("eventDate") ?? ""),
+    startTime: String(formData.get("startTime") ?? ""),
+    endTime: String(formData.get("endTime") ?? ""),
+    location: String(formData.get("location") ?? ""),
+    capacity: Number(formData.get("capacity") ?? 0),
+    walkInCapacity: Number(formData.get("walkInCapacity") ?? 10),
+    registrationDeadline: String(formData.get("registrationDeadline") ?? "") || undefined,
+    checkInOpensAt: String(formData.get("checkInOpensAt") ?? "") || undefined,
+    internalNotes: String(formData.get("internalNotes") ?? "") || undefined,
+    status: (String(formData.get("status") ?? "DRAFT") as EventStatus) || "DRAFT",
+  };
+}
+
+export async function saveEventAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   try {
-    const actor = await requireRoleAction(["COORDINATOR"]);
-    const parsed = eventFormSchema.safeParse(Object.fromEntries(formData.entries()));
-    if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Please check the form." };
-    }
-    const event = await createEvent(parsed.data, actor);
+    const actor = await requireCoordinator();
+    const id = String(formData.get("id") ?? "");
+    if (id) await updateEvent(actor, id, formEvent(formData));
+    else await createEvent(actor, formEvent(formData));
     revalidatePath("/events");
-    revalidatePath("/dashboard");
-    redirect(`/events/${event.id}`);
+    revalidatePath("/home");
+    return { ok: true, message: "Event saved." };
   } catch (error) {
-    if (typeof error === "object" && error && "digest" in error) throw error;
-    logServerError("createEventAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to create the event.") };
+    logServerError("saveEventAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to save event.") };
   }
 }
 
-export async function updateEventAction(id: string, formData: FormData): Promise<ActionResult> {
-  try {
-    await requireRoleAction(["COORDINATOR"]);
-    const parsed = eventFormSchema.safeParse(Object.fromEntries(formData.entries()));
-    if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Please check the form." };
-    }
-    await updateEvent(id, {
-      title: parsed.data.title,
-      description: parsed.data.description,
-      speakerName: parsed.data.speakerName || null,
-      speakerTitle: parsed.data.speakerTitle || null,
-      speakerOrganization: parsed.data.speakerOrganization || null,
-      eventDate: parseDateOnly(parsed.data.eventDate),
-      startTime: parsed.data.startTime,
-      endTime: parsed.data.endTime,
-      location: parsed.data.location,
-      capacity: parsed.data.capacity,
-      registrationDeadline: parsed.data.registrationDeadline
-        ? new Date(parsed.data.registrationDeadline)
-        : undefined,
-      walkInCapacity: parsed.data.walkInCapacity,
-      checkInOpensAt: parsed.data.checkInOpensAt || "08:00",
-      internalNotes: parsed.data.internalNotes || null,
-    });
-    revalidatePath(`/events/${id}`);
-    return { ok: true, message: "Event updated." };
-  } catch (error) {
-    logServerError("updateEventAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to update the event.") };
-  }
+export async function setEventStatusAction(formData: FormData) {
+  await requireCoordinator();
+  await setEventStatus(String(formData.get("id") ?? ""), String(formData.get("status") ?? "") as EventStatus);
+  revalidatePath("/events");
 }
 
-export async function publishEventAction(id: string): Promise<ActionResult> {
-  try {
-    await requireRoleAction(["COORDINATOR"]);
-    await publishEvent(id);
-    revalidatePath("/events");
-    revalidatePath("/dashboard");
-    revalidatePath("/portal");
-    return { ok: true, message: "Event published and members notified." };
-  } catch (error) {
-    logServerError("publishEventAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to publish the event.") };
-  }
-}
-
-export async function setEventStatusAction(id: string, status: EventStatus): Promise<ActionResult> {
-  try {
-    await requireRoleAction(["COORDINATOR"]);
-    await setEventStatus(id, status);
-    revalidatePath("/events");
-    revalidatePath(`/events/${id}`);
-    return { ok: true, message: "Event status updated." };
-  } catch (error) {
-    logServerError("setEventStatusAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to update status.") };
-  }
+export async function sendReminderAction(formData: FormData) {
+  await requireCoordinator();
+  await sendEventReminder(String(formData.get("id") ?? ""));
+  revalidatePath("/events");
 }

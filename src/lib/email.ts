@@ -4,15 +4,15 @@ export type EmailMessage = {
   text: string;
 };
 
-export async function sendEmail(message: EmailMessage): Promise<void> {
+export async function sendEmail(message: EmailMessage): Promise<{ ok: boolean; error?: string }> {
   const host = process.env.SMTP_HOST;
   if (!host) {
-    console.info("[IYCM email:console]", {
-      to: message.to,
-      subject: message.subject,
-      text: message.text,
-    });
-    return;
+    if (process.env.NODE_ENV === "production") {
+      console.error("[IYCM email] SMTP is not configured");
+      return { ok: false, error: "Email could not be sent. Please try again later." };
+    }
+    console.info("[IYCM email:console]", { to: message.to, subject: message.subject });
+    return { ok: true };
   }
 
   try {
@@ -27,17 +27,18 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
           : undefined,
     });
     await transporter.sendMail({
-      from: process.env.SMTP_FROM ?? "International Youth Community Meetup <no-reply@iycm.local>",
+      from: process.env.SMTP_FROM ?? "IYCM <no-reply@iycm.local>",
       to: message.to,
       subject: message.subject,
       text: message.text,
     });
+    return { ok: true };
   } catch (error) {
-    console.info("[IYCM email:fallback]", {
-      to: message.to,
-      subject: message.subject,
-      text: message.text,
-      error: error instanceof Error ? error.message : "send failed",
-    });
+    console.error("[IYCM email] send failed", error instanceof Error ? error.message : "send failed");
+    if (process.env.NODE_ENV === "production") {
+      return { ok: false, error: "Email could not be sent. Please try again later." };
+    }
+    console.info("[IYCM email:fallback]", { to: message.to, subject: message.subject });
+    return { ok: true };
   }
 }

@@ -2,23 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Calendar, ClipboardList, Home, MessageCircle, Users, X, BarChart3 } from "lucide-react";
-import { APP_SHORT_NAME, defaultHomePath, navItemsForRole } from "@/lib/authorization";
+import { Bell, Calendar, ClipboardCheck, Home, LayoutDashboard, LifeBuoy, Users, X } from "lucide-react";
+import { defaultHomePath, navItemsForRole } from "@/lib/authorization";
 import { cn } from "@/utils/format";
 import type { UserRole } from "@/types/roles";
 
 const icons: Record<string, React.ComponentType<{ className?: string }>> = {
-  "/dashboard": Home,
+  "/dashboard": LayoutDashboard,
   "/events": Calendar,
   "/members": Users,
-  "/guidance": MessageCircle,
-  "/reports": BarChart3,
+  "/guidance": LifeBuoy,
+  "/reports": ClipboardCheck,
   "/notifications": Bell,
-  "/portal": Home,
-  "/portal/events": Calendar,
-  "/portal/guidance": MessageCircle,
-  "/portal/profile": Users,
-  "/portal/notifications": Bell,
+  "/home": Home,
+  "/my-events": Calendar,
+  "/request-guidance": LifeBuoy,
+  "/profile": Users,
 };
 
 export function Sidebar({
@@ -36,30 +35,30 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-stone-200 bg-white text-stone-800 transition-transform lg:static lg:translate-x-0",
+        "fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-slate-900 text-slate-200 transition-transform lg:static lg:translate-x-0",
         open ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
       )}
     >
       <div className="flex h-16 items-center justify-between px-5">
-        <Link href={defaultHomePath(role)} className="text-sm font-semibold tracking-tight text-teal-800">
-          {APP_SHORT_NAME}
+        <Link href={defaultHomePath(role)} className="font-semibold tracking-tight text-white">
+          IYCM
         </Link>
-        <button type="button" className="rounded p-1 lg:hidden" onClick={onClose} aria-label="Close navigation">
+        <button type="button" className="rounded p-1 text-slate-300 hover:bg-slate-800 lg:hidden" onClick={onClose} aria-label="Close navigation">
           <X className="h-5 w-5" />
         </button>
       </div>
-      <nav className="flex-1 space-y-1 px-3 py-2">
+      <nav className="flex-1 space-y-1 px-3 py-4">
         {items.map((item) => {
-          const Icon = icons[item.href] ?? ClipboardList;
-          const active = pathname === item.href || (item.href !== "/portal" && pathname.startsWith(`${item.href}/`));
+          const Icon = icons[item.href] ?? LayoutDashboard;
+          const active = pathname === item.href || (item.href !== "/home" && pathname.startsWith(`${item.href}/`));
           return (
             <Link
-              key={item.href}
+              key={`${item.href}-${item.label}`}
               href={item.href}
               onClick={onClose}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium",
-                active ? "bg-teal-700 text-white" : "text-stone-600 hover:bg-stone-100",
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium",
+                active ? "bg-teal-700 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white",
               )}
             >
               <Icon className="h-4 w-4" />
@@ -68,6 +67,7 @@ export function Sidebar({
           );
         })}
       </nav>
+      <p className="px-5 pb-5 text-xs text-slate-500">International Youth Community Meetup</p>
     </aside>
   );
 }

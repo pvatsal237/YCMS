@@ -1,9 +1,10 @@
-import { listCheckInRoster } from "@/services/checkin";
-import { getEvent, eventCounts } from "@/services/events";
+import { notFound } from "next/navigation";
+import { requireCoordinator } from "@/lib/session";
+import { getEvent } from "@/services/events";
+import { checkInAction } from "@/actions/registration";
 import { PageHeader } from "@/components/ui/Feedback";
-import { CheckInButton } from "@/components/events/CheckInButton";
-import { WalkInQr } from "@/components/events/WalkInQr";
-import { maskPhone, appUrl } from "@/lib/privacy";
+import { Card, CardBody } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { fullName } from "@/utils/format";
 
 export default async function CheckInPage({
@@ -13,57 +14,44 @@ export default async function CheckInPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ q?: string }>;
 }) {
+  await requireCoordinator();
   const { id } = await params;
   const { q } = await searchParams;
   const event = await getEvent(id);
-  const roster = await listCheckInRoster(id, q);
-  const counts = await eventCounts(id);
+  if (!event) notFound();
+  const query = (q ?? "").trim().toLowerCase();
+  const rows = event.registrations.filter((row) => {
+    if (row.status !== "REGISTERED") return false;
+    if (!query) return true;
+    const hay = `${row.member.firstName} ${row.member.lastName} ${row.member.email}`.toLowerCase();
+    return hay.includes(query);
+  });
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Event Check-In"
-        description={`${event.title} · Walk-in slots remaining: ${Math.max(0, event.walkInCapacity - counts.walkIns)}`}
-      />
-      <WalkInQr url={appUrl(`/walk-in/${event.id}?t=${event.walkInToken}`)} />
-      <form className="max-w-sm">
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Search member"
-          className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
-        />
+    <div className="space-y-6">
+      <PageHeader title={`Check-in · ${event.title}`} description="Search quickly, then check in. Duplicate check-in is blocked." />
+      <form className="max-w-md">
+        <input name="q" defaultValue={q} placeholder="Search name or email" className="w-full rounded-md border px-3 py-2 text-sm" />
       </form>
-      <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
-        <table className="min-w-full text-sm">
-          <thead className="bg-stone-50 text-xs uppercase text-stone-500">
-            <tr>
-              <th className="px-4 py-2 text-left">Member</th>
-              <th className="px-4 py-2 text-left">Email</th>
-              <th className="px-4 py-2 text-left">Phone</th>
-              <th className="px-4 py-2 text-left">Registration</th>
-              <th className="px-4 py-2 text-left">Check-In</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-stone-100">
-            {roster.map((row) => (
-              <tr key={row.member.id}>
-                <td className="px-4 py-2 font-medium">{fullName(row.member)}</td>
-                <td className="px-4 py-2">{row.member.email}</td>
-                <td className="px-4 py-2">{maskPhone(row.member.phone)}</td>
-                <td className="px-4 py-2">{row.registration.type === "WALK_IN" ? "Walk-In" : "Registered"}</td>
-                <td className="px-4 py-2">
-                  <CheckInButton
-                    eventId={event.id}
-                    memberId={row.member.id}
-                    already={row.checkIn?.status === "CHECKED_IN"}
-                    at={row.checkIn?.checkedInAt}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="space-y-2">
+        {rows.map((row) => (
+          <Card key={row.id}>
+            <CardBody className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">{fullName(row.member)}</p>
+                <p className="text-sm text-slate-500">{row.member.email}{row.type === "WALK_IN" ? " · Walk-in" : ""}</p>
+              </div>
+              {row.checkInStatus === "CHECKED_IN" ? (
+                <p className="text-sm text-emerald-700">Checked in</p>
+              ) : (
+                <form action={checkInAction}>
+                  <input type="hidden" name="registrationId" value={row.id} />
+                  <Button type="submit" size="sm">Check In</Button>
+                </form>
+              )}
+            </CardBody>
+          </Card>
+        ))}
       </div>
     </div>
   );

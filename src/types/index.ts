@@ -1,12 +1,11 @@
 import type { UserRole } from "@/types/roles";
 import type { DefaultSession } from "next-auth";
-import "next-auth/jwt";
+import type { JWT as DefaultJWT } from "next-auth/jwt";
 
 export type SessionUser = {
   id: string;
   name: string;
   email: string;
-  image?: string | null;
   role: UserRole;
   active: boolean;
   memberId?: string | null;
@@ -26,12 +25,11 @@ declare module "next-auth" {
     role: UserRole;
     active: boolean;
     memberId?: string | null;
-    image?: string | null;
   }
 }
 
 declare module "next-auth/jwt" {
-  interface JWT {
+  interface JWT extends DefaultJWT {
     id: string;
     role: UserRole;
     active: boolean;

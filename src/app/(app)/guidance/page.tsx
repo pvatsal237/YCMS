@@ -1,47 +1,55 @@
 import Link from "next/link";
-import { listGuidanceRequests } from "@/services/guidance";
+import { requireCoordinator } from "@/lib/session";
+import { listGuidanceForCoordinator } from "@/services/guidance";
+import { claimGuidanceAction } from "@/actions/guidance";
 import { PageHeader } from "@/components/ui/Feedback";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { fullName, guidanceCategoryLabel, guidanceStatusLabel } from "@/utils/format";
-import { maskPhone } from "@/lib/privacy";
-import { formatDateTime } from "@/lib/dates";
-import type { GuidanceStatus } from "@prisma/client";
+import { Card, CardBody } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { fullName, guidanceStatusLabel, GUIDANCE_LABELS } from "@/utils/format";
 
-const GROUPS: Array<{ status: GuidanceStatus; title: string }> = [
-  { status: "NEW", title: "New / Unclaimed" },
-  { status: "CLAIMED", title: "Claimed" },
-  { status: "WAITING_FOR_MEMBER", title: "Waiting for member" },
-  { status: "RESOLVED", title: "Resolved" },
-];
-
-export default async function GuidanceQueuePage() {
-  const rows = await listGuidanceRequests();
+export default async function GuidancePage() {
+  await requireCoordinator();
+  const rows = await listGuidanceForCoordinator();
+  const unclaimed = rows.filter((row) => row.status === "NEW");
+  const mine = rows.filter((row) => row.status !== "NEW");
   return (
     <div className="space-y-6">
-      <PageHeader title="Guidance" description="Claim requests that match your expertise." />
-      {GROUPS.map((group) => {
-        const items = rows.filter((row) => row.status === group.status);
-        return (
-          <Card key={group.status}>
-            <CardHeader title={`${group.title} (${items.length})`} />
-            <CardBody className="space-y-3">
-              {items.map((row) => (
-                <Link key={row.id} href={`/guidance/${row.id}`} className="block rounded-md border border-stone-100 px-3 py-2 hover:bg-stone-50">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">{fullName(row.member)}</span>
-                    <span className="text-xs text-stone-500">{guidanceStatusLabel(row.status)}</span>
-                  </div>
-                  <p className="text-sm text-stone-600">{guidanceCategoryLabel(row.category)} · {row.member.email} · {maskPhone(row.member.phone)}</p>
-                  <p className="text-sm text-stone-500">{row.message}</p>
-                  {row.assignedTo ? <p className="text-xs text-teal-800">Assigned to: {row.assignedTo.name}</p> : null}
-                  <p className="text-xs text-stone-400">{formatDateTime(row.createdAt)}</p>
-                </Link>
-              ))}
-              {items.length === 0 ? <p className="text-sm text-stone-500">None.</p> : null}
+      <PageHeader title="Guidance" description="Claim a request to become the owner. There is no auto-assignment." />
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Unclaimed</h2>
+        {unclaimed.length === 0 ? <p className="text-sm text-slate-500">No new requests.</p> : unclaimed.map((row) => (
+          <Card key={row.id}>
+            <CardBody className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">{fullName(row.member)} · {GUIDANCE_LABELS[row.category]}</p>
+                <p className="text-sm text-slate-600">{row.message}</p>
+              </div>
+              <form action={claimGuidanceAction}>
+                <input type="hidden" name="id" value={row.id} />
+                <Button type="submit" size="sm">Claim Request</Button>
+              </form>
             </CardBody>
           </Card>
-        );
-      })}
+        ))}
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Claimed and later</h2>
+        {mine.map((row) => (
+          <Card key={row.id}>
+            <CardBody className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">{fullName(row.member)} · {GUIDANCE_LABELS[row.category]}</p>
+                <p className="text-sm text-slate-500">Owner: {row.claimedBy?.name ?? "—"}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge>{guidanceStatusLabel(row.status)}</Badge>
+                <Link href={`/guidance/${row.id}`} className="text-sm font-medium text-teal-800">Open</Link>
+              </div>
+            </CardBody>
+          </Card>
+        ))}
+      </section>
     </div>
   );
 }

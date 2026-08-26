@@ -21,18 +21,19 @@ enum EventStatus {
   CANCELLED
 }
 
-enum RegistrationType {
-  NORMAL
-  WALK_IN
-}
-
 enum RegistrationStatus {
   REGISTERED
   WAITLISTED
   CANCELLED
 }
 
+enum RegistrationType {
+  STANDARD
+  WALK_IN
+}
+
 enum CheckInStatus {
+  REGISTERED
   CHECKED_IN
   NO_SHOW
 }
@@ -58,24 +59,24 @@ enum GuidanceStatus {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  image         String?
-  role          UserRole
-  active        Boolean   @default(true)
-  emailVerified DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  memberId      String?   @unique
-  member        Member?   @relation("MemberLoginUser", fields: [memberId], references: [id], onDelete: SetNull)
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      UserRole
+  active    Boolean  @default(true)
+  memberId  String?  @unique
+  member    Member?  @relation("MemberLoginUser", fields: [memberId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  eventsCreated       Event[]              @relation("EventCreatedBy")
-  checkInsPerformed   EventCheckIn[]       @relation("CheckInBy")
-  guidanceAssigned    GuidanceRequest[]    @relation("GuidanceAssignedTo")
-  guidanceMessages    GuidanceMessage[]
-  notifications       Notification[]
-  coordinatorAllowlist CoordinatorAllowlist?
+  eventsCreated     Event[]             @relation("EventCreatedBy")
+  registrations     EventRegistration[]
+  checkInsRecorded  EventRegistration[] @relation("CheckedInBy")
+  guidanceClaimed   GuidanceRequest[]   @relation("GuidanceClaimedBy")
+  guidanceMessages  GuidanceMessage[]
+  notifications     Notification[]
+  emailOtps         EmailOtp[]
+  feedback          EventFeedback[]
 
   @@index([role, active])
 }
@@ -84,28 +85,24 @@ model CoordinatorAllowlist {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String
-  userId    String?  @unique
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
 }
 
 model Member {
-  id                String   @id @default(cuid())
-  firstName         String
-  lastName          String
-  email             String   @unique
-  image             String?
-  phone             String?
-  emergencyName     String?
-  emergencyPhone    String?
-  emergencyRelation String?
-  active            Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  loginUser         User?    @relation("MemberLoginUser")
+  id                    String   @id @default(cuid())
+  firstName             String
+  lastName              String
+  email                 String   @unique
+  phone                 String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  loginUser             User?    @relation("MemberLoginUser")
 
   registrations EventRegistration[]
-  checkIns      EventCheckIn[]
   guidance      GuidanceRequest[]
   feedback      EventFeedback[]
 
@@ -114,32 +111,30 @@ model Member {
 }
 
 model Event {
-  id                   String      @id @default(cuid())
-  title                String
-  description          String
-  speakerName          String?
-  speakerTitle         String?
-  speakerOrganization  String?
-  eventDate            DateTime    @db.Date
-  startTime            String
-  endTime              String
-  location             String
-  capacity             Int
-  registrationDeadline DateTime
-  walkInCapacity       Int         @default(10)
-  checkInOpensAt       String      @default("08:00")
-  status               EventStatus @default(DRAFT)
-  walkInToken          String      @unique
-  internalNotes        String?
-  reminderSentAt       DateTime?
-  createdById          String?
-  createdBy            User?       @relation("EventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt            DateTime    @default(now())
-  updatedAt            DateTime    @updatedAt
+  id                    String      @id @default(cuid())
+  title                 String
+  description           String
+  speakerName           String?
+  speakerTitle          String?
+  speakerOrganization   String?
+  eventDate             DateTime    @db.Date
+  startTime             String
+  endTime               String
+  location              String
+  capacity              Int
+  walkInCapacity        Int         @default(10)
+  registrationDeadline  DateTime
+  checkInOpensAt        DateTime
+  internalNotes         String?
+  status                EventStatus @default(DRAFT)
+  createdById           String?
+  createdBy             User?       @relation("EventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
   registrations EventRegistration[]
-  checkIns      EventCheckIn[]
   feedback      EventFeedback[]
+  guidance      GuidanceRequest[]
 
   @@index([status, eventDate])
   @@index([eventDate])
@@ -151,61 +146,71 @@ model EventRegistration {
   event            Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
   memberId         String
   member           Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  type             RegistrationType   @default(NORMAL)
+  userId           String?
+  user             User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type             RegistrationType   @default(STANDARD)
   status           RegistrationStatus @default(REGISTERED)
   waitlistPosition Int?
-  promotedAt       DateTime?
-  cancelledAt      DateTime?
+  checkInStatus    CheckInStatus      @default(REGISTERED)
+  checkedInAt      DateTime?
+  checkedInById    String?
+  checkedInBy      User?              @relation("CheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
+  cancelledAt      DateTime?
+  promotedAt       DateTime?
 
   @@unique([eventId, memberId])
   @@index([eventId, status])
   @@index([memberId, status])
+  @@index([eventId, waitlistPosition])
 }
 
-model EventCheckIn {
-  id              String        @id @default(cuid())
-  eventId         String
-  event           Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  memberId        String
-  member          Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  checkedInAt     DateTime      @default(now())
-  checkedInById   String?
-  checkedInBy     User?         @relation("CheckInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
-  status          CheckInStatus @default(CHECKED_IN)
+model EventFeedback {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
 
   @@unique([eventId, memberId])
-  @@index([eventId])
 }
 
 model GuidanceRequest {
-  id             String           @id @default(cuid())
-  memberId       String
-  member         Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  category       GuidanceCategory
-  otherTopic     String?
-  message        String
-  status         GuidanceStatus   @default(NEW)
-  assignedToId   String?
-  assignedTo     User?            @relation("GuidanceAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  claimedAt      DateTime?
-  resolvedAt     DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  messages       GuidanceMessage[]
+  id           String           @id @default(cuid())
+  memberId     String
+  member       Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  category     GuidanceCategory
+  customTopic  String?
+  message      String
+  status       GuidanceStatus   @default(NEW)
+  claimedById  String?
+  claimedBy    User?            @relation("GuidanceClaimedBy", fields: [claimedById], references: [id], onDelete: SetNull)
+  claimedAt    DateTime?
+  eventId      String?
+  event        Event?           @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  resolvedAt   DateTime?
+  messages     GuidanceMessage[]
 
   @@index([status, createdAt])
-  @@index([assignedToId, status])
+  @@index([claimedById, status])
   @@index([memberId, createdAt])
+  @@index([category, status])
 }
 
 model GuidanceMessage {
   id        String          @id @default(cuid())
   requestId String
   request   GuidanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   body      String
   createdAt DateTime        @default(now())
 
@@ -217,24 +222,25 @@ model Notification {
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
-  body      String
+  message   String
   href      String?
   readAt    DateTime?
   createdAt DateTime  @default(now())
 
-  @@index([userId, createdAt])
-  @@index([userId, readAt])
+  @@index([userId, readAt, createdAt])
 }
 
-model EventFeedback {
-  id        String   @id @default(cuid())
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  memberId  String
-  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  rating    Int
-  comment   String?
-  createdAt DateTime @default(now())
+model EmailOtp {
+  id         String    @id @default(cuid())
+  email      String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  @@unique([eventId, memberId])
+  @@index([email, createdAt])
+  @@index([email, consumedAt])
 }

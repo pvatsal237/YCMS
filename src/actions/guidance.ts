@@ -1,91 +1,58 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireRoleAction } from "@/lib/session";
-import { guidanceSchema } from "@/validations/forms";
+import { requireCoordinator, requireMemberSession, requireRoleAction } from "@/lib/session";
 import {
   addGuidanceMessage,
-  claimGuidanceRequest,
+  claimGuidance,
   createGuidanceRequest,
-  resolveGuidanceRequest,
+  updateGuidanceStatus,
 } from "@/services/guidance";
-import { AppError, logServerError, toUserMessage } from "@/lib/errors";
+import { logServerError, toUserMessage } from "@/lib/errors";
 import type { ActionResult } from "@/types";
-import type { GuidanceCategory } from "@prisma/client";
+import type { GuidanceCategory, GuidanceStatus } from "@prisma/client";
 
-export async function createGuidanceAction(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
+export async function createGuidanceAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   try {
-    const user = await requireRoleAction(["MEMBER"]);
-    if (!user.memberId) throw new AppError("Member profile not found.");
-    const parsed = guidanceSchema.safeParse(Object.fromEntries(formData.entries()));
-    if (!parsed.success) {
-      return { ok: false, error: parsed.error.issues[0]?.message ?? "Please check the form." };
-    }
-    if (parsed.data.category === "OTHER" && !parsed.data.otherTopic) {
-      return { ok: false, error: "What do you need guidance with?" };
-    }
-    await createGuidanceRequest({
-      memberId: user.memberId,
-      category: parsed.data.category as GuidanceCategory,
-      otherTopic: parsed.data.otherTopic,
-      message: parsed.data.message,
+    const user = await requireMemberSession();
+    await createGuidanceRequest(user, {
+      category: String(formData.get("category") ?? "") as GuidanceCategory,
+      customTopic: String(formData.get("customTopic") ?? "") || undefined,
+      message: String(formData.get("message") ?? ""),
     });
-    revalidatePath("/portal/guidance");
-    return { ok: true, message: "Request submitted. A coordinator will follow up." };
+    revalidatePath("/request-guidance");
+    revalidatePath("/guidance");
+    revalidatePath("/notifications");
+    return { ok: true, message: "Your request was sent to coordinators." };
   } catch (error) {
     logServerError("createGuidanceAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to submit your request.") };
+    return { ok: false, error: toUserMessage(error, "Unable to send your request.") };
   }
 }
 
-export async function claimGuidanceAction(id: string): Promise<ActionResult> {
+export async function claimGuidanceAction(formData: FormData) {
+  const actor = await requireCoordinator();
+  await claimGuidance(actor, String(formData.get("id") ?? ""));
+  revalidatePath("/guidance");
+}
+
+export async function guidanceStatusAction(formData: FormData) {
+  const actor = await requireCoordinator();
+  await updateGuidanceStatus(
+    actor,
+    String(formData.get("id") ?? ""),
+    String(formData.get("status") ?? "") as GuidanceStatus,
+  );
+  revalidatePath("/guidance");
+}
+
+export async function guidanceMessageAction(formData: FormData) {
   try {
-    const user = await requireRoleAction(["COORDINATOR"]);
-    await claimGuidanceRequest(id, user.id);
+    const actor = await requireRoleAction(["COORDINATOR", "MEMBER"]);
+    await addGuidanceMessage(actor, String(formData.get("id") ?? ""), String(formData.get("body") ?? ""));
     revalidatePath("/guidance");
-    revalidatePath(`/guidance/${id}`);
-    return { ok: true, message: "Request claimed." };
+    revalidatePath("/request-guidance");
   } catch (error) {
-    logServerError("claimGuidanceAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to claim this request.") };
-  }
-}
-
-export async function sendGuidanceMessageAction(
-  requestId: string,
-  formData: FormData,
-): Promise<ActionResult> {
-  try {
-    const user = await requireRoleAction(["COORDINATOR", "MEMBER"]);
-    const body = String(formData.get("body") ?? "").trim();
-    if (!body) return { ok: false, error: "Write a short message." };
-    await addGuidanceMessage({
-      requestId,
-      authorId: user.id,
-      body,
-      asCoordinator: user.role === "COORDINATOR",
-    });
-    revalidatePath(`/guidance/${requestId}`);
-    revalidatePath("/portal/guidance");
-    return { ok: true };
-  } catch (error) {
-    logServerError("sendGuidanceMessageAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to send message.") };
-  }
-}
-
-export async function resolveGuidanceAction(id: string): Promise<ActionResult> {
-  try {
-    await requireRoleAction(["COORDINATOR"]);
-    await resolveGuidanceRequest(id);
-    revalidatePath("/guidance");
-    revalidatePath(`/guidance/${id}`);
-    return { ok: true, message: "Marked resolved." };
-  } catch (error) {
-    logServerError("resolveGuidanceAction", error);
-    return { ok: false, error: toUserMessage(error, "Unable to resolve.") };
+    logServerError("guidanceMessageAction", error);
   }
 }
