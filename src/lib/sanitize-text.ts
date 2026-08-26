@@ -1,4 +1,6 @@
 const NULL_CHAR = "\u0000";
+/** ASCII controls U+0000–U+001F except tab/LF/CR, plus DEL (U+007F). */
+const UNSAFE_CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 
 export const EVENT_TEXT_FIELDS = [
   "title",
@@ -17,7 +19,9 @@ export function containsNullCharacters(value: unknown): boolean {
 }
 
 export function sanitizeEventText(value: unknown): string {
-  return String(value ?? "").replaceAll(NULL_CHAR, "").trim();
+  return String(value ?? "")
+    .replace(UNSAFE_CONTROL_CHARS, "")
+    .trim();
 }
 
 export function inspectEventTextFields(input: Record<string, unknown>) {

@@ -182,30 +182,35 @@ describe("event text sanitization", () => {
     expect(data.location).toBe("Hall A, The International Centre");
   });
 
-  it("removes null characters and keeps Unicode", () => {
+  it("removes unsafe ASCII control characters and keeps Unicode and line breaks", () => {
     expect(sanitizeEventText("Hello\u0000World")).toBe("HelloWorld");
+    expect(sanitizeEventText("A\u0001B\u001FC")).toBe("ABC");
+    expect(sanitizeEventText("Keep\tthis\nline\rand DEL\u007Fout")).toBe("Keep\tthis\nline\rand DELout");
+    expect(sanitizeEventText("café – résumé 🎉 O'Neil")).toBe("café – résumé 🎉 O'Neil");
     expect(sanitizeEventText("café – résumé\nline")).toBe("café – résumé\nline");
     const dirty = {
       ...base,
       title: "AI\u0000 Session",
-      description: "Use AI\u0000 responsibly",
-      speakerName: "Renée\u0000 Dupont",
-      speakerTitle: "Lead\u0000",
+      description: "Use AI\u0001 responsibly\nwith care",
+      speakerName: "Renée\u001F Dupont",
+      speakerTitle: "Lead\u007F",
       speakerOrganization: "École\u0000 Polytechnique",
-      location: "Montréal\u0000",
+      location: "Montréal\tHall A",
       internalNotes: "note\u0000",
     };
-    expect(inspectEventTextFields(dirty).every((field) => field.hadNull)).toBe(true);
+    expect(inspectEventTextFields(dirty).find((field) => field.field === "title")?.hadNull).toBe(true);
     const created = buildEventWriteData(dirty);
     const updated = buildEventWriteData({ ...dirty, title: "Updated\u0000 title" });
     expect(created.title).toBe("AI Session");
-    expect(created.description).toBe("Use AI responsibly");
+    expect(created.description).toBe("Use AI responsibly\nwith care");
     expect(created.speakerName).toBe("Renée Dupont");
+    expect(created.speakerTitle).toBe("Lead");
     expect(created.speakerOrganization).toBe("École Polytechnique");
-    expect(created.location).toBe("Montréal");
+    expect(created.location).toBe("Montréal\tHall A");
     expect(created.internalNotes).toBe("note");
     expect(updated.title).toBe("Updated title");
     expect(created.title.includes("\u0000")).toBe(false);
+    expect(created.description.includes("\u0001")).toBe(false);
     expect(updated.title.includes("\u0000")).toBe(false);
   });
 
