@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { maskEmail, maskPhone, splitDisplayName } from "@/lib/privacy";
+import { applyServerlessPrismaParams } from "@/lib/prisma-url";
 import { defaultDeadline, nextSundayDate } from "@/services/events";
 import { isPathAllowed, defaultHomePath } from "@/lib/authorization";
 
@@ -16,6 +17,17 @@ describe("privacy", () => {
   it("masks emails", () => {
     expect(maskEmail("hetvi.patel@gmail.com")).toBe("h***@gmail.com");
     expect(maskEmail(null)).toBe("(none)");
+  });
+});
+
+describe("prisma url", () => {
+  it("adds pgbouncer params for Neon pooler hosts only", () => {
+    const pooled =
+      "postgresql://u:p@ep-abc-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require";
+    expect(applyServerlessPrismaParams(pooled)).toContain("pgbouncer=true");
+    expect(applyServerlessPrismaParams(pooled)).toContain("connection_limit=1");
+    const local = "postgresql://ycms:ycms_dev_password@localhost:5432/ycms?schema=public";
+    expect(applyServerlessPrismaParams(local)).toBe(local);
   });
 });
 

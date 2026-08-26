@@ -1,24 +1,13 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { authConfig } from "@/auth.config";
-import { syncGoogleUser } from "@/lib/google-user";
-import { logServerError } from "@/lib/errors";
+import { logAuthStageFailure, syncGoogleUser } from "@/lib/google-user";
 import type { UserRole } from "@/types/roles";
 
 const secret = process.env.AUTH_SECRET?.trim() || process.env.NEXTAUTH_SECRET?.trim();
 const googleId = process.env.AUTH_GOOGLE_ID?.trim() || process.env.GOOGLE_CLIENT_ID?.trim();
 const googleSecret =
   process.env.AUTH_GOOGLE_SECRET?.trim() || process.env.GOOGLE_CLIENT_SECRET?.trim();
-const authUrl = process.env.AUTH_URL?.trim();
-
-if (!secret || !googleId || !googleSecret) {
-  console.error("[IYCM auth] configuration incomplete", {
-    AUTH_SECRET: Boolean(secret),
-    AUTH_GOOGLE_ID: Boolean(googleId),
-    AUTH_GOOGLE_SECRET: Boolean(googleSecret),
-    AUTH_URL: Boolean(authUrl),
-  });
-}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -34,46 +23,47 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   logger: {
     error(error) {
-      const type = "type" in error ? String(error.type) : error.name;
-      const cause =
-        error instanceof Error && error.cause instanceof Error ? error.cause.name : undefined;
-      console.error("[IYCM auth] Auth.js callback exception", { type, cause });
+      logAuthStageFailure("Auth.js callback exception", error);
     },
   },
   callbacks: {
     ...authConfig.callbacks,
-    async signIn({ account, profile }) {
+    async signIn({ account, profile, user }) {
       if (account?.provider !== "google") return true;
-      console.info("[IYCM auth] signIn callback start", {
-        provider: account.provider,
-        hasEmail: Boolean(profile?.email),
-      });
-      console.info("[IYCM auth] signIn callback end");
+      const email = typeof profile?.email === "string" ? profile.email : user?.email;
+      if (!email) {
+        logAuthStageFailure("signIn callback", new Error("MissingEmail"));
+        return false;
+      }
       return true;
     },
     async jwt({ token, account, profile, user }) {
       if (account?.provider === "google") {
-        console.info("[IYCM auth] jwt Google sync start");
         try {
           const synced = await syncGoogleUser({
-            email: profile?.email ?? (typeof token.email === "string" ? token.email : null),
-            name: profile?.name ?? (typeof token.name === "string" ? token.name : null),
+            email:
+              (typeof profile?.email === "string" && profile.email) ||
+              user?.email ||
+              (typeof token.email === "string" ? token.email : null),
+            name:
+              (typeof profile?.name === "string" && profile.name) ||
+              user?.name ||
+              (typeof token.name === "string" ? token.name : null),
             given_name: (profile as { given_name?: string } | undefined)?.given_name,
             family_name: (profile as { family_name?: string } | undefined)?.family_name,
-            picture: (profile as { picture?: string } | undefined)?.picture,
+            picture:
+              (profile as { picture?: string } | undefined)?.picture ?? user?.image ?? null,
           });
           token.id = synced.id;
           token.role = synced.role;
           token.active = synced.active;
-          token.memberId = synced.memberId;
-          token.picture = synced.image;
+          token.memberId = synced.memberId ?? null;
+          token.picture = synced.image ?? null;
           token.name = synced.name;
           token.email = synced.email;
-          console.info("[IYCM auth] jwt Google sync end", { role: synced.role });
           return token;
         } catch (error) {
-          console.error("[IYCM auth] jwt Google sync failed");
-          logServerError("googleJwtSync", error);
+          logAuthStageFailure("jwt Google sync", error);
           throw error;
         }
       }

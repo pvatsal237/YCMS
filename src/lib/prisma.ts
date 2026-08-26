@@ -1,10 +1,15 @@
 import { PrismaClient } from "@prisma/client";
+import { applyServerlessPrismaParams } from "@/lib/prisma-url";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createPrismaClient() {
+  const url = process.env.DATABASE_URL
+    ? applyServerlessPrismaParams(process.env.DATABASE_URL)
+    : undefined;
   return new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+    ...(url ? { datasources: { db: { url } } } : {}),
   });
 }
 
