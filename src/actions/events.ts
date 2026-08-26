@@ -1,43 +1,52 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCoordinator } from "@/lib/session";
+import { requireCoordinator, requireRoleAction } from "@/lib/session";
 import { createEvent, sendEventReminder, setEventStatus, updateEvent, type EventInput } from "@/services/events";
-import { logServerError, toUserMessage } from "@/lib/errors";
-import { inspectEventTextFields } from "@/lib/sanitize-text";
+import { isNextInterruptError, logServerError, toUserMessage } from "@/lib/errors";
+import { inspectEventTextFields, sanitizeEventFormData, sanitizeFormString } from "@/lib/sanitize-text";
 import { logSafe } from "@/lib/log";
 import type { EventStatus } from "@prisma/client";
 import type { ActionResult } from "@/types";
 
+function formInt(formData: FormData, name: string, fallback: number) {
+  const raw = sanitizeFormString(formData.get(name));
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function formEvent(formData: FormData): EventInput {
+  sanitizeEventFormData(formData);
   return {
-    title: String(formData.get("title") ?? ""),
-    description: String(formData.get("description") ?? ""),
-    speakerName: String(formData.get("speakerName") ?? "") || undefined,
-    speakerTitle: String(formData.get("speakerTitle") ?? "") || undefined,
-    speakerOrganization: String(formData.get("speakerOrganization") ?? "") || undefined,
-    eventDate: String(formData.get("eventDate") ?? ""),
-    startTime: String(formData.get("startTime") ?? ""),
-    endTime: String(formData.get("endTime") ?? ""),
-    location: String(formData.get("location") ?? ""),
-    capacity: Number(formData.get("capacity") ?? 0),
-    walkInCapacity: Number(formData.get("walkInCapacity") ?? 10),
-    internalNotes: String(formData.get("internalNotes") ?? "") || undefined,
-    status: (String(formData.get("status") ?? "DRAFT") as EventStatus) || "DRAFT",
+    title: sanitizeFormString(formData.get("title")),
+    description: sanitizeFormString(formData.get("description")),
+    speakerName: sanitizeFormString(formData.get("speakerName")) || undefined,
+    speakerTitle: sanitizeFormString(formData.get("speakerTitle")) || undefined,
+    speakerOrganization: sanitizeFormString(formData.get("speakerOrganization")) || undefined,
+    eventDate: sanitizeFormString(formData.get("eventDate")),
+    startTime: sanitizeFormString(formData.get("startTime")),
+    endTime: sanitizeFormString(formData.get("endTime")),
+    location: sanitizeFormString(formData.get("location")),
+    capacity: formInt(formData, "capacity", Number.NaN),
+    walkInCapacity: formInt(formData, "walkInCapacity", 10),
+    internalNotes: sanitizeFormString(formData.get("internalNotes")) || undefined,
+    status: (sanitizeFormString(formData.get("status")) || "DRAFT") as EventStatus,
   };
 }
 
 export async function saveEventAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const payload = formEvent(formData);
   try {
-    const actor = await requireCoordinator();
-    const id = String(formData.get("id") ?? "");
+    const actor = await requireRoleAction(["COORDINATOR"]);
+    const id = sanitizeFormString(formData.get("id"));
     if (id) await updateEvent(actor, id, payload);
     else await createEvent(actor, payload);
     revalidatePath("/events");
     revalidatePath("/home");
     return { ok: true, message: "Event saved." };
   } catch (error) {
+    if (isNextInterruptError(error)) throw error;
     const fields = inspectEventTextFields(payload as unknown as Record<string, unknown>);
     logSafe("event.save_failed", {
       hadNull: fields.some((field) => field.hadNull),

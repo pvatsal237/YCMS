@@ -29,6 +29,9 @@ export function EventForm({ event }: { event?: Event }) {
 
   async function saveAction(prev: ActionResult, formData: FormData) {
     sanitizeEventFormData(formData);
+    if (!String(formData.get("eventDate") ?? "").trim()) {
+      return { ok: false, error: "Please select an event date." };
+    }
     return saveEventAction(prev, formData);
   }
 
@@ -38,7 +41,7 @@ export function EventForm({ event }: { event?: Event }) {
     <form action={action} className="grid gap-4 sm:grid-cols-2">
       {event ? <input type="hidden" name="id" value={event.id} /> : null}
       {!state.ok ? <div className="sm:col-span-2"><Alert>{state.error}</Alert></div> : null}
-      {state.ok && state.message ? <div className="sm:col-span-2"><Alert tone="success">{state.message}</Alert></div> : null}
+      {state.ok && "message" in state && state.message ? <div className="sm:col-span-2"><Alert tone="success">{state.message}</Alert></div> : null}
       <div className="sm:col-span-2">
         <Field label="Event title" htmlFor="title">
           <Input id="title" name="title" required defaultValue={event?.title} />

@@ -15,7 +15,8 @@ import {
 import { defaultHomePath, isPathAllowed, navItemsForRole } from "@/lib/authorization";
 import { advanceRegistrationCapacity } from "@/lib/capacity";
 import { registrationConfirmationEmail } from "@/lib/registration-email";
-import { formatEventLongDate } from "@/lib/dates";
+import { formatEventLongDate, parseEventDate, parseTimeOfDay } from "@/lib/dates";
+import { AppError, toUserMessage } from "@/lib/errors";
 import {
   COORDINATOR_EMAIL_BLOCKED,
   DUPLICATE_MEMBER_EMAIL,
@@ -206,5 +207,16 @@ describe("event text sanitization", () => {
     expect(updated.title).toBe("Updated title");
     expect(created.title.includes("\u0000")).toBe(false);
     expect(updated.title.includes("\u0000")).toBe(false);
+  });
+
+  it("rejects missing dates and normalizes times", () => {
+    expect(() => parseEventDate("")).toThrow(AppError);
+    expect(() => parseEventDate("2026-13-40")).toThrow(AppError);
+    expect(parseEventDate("2026-08-30").toISOString()).toBe("2026-08-30T00:00:00.000Z");
+    expect(parseTimeOfDay("10:00:00", "start time")).toBe("10:00");
+    expect(() => buildEventWriteData({ ...base, eventDate: "" })).toThrow(/valid event date/i);
+    expect(() => buildEventWriteData({ ...base, startTime: "12:00", endTime: "10:00" })).toThrow(/after start time/i);
+    expect(() => buildEventWriteData({ ...base, capacity: Number.NaN })).toThrow(/valid capacity/i);
+    expect(toUserMessage(new Error("invalid byte sequence for encoding \"UTF8\": 0x00"), "Unable to save event.")).toMatch(/cannot be stored/i);
   });
 });

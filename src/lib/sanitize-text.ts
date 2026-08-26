@@ -32,11 +32,14 @@ export function inspectEventTextFields(input: Record<string, unknown>) {
   });
 }
 
+export function sanitizeFormString(value: unknown): string {
+  return sanitizeEventText(value);
+}
+
 export function sanitizeEventFormData(formData: FormData) {
-  for (const field of EVENT_TEXT_FIELDS) {
-    const value = formData.get(field);
+  for (const [key, value] of formData.entries()) {
     if (typeof value === "string") {
-      formData.set(field, sanitizeEventText(value));
+      formData.set(key, sanitizeFormString(value));
     }
   }
   return formData;

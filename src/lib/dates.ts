@@ -1,3 +1,5 @@
+import { AppError } from "@/lib/errors";
+
 export function startOfUtcDay(date = new Date()): Date {
   return new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
@@ -78,6 +80,45 @@ export function currentMonthRange(now = new Date()) {
 export function parseDateOnly(value: string): Date {
   const [year, month, day] = value.split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, day));
+}
+
+export function parseEventDate(value: string): Date {
+  const cleaned = String(value ?? "").replaceAll("\u0000", "").trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(cleaned);
+  if (!match) {
+    throw new AppError("Please select a valid event date.", 400);
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    throw new AppError("Please select a valid event date.", 400);
+  }
+  return date;
+}
+
+export function parseTimeOfDay(value: string, label: string): string {
+  const cleaned = String(value ?? "").replaceAll("\u0000", "").trim();
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(cleaned);
+  if (!match) {
+    throw new AppError(`Please enter a valid ${label}.`, 400);
+  }
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) {
+    throw new AppError(`Please enter a valid ${label}.`, 400);
+  }
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+export function timeToMinutes(value: string): number {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
 }
 
 export function formatComputedDateTime(date: Date | string | null | undefined): string {

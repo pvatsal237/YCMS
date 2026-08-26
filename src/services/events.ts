@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { AppError } from "@/lib/errors";
+import { AppError, logServerError } from "@/lib/errors";
 import { logSafe } from "@/lib/log";
 import { notifyUser } from "@/services/notifications";
-import { parseDateOnly } from "@/lib/dates";
+import { parseDateOnly, parseEventDate, parseTimeOfDay, timeToMinutes } from "@/lib/dates";
 import { advanceRegistrationCapacity } from "@/lib/capacity";
 import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
 import { sanitizeEventText } from "@/lib/sanitize-text";
@@ -34,27 +34,46 @@ function optionalText(value?: string | null) {
   return cleaned || null;
 }
 
+function requiredText(value: unknown, label: string) {
+  const cleaned = sanitizeEventText(value);
+  if (!cleaned) throw new AppError(`${label} is required.`, 400);
+  return cleaned;
+}
+
+function parseCapacity(value: unknown, label: string) {
+  const n = typeof value === "number" ? value : Number(sanitizeEventText(value));
+  if (!Number.isFinite(n)) throw new AppError(`Please enter a valid ${label}.`, 400);
+  return Math.trunc(n);
+}
+
 export function buildEventWriteData(input: EventInput, createdById?: string) {
-  const eventDate = parseDateOnly(input.eventDate);
-  const registrationDeadline = defaultDeadline(eventDate, input.startTime);
+  const title = requiredText(input.title, "Event title");
+  const description = requiredText(input.description, "Description");
+  const location = requiredText(input.location, "Location");
+  const eventDate = parseEventDate(input.eventDate);
+  const startTime = parseTimeOfDay(input.startTime, "start time");
+  const endTime = parseTimeOfDay(input.endTime, "end time");
+  const registrationDeadline = defaultDeadline(eventDate, startTime);
   const checkInOpensAt = defaultCheckInOpensAt(eventDate);
-  if (input.endTime <= input.startTime) {
+  if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
     throw new AppError("End time must be after start time.", 400);
   }
-  if (input.capacity < 1) throw new AppError("Capacity must be at least 1.", 400);
-  const walkInCapacity = input.walkInCapacity ?? 10;
-  advanceRegistrationCapacity(input.capacity, walkInCapacity);
+  const capacity = parseCapacity(input.capacity, "capacity");
+  if (capacity < 1) throw new AppError("Capacity must be at least 1.", 400);
+  const walkInCapacity = parseCapacity(input.walkInCapacity ?? 10, "walk-in reserve");
+  if (walkInCapacity < 0) throw new AppError("Walk-in reserve cannot be negative.", 400);
+  advanceRegistrationCapacity(capacity, walkInCapacity);
   return {
-    title: sanitizeEventText(input.title),
-    description: sanitizeEventText(input.description),
+    title,
+    description,
     speakerName: optionalText(input.speakerName),
     speakerTitle: optionalText(input.speakerTitle),
     speakerOrganization: optionalText(input.speakerOrganization),
     eventDate,
-    startTime: input.startTime,
-    endTime: input.endTime,
-    location: sanitizeEventText(input.location),
-    capacity: input.capacity,
+    startTime,
+    endTime,
+    location,
+    capacity,
     walkInCapacity,
     registrationDeadline,
     checkInOpensAt,
@@ -96,10 +115,19 @@ export async function getEvent(id: string) {
   });
 }
 
+async function announcePublishedSafe(eventId: string) {
+  try {
+    await announcePublished(eventId);
+  } catch (error) {
+    logSafe("event.publish_announce_failed", { eventId });
+    logServerError("announcePublished", error);
+  }
+}
+
 export async function createEvent(actor: SessionUser, input: EventInput) {
   const event = await prisma.event.create({ data: buildEventWriteData(input, actor.id) });
   logSafe("event.created", { eventId: event.id, status: event.status });
-  if (event.status === "PUBLISHED") await announcePublished(event.id);
+  if (event.status === "PUBLISHED") await announcePublishedSafe(event.id);
   return event;
 }
 
@@ -108,7 +136,7 @@ export async function updateEvent(actor: SessionUser, id: string, input: EventIn
   if (!existing) throw new AppError("Event not found.", 404);
   const event = await prisma.event.update({ where: { id }, data: buildEventWriteData(input, existing.createdById ?? actor.id) });
   if (existing.status !== "PUBLISHED" && event.status === "PUBLISHED") {
-    await announcePublished(event.id);
+    await announcePublishedSafe(event.id);
   }
   logSafe("event.updated", { eventId: event.id, status: event.status });
   return event;
