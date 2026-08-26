@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireCoordinator } from "@/lib/session";
 import { getGuidance } from "@/services/guidance";
-import { guidanceMessageAction, guidanceStatusAction } from "@/actions/guidance";
+import { claimGuidanceAction, guidanceMessageAction, guidanceStatusAction } from "@/actions/guidance";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -24,6 +24,12 @@ export default async function GuidanceDetailPage({ params }: { params: Promise<{
           <p>{request.message}</p>
           {request.customTopic ? <p>Topic: {request.customTopic}</p> : null}
           <p>Owner: {request.claimedBy?.name ?? "Unclaimed"}</p>
+          {request.status === "NEW" && !request.claimedById ? (
+            <form action={claimGuidanceAction}>
+              <input type="hidden" name="id" value={request.id} />
+              <Button type="submit" size="sm">Claim Request</Button>
+            </form>
+          ) : null}
         </CardBody>
       </Card>
       {isOwner ? (

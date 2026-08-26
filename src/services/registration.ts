@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { AppError } from "@/lib/errors";
 import { logSafe } from "@/lib/log";
 import { notifyUser } from "@/services/notifications";
+import { advanceRegistrationCapacity } from "@/lib/capacity";
+import { registrationConfirmationEmail } from "@/lib/registration-email";
 import type { SessionUser } from "@/types";
 
 async function requireMember(user: SessionUser) {
@@ -15,7 +17,7 @@ async function requireMember(user: SessionUser) {
 
 export async function registerForEvent(user: SessionUser, eventId: string) {
   const member = await requireMember(user);
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const event = await tx.event.findUnique({ where: { id: eventId } });
     if (!event || event.status !== "PUBLISHED") {
       throw new AppError("This event is not open for registration.", 400);
@@ -30,11 +32,12 @@ export async function registerForEvent(user: SessionUser, eventId: string) {
       throw new AppError("You are already registered or waitlisted for this event.", 400);
     }
 
+    const advanceCapacity = advanceRegistrationCapacity(event.capacity, event.walkInCapacity);
     const registeredCount = await tx.eventRegistration.count({
       where: { eventId, status: "REGISTERED", type: "STANDARD" },
     });
 
-    if (registeredCount < event.capacity) {
+    if (registeredCount < advanceCapacity) {
       const row = existing
         ? await tx.eventRegistration.update({
             where: { id: existing.id },
@@ -58,13 +61,7 @@ export async function registerForEvent(user: SessionUser, eventId: string) {
             },
           });
       logSafe("registration.confirmed", { eventId, memberId: member.id });
-      await notifyUser({
-        userId: user.id,
-        title: "Registration confirmed",
-        message: `You are registered for ${event.title}.`,
-        href: "/my-events",
-      });
-      return { kind: "REGISTERED" as const, row };
+      return { kind: "REGISTERED" as const, row, event };
     }
 
     const last = await tx.eventRegistration.findFirst({
@@ -94,14 +91,38 @@ export async function registerForEvent(user: SessionUser, eventId: string) {
           },
         });
     logSafe("registration.waitlisted", { eventId, memberId: member.id, position });
+    return { kind: "WAITLISTED" as const, row, event };
+  });
+
+  if (result.kind === "REGISTERED") {
+    const email = registrationConfirmationEmail({
+      memberName: `${member.firstName} ${member.lastName}`.trim(),
+      eventTitle: result.event.title,
+      eventDate: result.event.eventDate,
+      startTime: result.event.startTime,
+      endTime: result.event.endTime,
+      location: result.event.location,
+      speakerName: result.event.speakerName,
+      speakerTitle: result.event.speakerTitle,
+      speakerOrganization: result.event.speakerOrganization,
+    });
+    await notifyUser({
+      userId: user.id,
+      title: "Registration confirmed",
+      message: `You are registered for ${result.event.title}.`,
+      href: "/my-events",
+      email: { to: member.email, subject: email.subject, text: email.text },
+    });
+  } else {
     await notifyUser({
       userId: user.id,
       title: "Joined waitlist",
-      message: `You are on the waitlist for ${event.title}.`,
+      message: `You are on the waitlist for ${result.event.title}.`,
       href: "/my-events",
     });
-    return { kind: "WAITLISTED" as const, row };
-  });
+  }
+
+  return result;
 }
 
 export async function cancelRegistration(user: SessionUser, eventId: string) {
@@ -188,7 +209,10 @@ export async function registerWalkIn(user: SessionUser, eventId: string) {
   const walkIns = await prisma.eventRegistration.count({
     where: { eventId, status: "REGISTERED", type: "WALK_IN" },
   });
-  if (walkIns >= event.walkInCapacity) {
+  const totalRegistered = await prisma.eventRegistration.count({
+    where: { eventId, status: "REGISTERED" },
+  });
+  if (walkIns >= event.walkInCapacity || totalRegistered >= event.capacity) {
     logSafe("walkin.full", { eventId, memberId: member.id });
     return { kind: "FULL" as const, row: null };
   }

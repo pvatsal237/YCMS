@@ -34,6 +34,8 @@ export async function claimGuidanceAction(formData: FormData) {
   const actor = await requireCoordinator();
   await claimGuidance(actor, String(formData.get("id") ?? ""));
   revalidatePath("/guidance");
+  revalidatePath("/request-guidance");
+  revalidatePath("/notifications");
 }
 
 export async function guidanceStatusAction(formData: FormData) {
@@ -52,6 +54,7 @@ export async function guidanceMessageAction(formData: FormData) {
     await addGuidanceMessage(actor, String(formData.get("id") ?? ""), String(formData.get("body") ?? ""));
     revalidatePath("/guidance");
     revalidatePath("/request-guidance");
+    revalidatePath("/notifications");
   } catch (error) {
     logServerError("guidanceMessageAction", error);
   }

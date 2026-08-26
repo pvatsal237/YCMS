@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { defaultCheckInOpensAt, defaultDeadline } from "@/services/events";
+import { defaultCheckInOpensAt } from "@/services/events";
 
 const COORDINATORS = [
   { name: "Priya Sharma", email: "priya.sharma@iycm.local" },
@@ -54,25 +54,23 @@ async function main() {
   }
 
   const coordinator = await prisma.user.findUnique({ where: { email: COORDINATORS[0].email } });
-  const nextSunday = new Date();
-  nextSunday.setUTCDate(nextSunday.getUTCDate() + ((7 - nextSunday.getUTCDay()) % 7 || 7));
-  const eventDate = new Date(Date.UTC(nextSunday.getUTCFullYear(), nextSunday.getUTCMonth(), nextSunday.getUTCDate()));
 
   await prisma.event.create({
     data: {
-      title: "Career Development Sunday Meetup",
-      description: "Resume review, interview practice, and a short talk on internships in Canada.",
-      speakerName: "Riya Kapoor",
-      speakerTitle: "Career Coach",
-      speakerOrganization: "Pathways Studio",
-      eventDate,
+      title: "Mastering AI: From Everyday Tools to Real-World Impact",
+      description:
+        "Discover how artificial intelligence is transforming everyday work, education, and careers. This interactive session will explore practical ways to use AI responsibly, improve productivity, develop future-ready skills, and understand where AI is heading next. Attendees will also have an opportunity to ask questions and discuss real-world applications of AI.",
+      speakerName: "Dr. Elena Brooks",
+      speakerTitle: "Director, Applied AI & Innovation",
+      speakerOrganization: "Microsoft Canada",
+      eventDate: new Date(Date.UTC(2026, 7, 30)),
       startTime: "10:00",
       endTime: "12:00",
-      location: "Community Hall A",
-      capacity: 40,
+      location: "Hall A, The International Centre\n6900 Airport Road\nMississauga, ON L4V 1E8",
+      capacity: 50,
       walkInCapacity: 10,
-      registrationDeadline: defaultDeadline(eventDate, "10:00"),
-      checkInOpensAt: defaultCheckInOpensAt(eventDate),
+      registrationDeadline: new Date("2026-08-28T10:00:00.000Z"),
+      checkInOpensAt: defaultCheckInOpensAt(new Date(Date.UTC(2026, 7, 30))),
       status: "PUBLISHED",
       createdById: coordinator?.id,
     },

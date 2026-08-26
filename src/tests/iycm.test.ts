@@ -13,6 +13,9 @@ import {
   canShowDevOtp,
 } from "@/lib/otp";
 import { defaultHomePath, isPathAllowed, navItemsForRole } from "@/lib/authorization";
+import { advanceRegistrationCapacity } from "@/lib/capacity";
+import { registrationConfirmationEmail } from "@/lib/registration-email";
+import { formatEventLongDate } from "@/lib/dates";
 import {
   COORDINATOR_EMAIL_BLOCKED,
   DUPLICATE_MEMBER_EMAIL,
@@ -104,14 +107,40 @@ describe("privacy and registration labels", () => {
     expect(maskPhone("4165553487")).toBe("******3487");
   });
 
-  it("hides capacity and uses waitlist when full", () => {
+  it("treats walk-in reserve as part of total capacity", () => {
+    expect(advanceRegistrationCapacity(50, 10)).toBe(40);
+    expect(() => advanceRegistrationCapacity(10, 20)).toThrow();
+  });
+
+  it("hides capacity and uses waitlist when advance spots are full", () => {
     expect(
       memberFacingStatus({
         status: "PUBLISHED",
         registrationDeadline: new Date(Date.now() + 86_400_000),
-        capacity: 10,
-        registeredCount: 10,
+        advanceCapacity: 40,
+        advanceRegisteredCount: 40,
       }),
     ).toBe("Spots Full");
+  });
+
+  it("builds the registration confirmation email without logging the code", () => {
+    const email = registrationConfirmationEmail({
+      memberName: "Maya Patel",
+      eventTitle: "Mastering AI: From Everyday Tools to Real-World Impact",
+      eventDate: new Date("2026-08-30T00:00:00.000Z"),
+      startTime: "10:00",
+      endTime: "12:00",
+      location: "Hall A, The International Centre\n6900 Airport Road\nMississauga, ON L4V 1E8",
+      speakerName: "Dr. Elena Brooks",
+      speakerTitle: "Director, Applied AI & Innovation",
+      speakerOrganization: "Microsoft Canada",
+    });
+    expect(email.subject).toBe("You're registered — Mastering AI: From Everyday Tools to Real-World Impact");
+    expect(formatEventLongDate(new Date("2026-08-30T00:00:00.000Z"))).toBe("Sunday, August 30, 2026");
+    expect(email.text).toContain("Maya Patel");
+    expect(email.text).toContain("10:00 AM – 12:00 PM");
+    expect(email.text).toContain("Hall A, The International Centre");
+    expect(email.text).toContain("Dr. Elena Brooks");
+    expect(email.text).toContain("Your registration is confirmed");
   });
 });

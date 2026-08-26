@@ -12,6 +12,7 @@ import { formatDate, formatTime12h } from "@/lib/dates";
 import { checkInLabel, eventStatusLabel, fullName, registrationLabel } from "@/utils/format";
 import { maskPhone } from "@/services/members";
 import { headers } from "next/headers";
+import { advanceRegistrationCapacity } from "@/lib/capacity";
 
 export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireCoordinator();
@@ -30,6 +31,9 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         description={`${formatDate(event.eventDate)} · ${formatTime12h(event.startTime)}–${formatTime12h(event.endTime)} · ${event.location}`}
         action={<Badge>{eventStatusLabel(event.status)}</Badge>}
       />
+      <p className="text-sm text-slate-600">
+        Total capacity {event.capacity} · Advance registration {advanceRegistrationCapacity(event.capacity, event.walkInCapacity)} · Walk-in reserve {event.walkInCapacity} (included in total)
+      </p>
       <div className="flex flex-wrap gap-2">
         <Link href={`/events/${event.id}/check-in`}><Button size="sm">Event Check-In</Button></Link>
         <form action={sendReminderAction}>

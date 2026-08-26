@@ -25,10 +25,13 @@ export default async function GuidancePage() {
                 <p className="font-medium">{fullName(row.member)} · {GUIDANCE_LABELS[row.category]}</p>
                 <p className="text-sm text-slate-600">{row.message}</p>
               </div>
-              <form action={claimGuidanceAction}>
-                <input type="hidden" name="id" value={row.id} />
-                <Button type="submit" size="sm">Claim Request</Button>
-              </form>
+              <div className="flex items-center gap-2">
+                <Link href={`/guidance/${row.id}`} className="text-sm font-medium text-teal-800">Open</Link>
+                <form action={claimGuidanceAction}>
+                  <input type="hidden" name="id" value={row.id} />
+                  <Button type="submit" size="sm">Claim Request</Button>
+                </form>
+              </div>
             </CardBody>
           </Card>
         ))}

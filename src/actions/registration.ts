@@ -6,14 +6,23 @@ import { cancelRegistration, checkInMember, registerForEvent, registerWalkIn } f
 import { logServerError, toUserMessage } from "@/lib/errors";
 import type { ActionResult } from "@/types";
 
-export async function registerEventAction(formData: FormData) {
+export async function registerEventAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
   try {
     const user = await requireMemberSession();
-    await registerForEvent(user, String(formData.get("eventId") ?? ""));
+    const result = await registerForEvent(user, String(formData.get("eventId") ?? ""));
     revalidatePath("/home");
     revalidatePath("/my-events");
+    revalidatePath("/notifications");
+    if (result.kind === "WAITLISTED") {
+      return { ok: true, message: "You joined the waitlist for this event." };
+    }
+    return { ok: true, message: "You are registered. A confirmation was sent to your email." };
   } catch (error) {
     logServerError("registerEventAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to register for this event.") };
   }
 }
 

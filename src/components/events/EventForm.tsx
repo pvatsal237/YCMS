@@ -54,12 +54,15 @@ export function EventForm({ event }: { event?: Event }) {
       <Field label="End time" htmlFor="endTime">
         <Input id="endTime" name="endTime" type="time" required defaultValue={event?.endTime ?? "12:00"} />
       </Field>
-      <Field label="Capacity" htmlFor="capacity">
-        <Input id="capacity" name="capacity" type="number" min={1} required defaultValue={event?.capacity ?? 40} />
+      <Field label="Total capacity" htmlFor="capacity">
+        <Input id="capacity" name="capacity" type="number" min={1} required defaultValue={event?.capacity ?? 50} />
       </Field>
-      <Field label="Walk-in capacity (coordinator only)" htmlFor="walkInCapacity">
+      <Field label="Walk-in reserve (included in total)" htmlFor="walkInCapacity">
         <Input id="walkInCapacity" name="walkInCapacity" type="number" min={0} defaultValue={event?.walkInCapacity ?? 10} />
       </Field>
+      <p className="sm:col-span-2 text-xs text-slate-500">
+        Walk-in spaces are part of the total. Example: total 50 with a walk-in reserve of 10 leaves 40 advance member spots.
+      </p>
       <Field label="Registration deadline" htmlFor="registrationDeadline">
         <Input id="registrationDeadline" name="registrationDeadline" type="datetime-local" defaultValue={deadlineValue} />
       </Field>

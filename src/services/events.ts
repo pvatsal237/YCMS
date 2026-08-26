@@ -3,6 +3,7 @@ import { AppError } from "@/lib/errors";
 import { logSafe } from "@/lib/log";
 import { notifyUser } from "@/services/notifications";
 import { parseDateOnly } from "@/lib/dates";
+import { advanceRegistrationCapacity } from "@/lib/capacity";
 import type { EventStatus } from "@prisma/client";
 import type { SessionUser } from "@/types";
 
@@ -50,6 +51,8 @@ function toData(input: EventInput, createdById?: string) {
     throw new AppError("End time must be after start time.", 400);
   }
   if (input.capacity < 1) throw new AppError("Capacity must be at least 1.", 400);
+  const walkInCapacity = input.walkInCapacity ?? 10;
+  advanceRegistrationCapacity(input.capacity, walkInCapacity);
   return {
     title: input.title.trim(),
     description: input.description.trim(),
@@ -61,7 +64,7 @@ function toData(input: EventInput, createdById?: string) {
     endTime: input.endTime,
     location: input.location.trim(),
     capacity: input.capacity,
-    walkInCapacity: input.walkInCapacity ?? 10,
+    walkInCapacity,
     registrationDeadline,
     checkInOpensAt,
     internalNotes: input.internalNotes?.trim() || null,
@@ -188,8 +191,8 @@ export async function sendEventReminder(eventId: string) {
 export function memberFacingStatus(event: {
   status: EventStatus;
   registrationDeadline: Date;
-  capacity: number;
-  registeredCount: number;
+  advanceCapacity: number;
+  advanceRegisteredCount: number;
   myStatus?: string | null;
 }) {
   if (event.myStatus === "REGISTERED") return "Registered";
@@ -197,6 +200,6 @@ export function memberFacingStatus(event: {
   if (event.status === "CANCELLED") return "Cancelled";
   if (event.status === "COMPLETED" || event.status === "REGISTRATION_CLOSED") return "Registration Closed";
   if (new Date() > event.registrationDeadline) return "Registration Closed";
-  if (event.registeredCount >= event.capacity) return "Spots Full";
+  if (event.advanceRegisteredCount >= event.advanceCapacity) return "Spots Full";
   return "Register";
 }
