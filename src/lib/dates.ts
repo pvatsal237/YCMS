@@ -79,7 +79,9 @@ export function formatCheckInClock(date: Date | string | null | undefined): stri
     minute: "2-digit",
     hour12: true,
     timeZone: "UTC",
-  }).format(d);
+  })
+    .format(d)
+    .replace(/\u202f/g, " ");
 }
 
 export function formatCheckInOpensMessage(opensAt: Date | string) {

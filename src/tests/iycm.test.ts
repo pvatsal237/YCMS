@@ -16,7 +16,7 @@ import { COORDINATOR_DASHBOARD_STATS, defaultHomePath, isPathAllowed, navItemsFo
 import { eventTitleParts } from "@/utils/format";
 import { advanceRegistrationCapacity } from "@/lib/capacity";
 import { registrationConfirmationEmail } from "@/lib/registration-email";
-import { formatEventLongDate, formatTime12h, parseEventDate, parseTimeOfDay, formatCheckInOpensMessage, isCheckInOpen } from "@/lib/dates";
+import { formatEventLongDate, parseEventDate, parseTimeOfDay, formatCheckInOpensMessage, isCheckInOpen } from "@/lib/dates";
 import { AppError, toUserMessage } from "@/lib/errors";
 import {
   COORDINATOR_EMAIL_BLOCKED,
