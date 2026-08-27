@@ -143,24 +143,29 @@ export async function updateGuidanceStatus(actor: SessionUser, id: string, statu
     where: { id },
     data: { status, resolvedAt: status === "RESOLVED" ? new Date() : request.resolvedAt },
   });
-  const memberUser = await prisma.user.findFirst({ where: { memberId: request.memberId } });
-  if (memberUser) {
-    await notifyUser({
-      userId: memberUser.id,
-      title: "Guidance update",
-      message: `Your request is now ${status.replaceAll("_", " ").toLowerCase()}.`,
-      href: "/request-guidance",
-      email:
-        status === "RESOLVED"
-          ? {
-              to: memberUser.email,
-              subject: "Your IYCM guidance request was resolved",
-              text: "A coordinator marked your guidance request as resolved.",
-            }
-          : undefined,
-    });
-  }
   logSafe("guidance.status", { requestId: id, status });
+  try {
+    const memberUser = await prisma.user.findFirst({ where: { memberId: request.memberId } });
+    if (memberUser) {
+      await notifyUser({
+        userId: memberUser.id,
+        title: "Guidance update",
+        message: `Your request is now ${status.replaceAll("_", " ").toLowerCase()}.`,
+        href: "/request-guidance",
+        email:
+          status === "RESOLVED"
+            ? {
+                to: memberUser.email,
+                subject: "Your IYCM guidance request was resolved",
+                text: "A coordinator marked your guidance request as resolved.",
+              }
+            : undefined,
+      });
+    }
+  } catch (error) {
+    logSafe("guidance.status_notify_failed", { requestId: id, status });
+    logServerError("updateGuidanceStatus.notify", error);
+  }
   return updated;
 }
 

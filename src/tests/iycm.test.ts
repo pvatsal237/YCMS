@@ -49,7 +49,9 @@ import {
   isActiveAssignedGuidance,
   isResolvedGuidance,
   isUnclaimedGuidance,
+  nextGuidanceStatusButtons,
 } from "@/lib/guidance-rules";
+import { accountDetectedMessage } from "@/lib/account-detected-message";
 import { guidanceAssignmentLabel } from "@/services/guidance";
 import {
   inspectEventWriteStrings,
@@ -167,6 +169,16 @@ describe("coordinator list helpers", () => {
     );
     expect(isUnclaimedGuidance({ status: "NEW", claimedById: null })).toBe(true);
     expect(isUnclaimedGuidance({ status: "CLAIMED", claimedById: "me" })).toBe(false);
+    expect(nextGuidanceStatusButtons("CLAIMED")).toEqual(["WAITING_FOR_MEMBER", "RESOLVED"]);
+    expect(nextGuidanceStatusButtons("WAITING_FOR_MEMBER")).toEqual(["CLAIMED", "RESOLVED"]);
+    expect(nextGuidanceStatusButtons("RESOLVED")).toEqual([]);
+    expect(nextGuidanceStatusButtons("NEW")).toEqual([]);
+  });
+
+  it("shows an informational account label that does not authorize login", () => {
+    expect(accountDetectedMessage(true)).toBe("Coordinator account detected.");
+    expect(accountDetectedMessage(false)).toBe("Member account detected.");
+    expect(accountDetectedMessage(null)).toBeNull();
   });
 
   it("hides the unclaimed empty state when the coordinator already has assigned requests", () => {

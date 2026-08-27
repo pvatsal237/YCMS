@@ -30,6 +30,12 @@ export function canCoordinatorReleaseGuidance(
   return Boolean(request.claimedById) && request.claimedById === actorId && request.status !== "RESOLVED";
 }
 
+export function nextGuidanceStatusButtons(status: string): Array<"CLAIMED" | "WAITING_FOR_MEMBER" | "RESOLVED"> {
+  if (status === "CLAIMED") return ["WAITING_FOR_MEMBER", "RESOLVED"];
+  if (status === "WAITING_FOR_MEMBER") return ["CLAIMED", "RESOLVED"];
+  return [];
+}
+
 export function alreadyClaimedMessage(coordinatorName: string | null | undefined) {
   return `This request has already been claimed by ${coordinatorName || "another coordinator"}.`;
 }

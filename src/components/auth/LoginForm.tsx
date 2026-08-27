@@ -17,7 +17,7 @@ export function LoginForm({
   const [email, setEmail] = useState("");
   const [step, setStep] = useState<"email" | "otp">("email");
   const [requestState, requestAction, requestPending] = useActionState(
-    async (prev: ActionResult<{ devOtp?: string }>, formData: FormData) => {
+    async (prev: ActionResult<{ devOtp?: string; detectedRoleLabel?: string }>, formData: FormData) => {
       const result = await requestOtpAction(prev, formData);
       if (result.ok) {
         setEmail(String(formData.get("email") ?? "").trim().toLowerCase());
@@ -25,7 +25,7 @@ export function LoginForm({
       }
       return result;
     },
-    { ok: true } as ActionResult<{ devOtp?: string }>,
+    { ok: true } as ActionResult<{ devOtp?: string; detectedRoleLabel?: string }>,
   );
   const [verifyState, verifyAction, verifyPending] = useActionState(verifyOtpAction, {
     ok: true,
@@ -53,6 +53,9 @@ export function LoginForm({
         </form>
       ) : (
         <form action={verifyAction} className="space-y-4">
+          {requestState.ok && requestState.data?.detectedRoleLabel ? (
+            <p className="text-sm text-slate-600">{requestState.data.detectedRoleLabel}</p>
+          ) : null}
           {requestState.ok && requestState.message ? (
             <p className="text-sm text-slate-600">{requestState.message}</p>
           ) : null}

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCoordinator, requireRoleAction } from "@/lib/session";
+import { requireRoleAction } from "@/lib/session";
 import {
   addGuidanceMessage,
   cancelGuidanceRequest,
@@ -47,9 +47,10 @@ export async function cancelGuidanceAction(_prev: ActionResult, formData: FormDa
   }
 }
 
-function revalidateGuidancePaths() {
+function revalidateGuidancePaths(requestId?: string) {
   try {
     revalidatePath("/guidance");
+    if (requestId) revalidatePath(`/guidance/${requestId}`);
     revalidatePath("/request-guidance");
     revalidatePath("/notifications");
     revalidatePath("/dashboard");
@@ -61,8 +62,9 @@ function revalidateGuidancePaths() {
 export async function claimGuidanceAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   try {
     const actor = await requireRoleAction(["COORDINATOR"]);
-    await claimGuidance(actor, String(formData.get("id") ?? ""));
-    revalidateGuidancePaths();
+    const id = String(formData.get("id") ?? "");
+    await claimGuidance(actor, id);
+    revalidateGuidancePaths(id);
     return { ok: true, message: "Request claimed." };
   } catch (error) {
     if (isNextInterruptError(error)) throw error;
@@ -74,8 +76,9 @@ export async function claimGuidanceAction(_prev: ActionResult, formData: FormDat
 export async function releaseGuidanceAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   try {
     const actor = await requireRoleAction(["COORDINATOR"]);
-    await releaseGuidance(actor, String(formData.get("id") ?? ""));
-    revalidateGuidancePaths();
+    const id = String(formData.get("id") ?? "");
+    await releaseGuidance(actor, id);
+    revalidateGuidancePaths(id);
     return { ok: true, message: "Request released to the coordinator queue." };
   } catch (error) {
     if (isNextInterruptError(error)) throw error;
@@ -84,14 +87,18 @@ export async function releaseGuidanceAction(_prev: ActionResult, formData: FormD
   }
 }
 
-export async function guidanceStatusAction(formData: FormData) {
-  const actor = await requireCoordinator();
-  await updateGuidanceStatus(
-    actor,
-    String(formData.get("id") ?? ""),
-    String(formData.get("status") ?? "") as GuidanceStatus,
-  );
-  revalidatePath("/guidance");
+export async function guidanceStatusAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  try {
+    const actor = await requireRoleAction(["COORDINATOR"]);
+    const id = String(formData.get("id") ?? "");
+    await updateGuidanceStatus(actor, id, String(formData.get("status") ?? "") as GuidanceStatus);
+    revalidateGuidancePaths(id);
+    return { ok: true, message: "Status updated." };
+  } catch (error) {
+    if (isNextInterruptError(error)) throw error;
+    logServerError("guidanceStatusAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to update this request.") };
+  }
 }
 
 export async function guidanceMessageAction(formData: FormData) {

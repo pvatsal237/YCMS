@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { signIn, signOut } from "@/auth";
 import { otpRequestSchema, otpVerifySchema } from "@/validations/auth";
 import type { ActionResult } from "@/types";
-import { assertOtp, markOtpConsumed, requestOtp, resolveUserAfterOtp } from "@/services/otp-auth";
+import { assertOtp, isCoordinatorEmail, markOtpConsumed, requestOtp, resolveUserAfterOtp } from "@/services/otp-auth";
+import { accountDetectedMessage } from "@/lib/account-detected-message";
 import { OTP_GENERIC_INVALID_MESSAGE, normalizeEmail, normalizeOtp } from "@/lib/otp";
 import { logServerError, toUserMessage } from "@/lib/errors";
 import { defaultHomePath } from "@/lib/authorization";
@@ -13,16 +14,22 @@ import { setAuthjsSessionCookie } from "@/lib/auth-session-cookie";
 import { logSafe } from "@/lib/log";
 
 export async function requestOtpAction(
-  _prev: ActionResult<{ devOtp?: string }>,
+  _prev: ActionResult<{ devOtp?: string; detectedRoleLabel?: string }>,
   formData: FormData,
-): Promise<ActionResult<{ devOtp?: string }>> {
+): Promise<ActionResult<{ devOtp?: string; detectedRoleLabel?: string }>> {
   const parsed = otpRequestSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Enter a valid email." };
   }
   try {
     const result = await requestOtp(parsed.data.email);
-    return { ok: true, message: result.message, data: { devOtp: result.devOtp } };
+    let detectedRoleLabel: string | undefined;
+    try {
+      detectedRoleLabel = accountDetectedMessage(Boolean(await isCoordinatorEmail(parsed.data.email))) ?? undefined;
+    } catch (error) {
+      logServerError("requestOtpAction.roleHint", error);
+    }
+    return { ok: true, message: result.message, data: { devOtp: result.devOtp, detectedRoleLabel } };
   } catch (error) {
     logServerError("requestOtpAction", error);
     return { ok: false, error: toUserMessage(error, "Unable to send a sign-in code. Please try again.") };

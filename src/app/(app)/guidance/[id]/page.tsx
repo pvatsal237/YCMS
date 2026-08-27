@@ -2,14 +2,16 @@ import { notFound } from "next/navigation";
 import { requireCoordinator } from "@/lib/session";
 import { getGuidance, guidanceAssignmentLabel } from "@/services/guidance";
 import { canCoordinatorReleaseGuidance, isUnclaimedGuidance } from "@/lib/guidance-rules";
-import { guidanceMessageAction, guidanceStatusAction } from "@/actions/guidance";
+import { guidanceMessageAction } from "@/actions/guidance";
 import { ClaimGuidanceButton } from "@/components/guidance/ClaimGuidanceButton";
+import { GuidanceStatusButtons } from "@/components/guidance/GuidanceStatusButtons";
 import { ReleaseGuidanceButton } from "@/components/guidance/ReleaseGuidanceButton";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatDateTime } from "@/lib/dates";
-import { fullName, guidanceStatusLabel, GUIDANCE_LABELS } from "@/utils/format";
+import { fullName, guidanceStatusLabel, guidanceStatusTone, GUIDANCE_LABELS } from "@/utils/format";
 
 export default async function GuidanceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const actor = await requireCoordinator();
@@ -23,7 +25,7 @@ export default async function GuidanceDetailPage({ params }: { params: Promise<{
     <div className="space-y-6">
       <PageHeader
         title={`${fullName(request.member)} · ${GUIDANCE_LABELS[request.category]}`}
-        description={guidanceStatusLabel(request.status)}
+        description={`Current status: ${guidanceStatusLabel(request.status)}`}
       />
       <Card>
         <CardBody className="space-y-2 text-sm">
@@ -40,16 +42,19 @@ export default async function GuidanceDetailPage({ params }: { params: Promise<{
         </CardBody>
       </Card>
       {isOwner ? (
-        <div className="flex flex-wrap gap-2">
-          {(["CLAIMED", "WAITING_FOR_MEMBER", "RESOLVED"] as const).map((status) => (
-            <form action={guidanceStatusAction} key={status}>
-              <input type="hidden" name="id" value={request.id} />
-              <input type="hidden" name="status" value={status} />
-              <Button type="submit" size="sm" variant="secondary">{guidanceStatusLabel(status)}</Button>
-            </form>
-          ))}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-500">Status</span>
+            <Badge tone={guidanceStatusTone(request.status)}>{guidanceStatusLabel(request.status)}</Badge>
+          </div>
+          <GuidanceStatusButtons requestId={request.id} currentStatus={request.status} />
         </div>
-      ) : null}
+      ) : (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-slate-500">Status</span>
+          <Badge tone={guidanceStatusTone(request.status)}>{guidanceStatusLabel(request.status)}</Badge>
+        </div>
+      )}
       <Card>
         <CardBody className="space-y-3">
           {request.messages.map((message) => (
