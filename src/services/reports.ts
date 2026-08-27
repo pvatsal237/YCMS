@@ -29,8 +29,8 @@ export async function eventReport(eventId: string) {
 }
 
 export async function reportsOverview() {
-  const [totalEvents, guidanceRequests, groups] = await Promise.all([
-    prisma.event.count(),
+  const [totalCompletedEvents, guidanceRequests, groups] = await Promise.all([
+    prisma.event.count({ where: { status: "COMPLETED" } }),
     prisma.guidanceRequest.count(),
     prisma.eventRegistration.groupBy({
       by: ["status", "type", "checkInStatus"],
@@ -50,7 +50,7 @@ export async function reportsOverview() {
     if (row.type === "WALK_IN") walkIns += count;
   }
   return {
-    totalEvents,
+    totalCompletedEvents,
     totalRegistrations,
     totalCheckIns,
     totalNoShows,

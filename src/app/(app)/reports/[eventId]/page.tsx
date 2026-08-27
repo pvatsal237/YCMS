@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Table } from "@/components/ui/Table";
 import { formatEventLongDate, formatTime12h, formatDateTime } from "@/lib/dates";
 import { formatPhoneDisplay } from "@/services/members";
-import { checkInLabel, fullName, registrationLabel, registrationTypeLabel } from "@/utils/format";
+import { checkInLabel, eventStatusLabel, fullName, registrationLabel, registrationTypeLabel } from "@/utils/format";
 
 export default async function EventReportPage({ params }: { params: Promise<{ eventId: string }> }) {
   await requireCoordinator();
@@ -25,10 +25,11 @@ export default async function EventReportPage({ params }: { params: Promise<{ ev
         description={`${formatEventLongDate(event.eventDate)} · ${formatTime12h(event.startTime)} – ${formatTime12h(event.endTime)}`}
         action={
           <div className="flex flex-wrap gap-2">
-            <a href={`/api/reports/export?eventId=${event.id}`}>
-              <Button size="sm" variant="secondary">
-                Export CSV
-              </Button>
+            <a
+              href={`/api/reports/export?eventId=${event.id}`}
+              className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            >
+              Export CSV
             </a>
             <Link href="/reports">
               <Button size="sm" variant="ghost">
@@ -50,7 +51,11 @@ export default async function EventReportPage({ params }: { params: Promise<{ ev
             <span className="mt-1 block text-slate-900">{speaker || "Not listed"}</span>
           </p>
           <p>
-            <span className="text-slate-500">Total capacity</span>
+            <span className="text-slate-500">Status</span>
+            <span className="mt-1 block text-slate-900">{eventStatusLabel(event.status)}</span>
+          </p>
+          <p>
+            <span className="text-slate-500">Capacity</span>
             <span className="mt-1 block text-slate-900">{event.capacity}</span>
           </p>
           <p>
@@ -69,12 +74,10 @@ export default async function EventReportPage({ params }: { params: Promise<{ ev
             <span className="text-slate-500">Walk-Ins</span>
             <span className="mt-1 block text-slate-900">{counts.walkIns}</span>
           </p>
-          {counts.waitlisted > 0 ? (
-            <p>
-              <span className="text-slate-500">Waitlisted</span>
-              <span className="mt-1 block text-slate-900">{counts.waitlisted}</span>
-            </p>
-          ) : null}
+          <p>
+            <span className="text-slate-500">Waitlisted</span>
+            <span className="mt-1 block text-slate-900">{counts.waitlisted}</span>
+          </p>
         </CardBody>
       </Card>
       <Card>

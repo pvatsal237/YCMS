@@ -354,8 +354,8 @@ describe("report CSV export", () => {
       [["Career Ready: Resume, Interview", 'Maya "Patel"\nHall']],
     );
     expect(csv).toBe("Event Title,Member Name\n\"Career Ready: Resume, Interview\",\"Maya \"\"Patel\"\"\nHall\"");
-    expect(eventReportCsvFilename("Mastering AI: From Everyday Tools to Real-World Impact", new Date("2026-08-23T00:00:00.000Z"))).toBe(
-      "iycm-mastering-ai-2026-08-23.csv",
+    expect(eventReportCsvFilename("AI at Work: Practical Tools for the Modern Workplace", new Date("2026-08-23T00:00:00.000Z"))).toBe(
+      "iycm-ai-at-work-2026-08-23.csv",
     );
   });
 });

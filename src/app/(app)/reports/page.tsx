@@ -36,7 +36,7 @@ export default async function ReportsPage() {
   }
 
   const { overview, completed, other } = loaded.data;
-  if (overview.totalEvents === 0 && overview.guidanceRequests === 0) {
+  if (overview.totalCompletedEvents === 0 && overview.guidanceRequests === 0 && completed.length === 0 && other.length === 0) {
     return (
       <div className="space-y-6">
         <PageHeader title="Reports" description="Attendance and participation for IYCM events." />
@@ -51,11 +51,11 @@ export default async function ReportsPage() {
   }
 
   const stats = [
-    { label: "Total Events", value: overview.totalEvents },
+    { label: "Total Completed Events", value: overview.totalCompletedEvents },
     { label: "Total Registrations", value: overview.totalRegistrations },
     { label: "Total Check-Ins", value: overview.totalCheckIns },
     { label: "Total No Shows", value: overview.totalNoShows },
-    { label: "Walk-Ins", value: overview.walkIns },
+    { label: "Total Walk-Ins", value: overview.walkIns },
     { label: "Guidance Requests", value: overview.guidanceRequests },
   ];
 
@@ -101,10 +101,11 @@ export default async function ReportsPage() {
                   <Link href={`/reports/${event.id}`}>
                     <Button size="sm">View Report</Button>
                   </Link>
-                  <a href={`/api/reports/export?eventId=${event.id}`}>
-                    <Button size="sm" variant="secondary">
-                      Export CSV
-                    </Button>
+                  <a
+                    href={`/api/reports/export?eventId=${event.id}`}
+                    className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+                  >
+                    Export CSV
                   </a>
                 </div>
               </CardBody>
@@ -130,10 +131,11 @@ export default async function ReportsPage() {
                       View Report
                     </Button>
                   </Link>
-                  <a href={`/api/reports/export?eventId=${event.id}`}>
-                    <Button size="sm" variant="ghost">
-                      Export CSV
-                    </Button>
+                  <a
+                    href={`/api/reports/export?eventId=${event.id}`}
+                    className="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    Export CSV
                   </a>
                 </div>
               </CardBody>
