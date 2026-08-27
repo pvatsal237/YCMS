@@ -16,7 +16,7 @@ import { COORDINATOR_DASHBOARD_STATS, defaultHomePath, isPathAllowed, navItemsFo
 import { eventTitleParts } from "@/utils/format";
 import { advanceRegistrationCapacity } from "@/lib/capacity";
 import { registrationConfirmationEmail } from "@/lib/registration-email";
-import { formatEventLongDate, parseEventDate, parseTimeOfDay } from "@/lib/dates";
+import { formatEventLongDate, formatTime12h, parseEventDate, parseTimeOfDay, formatCheckInOpensMessage, isCheckInOpen } from "@/lib/dates";
 import { AppError, toUserMessage } from "@/lib/errors";
 import {
   COORDINATOR_EMAIL_BLOCKED,
@@ -226,6 +226,11 @@ describe("privacy and registration labels", () => {
     expect(defaultDeadline(eventDate, "10:00").toISOString()).toBe("2026-08-28T10:00:00.000Z");
     expect(defaultDeadline(eventDate, "09:00").toISOString()).toBe("2026-08-28T09:00:00.000Z");
     expect(defaultCheckInOpensAt(eventDate).toISOString()).toBe("2026-08-30T08:00:00.000Z");
+    expect(formatCheckInOpensMessage(defaultCheckInOpensAt(eventDate))).toBe(
+      "Check-in opens Sunday, August 30, 2026 at 8:00 AM.",
+    );
+    expect(isCheckInOpen(defaultCheckInOpensAt(eventDate), new Date("2026-08-30T07:59:00.000Z"))).toBe(false);
+    expect(isCheckInOpen(defaultCheckInOpensAt(eventDate), new Date("2026-08-30T08:00:00.000Z"))).toBe(true);
   });
 
   it("builds the registration confirmation email without logging the code", () => {

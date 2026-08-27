@@ -1,10 +1,9 @@
 import { notFound } from "next/navigation";
 import { requireCoordinator } from "@/lib/session";
 import { getEvent } from "@/services/events";
-import { checkInAction } from "@/actions/registration";
+import { CheckInButton } from "@/components/events/CheckInButton";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
 import { fullName } from "@/utils/format";
 import { formatPhoneDisplay } from "@/services/members";
 
@@ -30,7 +29,10 @@ export default async function CheckInPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title={`Check-in · ${event.title}`} description="Search quickly, then check in. Duplicate check-in is blocked." />
+      <PageHeader
+        title={`Check-in · ${event.title}`}
+        description="Search quickly, then check in. Duplicate check-in is blocked."
+      />
       <form className="max-w-md">
         <input name="q" defaultValue={q} placeholder="Search name or email" className="w-full rounded-md border px-3 py-2 text-sm" />
       </form>
@@ -46,14 +48,12 @@ export default async function CheckInPage({
                   {row.type === "WALK_IN" ? " · Walk-in" : ""}
                 </p>
               </div>
-              {row.checkInStatus === "CHECKED_IN" ? (
-                <p className="text-sm text-emerald-700">Checked in</p>
-              ) : (
-                <form action={checkInAction}>
-                  <input type="hidden" name="registrationId" value={row.id} />
-                  <Button type="submit" size="sm">Check In</Button>
-                </form>
-              )}
+              <CheckInButton
+                registrationId={row.id}
+                checkInOpensAt={event.checkInOpensAt.toISOString()}
+                checkedIn={row.checkInStatus === "CHECKED_IN"}
+                checkedInAt={row.checkedInAt?.toISOString() ?? null}
+              />
             </CardBody>
           </Card>
         ))}
