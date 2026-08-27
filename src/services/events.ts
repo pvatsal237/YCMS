@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { AppError, logServerError } from "@/lib/errors";
 import { logSafe } from "@/lib/log";
 import { notifyUser } from "@/services/notifications";
-import { parseDateOnly, parseEventDate, parseTimeOfDay, timeToMinutes } from "@/lib/dates";
+import { parseDateOnly, parseEventDate, parseTimeOfDay, startOfUtcDay, timeToMinutes } from "@/lib/dates";
 import { advanceRegistrationCapacity } from "@/lib/capacity";
 import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
 import {
@@ -90,6 +90,21 @@ export function buildEventWriteData(input: EventInput, createdById?: string) {
 
 export async function listCoordinatorEvents() {
   return prisma.event.findMany({ orderBy: [{ eventDate: "asc" }, { startTime: "asc" }] });
+}
+
+export function featuredPublishedEvent<T extends { status: string; eventDate: Date; startTime: string }>(
+  events: T[],
+  today = startOfUtcDay(),
+) {
+  return (
+    events
+      .filter((event) => event.status === "PUBLISHED" && startOfUtcDay(event.eventDate).getTime() >= today.getTime())
+      .sort(
+        (left, right) =>
+          startOfUtcDay(left.eventDate).getTime() - startOfUtcDay(right.eventDate).getTime() ||
+          left.startTime.localeCompare(right.startTime),
+      )[0] ?? null
+  );
 }
 
 export async function listPublishedUpcomingEvents() {

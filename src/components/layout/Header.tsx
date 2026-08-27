@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Bell, LogOut, Menu, Search, UserRound } from "lucide-react";
+import { LogOut, Menu, Search, UserRound } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 import { searchMembersAction } from "@/actions/members";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { roleLabel } from "@/utils/format";
 import type { SessionUser } from "@/types";
 
@@ -73,14 +74,7 @@ export function Header({
       ) : (
         <div className="ml-auto" />
       )}
-      <Link href="/notifications" className="relative rounded-md p-2 text-slate-600 hover:bg-slate-100" aria-label="Notifications">
-        <Bell className="h-5 w-5" />
-        {notificationCount > 0 ? (
-          <span className="absolute right-1 top-1 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white">
-            {notificationCount}
-          </span>
-        ) : null}
-      </Link>
+      <NotificationBell unreadCount={notificationCount} />
       <div className="relative">
         <button type="button" onClick={() => setOpenProfile((value) => !value)} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-slate-100">
           <UserRound className="h-5 w-5 text-slate-500" />

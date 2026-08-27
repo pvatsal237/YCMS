@@ -1,9 +1,11 @@
 import { requireCoordinator } from "@/lib/session";
 import { eventReport, guidanceReport } from "@/services/reports";
 import { listCoordinatorEvents } from "@/services/events";
-import { PageHeader } from "@/components/ui/Feedback";
+import { PageHeader, EmptyState } from "@/components/ui/Feedback";
+import { PageLoadError } from "@/components/ui/PageLoadError";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { prisma } from "@/lib/prisma";
+import { loadPageData } from "@/lib/page-data";
 import { GUIDANCE_LABELS } from "@/utils/format";
 
 export default async function ReportsPage({
@@ -13,25 +15,53 @@ export default async function ReportsPage({
 }) {
   await requireCoordinator();
   const params = await searchParams;
-  const events = await listCoordinatorEvents();
-  const eventId = params.eventId ?? events[0]?.id;
-  const report = eventId ? await eventReport(eventId) : null;
-  const now = new Date();
-  const from =
-    params.range === "today"
-      ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      : params.range === "quarter"
-        ? new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
-        : new Date(now.getFullYear(), now.getMonth(), 1);
-  const coordinators = await prisma.user.findMany({ where: { role: "COORDINATOR" }, select: { id: true, name: true } });
-  const guidance = await guidanceReport({
-    from,
-    to: now,
-    category: params.category as never,
-    status: params.status as never,
-    coordinatorId: params.coordinator,
-    eventId: params.eventId,
+  const loaded = await loadPageData("reports.page", async () => {
+    const events = await listCoordinatorEvents();
+    const eventId = params.eventId ?? events[0]?.id;
+    const report = eventId ? await eventReport(eventId) : null;
+    const now = new Date();
+    const from =
+      params.range === "today"
+        ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        : params.range === "quarter"
+          ? new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
+          : new Date(now.getFullYear(), now.getMonth(), 1);
+    const coordinators = await prisma.user.findMany({ where: { role: "COORDINATOR" }, select: { id: true, name: true } });
+    const guidance = await guidanceReport({
+      from,
+      to: now,
+      category: params.category as never,
+      status: params.status as never,
+      coordinatorId: params.coordinator,
+      eventId: params.eventId,
+    });
+    const allGuidance = await guidanceReport({});
+    return { events, eventId, report, coordinators, guidance, hasAnyGuidance: allGuidance.counts.total > 0 };
   });
+
+  if (!loaded.ok) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Reports" description="Simple counts for events and guidance." />
+        <PageLoadError description="We could not load reports. Please try again." />
+      </div>
+    );
+  }
+
+  const { events, eventId, report, coordinators, guidance, hasAnyGuidance } = loaded.data;
+  if (events.length === 0 && !hasAnyGuidance) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Reports" description="Simple counts for events and guidance." />
+        <Card>
+          <EmptyState
+            title="No reports available yet."
+            description="Reports will appear here once event registrations, check-ins, or guidance activity are available."
+          />
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -39,25 +69,31 @@ export default async function ReportsPage({
       <Card>
         <CardHeader title="Event report" />
         <CardBody className="space-y-3">
-          <form className="flex gap-2">
-            <select name="eventId" defaultValue={eventId} className="rounded-md border px-3 py-2 text-sm">
-              {events.map((event) => (
-                <option key={event.id} value={event.id}>{event.title}</option>
-              ))}
-            </select>
-            <button className="rounded-md border px-3 py-2 text-sm" type="submit">View</button>
-            {eventId ? (
-              <a className="rounded-md border px-3 py-2 text-sm" href={`/api/reports/export?type=event&eventId=${eventId}`}>
-                Export CSV
-              </a>
-            ) : null}
-          </form>
-          {report ? (
-            <p className="text-sm">
-              Registered {report.counts.registered} · Checked in {report.counts.checkedIn} · No shows {report.counts.noShows} · Walk-ins {report.counts.walkIns} · Waitlisted {report.counts.waitlisted}
-            </p>
+          {events.length === 0 ? (
+            <p className="text-sm text-slate-500">No events to report on yet.</p>
           ) : (
-            <p className="text-sm text-slate-500">No event selected.</p>
+            <>
+              <form className="flex flex-wrap gap-2">
+                <select name="eventId" defaultValue={eventId} className="rounded-md border px-3 py-2 text-sm">
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>{event.title}</option>
+                  ))}
+                </select>
+                <button className="rounded-md border px-3 py-2 text-sm" type="submit">View</button>
+                {eventId ? (
+                  <a className="rounded-md border px-3 py-2 text-sm" href={`/api/reports/export?type=event&eventId=${eventId}`}>
+                    Export CSV
+                  </a>
+                ) : null}
+              </form>
+              {report ? (
+                <p className="text-sm">
+                  Registered {report.counts.registered} · Checked in {report.counts.checkedIn} · No shows {report.counts.noShows} · Walk-ins {report.counts.walkIns} · Waitlisted {report.counts.waitlisted}
+                </p>
+              ) : (
+                <p className="text-sm text-slate-500">No event selected.</p>
+              )}
+            </>
           )}
         </CardBody>
       </Card>

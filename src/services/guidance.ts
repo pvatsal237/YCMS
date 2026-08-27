@@ -37,7 +37,7 @@ export async function createGuidanceRequest(
 
 export async function listGuidanceForCoordinator() {
   return prisma.guidanceRequest.findMany({
-    include: { member: true, claimedBy: { select: { name: true, email: true } }, event: true, messages: true },
+    include: { member: true, claimedBy: { select: { id: true, name: true, email: true } }, event: true, messages: true },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -156,4 +156,13 @@ export async function addGuidanceMessage(actor: SessionUser, id: string, body: s
   }
   logSafe("guidance.message", { requestId: id });
   return message;
+}
+
+export function guidanceAssignmentLabel(
+  request: { claimedById: string | null; claimedBy?: { name: string | null } | null },
+  actorId: string,
+) {
+  if (!request.claimedById) return "Unclaimed";
+  if (request.claimedById === actorId) return "Assigned to you";
+  return `Assigned to ${request.claimedBy?.name || "another coordinator"}`;
 }

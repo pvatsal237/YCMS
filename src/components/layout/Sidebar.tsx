@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Calendar, ClipboardCheck, Home, LayoutDashboard, LifeBuoy, Users, X } from "lucide-react";
+import { Calendar, ClipboardCheck, Home, LayoutDashboard, LifeBuoy, Users, X } from "lucide-react";
 import { defaultHomePath, navItemsForRole } from "@/lib/authorization";
 import { cn } from "@/utils/format";
 import type { UserRole } from "@/types/roles";
@@ -13,7 +13,6 @@ const icons: Record<string, React.ComponentType<{ className?: string }>> = {
   "/members": Users,
   "/guidance": LifeBuoy,
   "/reports": ClipboardCheck,
-  "/notifications": Bell,
   "/home": Home,
   "/my-events": Calendar,
   "/request-guidance": LifeBuoy,

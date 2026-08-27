@@ -18,12 +18,10 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/members", label: "Members", roles: ["COORDINATOR"] },
   { href: "/guidance", label: "Guidance", roles: ["COORDINATOR"] },
   { href: "/reports", label: "Reports", roles: ["COORDINATOR"] },
-  { href: "/notifications", label: "Notifications", roles: ["COORDINATOR"] },
   { href: "/home", label: "Home", roles: ["MEMBER"] },
   { href: "/my-events", label: "My Events", roles: ["MEMBER"] },
   { href: "/request-guidance", label: "Request Guidance", roles: ["MEMBER"] },
   { href: "/profile", label: "Profile", roles: ["MEMBER"] },
-  { href: "/notifications", label: "Notifications", roles: ["MEMBER"] },
 ];
 
 export function navItemsForRole(role: UserRole): NavItem[] {

@@ -67,3 +67,17 @@ export function guidanceStatusLabel(status: string) {
 }
 
 export { formatDate };
+
+export function guidanceStatusTone(status: string): "teal" | "yellow" | "orange" | "green" | "slate" {
+  if (status === "NEW") return "teal";
+  if (status === "CLAIMED") return "yellow";
+  if (status === "WAITING_FOR_MEMBER") return "orange";
+  if (status === "RESOLVED") return "green";
+  return "slate";
+}
+
+export function previewText(value: string, max = 140) {
+  const text = value.replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1)}…`;
+}

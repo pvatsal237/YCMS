@@ -8,9 +8,9 @@ export default function Error({
 }) {
   return (
     <div className="rounded-lg border border-red-200 bg-white p-8">
-      <h1 className="text-lg font-semibold text-slate-900">Something went wrong</h1>
+      <h1 className="text-lg font-semibold text-slate-900">Unable to load this page</h1>
       <p className="mt-2 text-sm text-slate-600">
-        Unable to load this page. Please try again.
+        A server error occurred. Please try again. An empty list is not shown as an error.
       </p>
       <button
         type="button"

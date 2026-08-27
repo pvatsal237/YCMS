@@ -25,7 +25,8 @@ import {
 } from "@/services/members";
 import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
 import { sanitizeEventText, inspectEventTextFields } from "@/lib/sanitize-text";
-import { buildEventWriteData, memberFacingStatus } from "@/services/events";
+import { buildEventWriteData, featuredPublishedEvent, memberFacingStatus } from "@/services/events";
+import { guidanceAssignmentLabel } from "@/services/guidance";
 import {
   inspectEventWriteStrings,
   newEventId,
@@ -81,15 +82,37 @@ describe("roles and navigation", () => {
       "Members",
       "Guidance",
       "Reports",
-      "Notifications",
     ]);
     expect(navItemsForRole("MEMBER").map((item) => item.label)).toEqual([
       "Home",
       "My Events",
       "Request Guidance",
       "Profile",
-      "Notifications",
     ]);
+  });
+});
+
+describe("coordinator list helpers", () => {
+  it("features the nearest upcoming published event", () => {
+    const today = new Date("2026-08-26T00:00:00.000Z");
+    const featured = featuredPublishedEvent(
+      [
+        { status: "DRAFT", eventDate: new Date("2026-08-30T00:00:00.000Z"), startTime: "09:00" },
+        { status: "PUBLISHED", eventDate: new Date("2026-09-12T00:00:00.000Z"), startTime: "10:00" },
+        { status: "PUBLISHED", eventDate: new Date("2026-08-30T00:00:00.000Z"), startTime: "10:00" },
+        { status: "PUBLISHED", eventDate: new Date("2026-08-20T00:00:00.000Z"), startTime: "10:00" },
+      ],
+      today,
+    );
+    expect(featured?.eventDate.toISOString()).toBe("2026-08-30T00:00:00.000Z");
+  });
+
+  it("labels guidance assignment for unclaimed, self, and other coordinators", () => {
+    expect(guidanceAssignmentLabel({ claimedById: null }, "me")).toBe("Unclaimed");
+    expect(guidanceAssignmentLabel({ claimedById: "me", claimedBy: { name: "Priya" } }, "me")).toBe("Assigned to you");
+    expect(guidanceAssignmentLabel({ claimedById: "them", claimedBy: { name: "James Okonkwo" } }, "me")).toBe(
+      "Assigned to James Okonkwo",
+    );
   });
 });
 
