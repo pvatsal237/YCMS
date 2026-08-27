@@ -6,18 +6,32 @@ export type NavItem = {
   roles: UserRole[];
 };
 
+export const COORDINATOR_PATHS = {
+  dashboard: "/dashboard",
+  events: "/events",
+  members: "/members",
+  guidance: "/guidance",
+  reports: "/reports",
+} as const;
+
+export const COORDINATOR_DASHBOARD_STATS = [
+  { key: "published" as const, label: "Published Events", href: COORDINATOR_PATHS.events },
+  { key: "members" as const, label: "Active Members", href: COORDINATOR_PATHS.members },
+  { key: "openGuidance" as const, label: "Unclaimed Guidance", href: COORDINATOR_PATHS.guidance },
+];
+
 export function defaultHomePath(role: UserRole | string | null | undefined): string {
-  if (role === "COORDINATOR") return "/dashboard";
+  if (role === "COORDINATOR") return COORDINATOR_PATHS.dashboard;
   if (role === "MEMBER") return "/home";
   return "/login";
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", roles: ["COORDINATOR"] },
-  { href: "/events", label: "Events", roles: ["COORDINATOR"] },
-  { href: "/members", label: "Members", roles: ["COORDINATOR"] },
-  { href: "/guidance", label: "Guidance", roles: ["COORDINATOR"] },
-  { href: "/reports", label: "Reports", roles: ["COORDINATOR"] },
+  { href: COORDINATOR_PATHS.dashboard, label: "Dashboard", roles: ["COORDINATOR"] },
+  { href: COORDINATOR_PATHS.events, label: "Events", roles: ["COORDINATOR"] },
+  { href: COORDINATOR_PATHS.members, label: "Members", roles: ["COORDINATOR"] },
+  { href: COORDINATOR_PATHS.guidance, label: "Guidance", roles: ["COORDINATOR"] },
+  { href: COORDINATOR_PATHS.reports, label: "Reports", roles: ["COORDINATOR"] },
   { href: "/home", label: "Home", roles: ["MEMBER"] },
   { href: "/my-events", label: "My Events", roles: ["MEMBER"] },
   { href: "/request-guidance", label: "Request Guidance", roles: ["MEMBER"] },

@@ -6,7 +6,6 @@ import { PageLoadError } from "@/components/ui/PageLoadError";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EventListCard } from "@/components/events/EventListCard";
-import { FeaturedEventCard } from "@/components/events/FeaturedEventCard";
 import { loadPageData } from "@/lib/page-data";
 import { startOfUtcDay } from "@/lib/dates";
 
@@ -57,7 +56,12 @@ export default async function EventsPage() {
           <EmptyState title="No events yet" description="Create an event to publish it for members." />
         </Card>
       ) : null}
-      {featured ? <FeaturedEventCard event={featured} /> : null}
+      {featured ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium text-slate-500">Upcoming</h2>
+          <EventListCard event={featured} />
+        </section>
+      ) : null}
       {remainingCurrent.length > 0 ? (
         <section className="space-y-3">
           <h2 className="text-sm font-medium text-slate-500">Other upcoming events</h2>

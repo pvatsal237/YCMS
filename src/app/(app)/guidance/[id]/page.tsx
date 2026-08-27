@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 import { requireCoordinator } from "@/lib/session";
-import { getGuidance } from "@/services/guidance";
-import { claimGuidanceAction, guidanceMessageAction, guidanceStatusAction } from "@/actions/guidance";
+import { getGuidance, guidanceAssignmentLabel } from "@/services/guidance";
+import { canCoordinatorReleaseGuidance, isUnclaimedGuidance } from "@/lib/guidance-rules";
+import { guidanceMessageAction, guidanceStatusAction } from "@/actions/guidance";
+import { ClaimGuidanceButton } from "@/components/guidance/ClaimGuidanceButton";
+import { ReleaseGuidanceButton } from "@/components/guidance/ReleaseGuidanceButton";
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +16,8 @@ export default async function GuidanceDetailPage({ params }: { params: Promise<{
   const request = await getGuidance(id);
   if (!request) notFound();
   const isOwner = request.claimedById === actor.id;
+  const unclaimed = isUnclaimedGuidance(request);
+  const canRelease = canCoordinatorReleaseGuidance(request, actor.id);
   return (
     <div className="space-y-6">
       <PageHeader
@@ -23,13 +28,9 @@ export default async function GuidanceDetailPage({ params }: { params: Promise<{
         <CardBody className="space-y-2 text-sm">
           <p>{request.message}</p>
           {request.customTopic ? <p>Topic: {request.customTopic}</p> : null}
-          <p>Owner: {request.claimedBy?.name ?? "Unclaimed"}</p>
-          {request.status === "NEW" && !request.claimedById ? (
-            <form action={claimGuidanceAction}>
-              <input type="hidden" name="id" value={request.id} />
-              <Button type="submit" size="sm">Claim Request</Button>
-            </form>
-          ) : null}
+          <p>{guidanceAssignmentLabel(request, actor.id)}</p>
+          {unclaimed ? <ClaimGuidanceButton requestId={request.id} /> : null}
+          {canRelease ? <ReleaseGuidanceButton requestId={request.id} /> : null}
         </CardBody>
       </Card>
       {isOwner ? (

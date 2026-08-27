@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { AppError, logServerError } from "@/lib/errors";
 import { logSafe } from "@/lib/log";
+import { alreadyClaimedMessage, canCoordinatorReleaseGuidance } from "@/lib/guidance-rules";
 import { notifyCoordinators, notifyUser } from "@/services/notifications";
 import { GUIDANCE_LABELS } from "@/utils/format";
 import type { GuidanceCategory, GuidanceStatus } from "@prisma/client";
@@ -77,30 +78,60 @@ export async function getGuidance(id: string) {
   });
 }
 
-export async function claimGuidance(actor: SessionUser, id: string) {
-  if (actor.role !== "COORDINATOR") throw new AppError("Only coordinators can claim requests.", 403);
-  const updated = await prisma.guidanceRequest.updateMany({
-    where: { id, claimedById: null, status: "NEW" },
-    data: { claimedById: actor.id, claimedAt: new Date(), status: "CLAIMED" },
-  });
-  if (updated.count !== 1) {
-    throw new AppError("This request was already claimed.", 409);
-  }
-  const request = await prisma.guidanceRequest.findUnique({
-    where: { id },
-    include: { member: true },
-  });
-  const memberUser = await prisma.user.findUnique({ where: { email: request?.member.email ?? "" } });
-  if (request && memberUser) {
+async function notifyMemberOfClaim(actor: SessionUser, request: { id: string; member: { email: string } }) {
+  try {
+    const memberUser = await prisma.user.findUnique({ where: { email: request.member.email } });
+    if (!memberUser) return;
     await notifyUser({
       userId: memberUser.id,
       title: "Guidance request claimed",
       message: `${actor.name} will follow up on your request.`,
       href: "/request-guidance",
     });
+  } catch (error) {
+    logSafe("guidance.claim_notify_failed", { requestId: request.id });
+    logServerError("claimGuidance.notify", error);
   }
+}
+
+export async function claimGuidance(actor: SessionUser, id: string) {
+  if (actor.role !== "COORDINATOR") throw new AppError("Only coordinators can claim requests.", 403);
+  const updated = await prisma.guidanceRequest.updateMany({
+    where: { id, claimedById: null, status: "NEW" },
+    data: { claimedById: actor.id, claimedAt: new Date(), status: "CLAIMED" },
+  });
+  const request = await prisma.guidanceRequest.findUnique({
+    where: { id },
+    include: { member: true, claimedBy: { select: { id: true, name: true } } },
+  });
+  if (!request) throw new AppError("This request is no longer available.", 404);
+  if (updated.count !== 1) {
+    if (request.claimedById === actor.id) return request;
+    throw new AppError(alreadyClaimedMessage(request.claimedBy?.name), 409);
+  }
+  await notifyMemberOfClaim(actor, request);
   logSafe("guidance.claimed", { requestId: id, coordinatorId: actor.id });
   return request;
+}
+
+export async function releaseGuidance(actor: SessionUser, id: string) {
+  if (actor.role !== "COORDINATOR") throw new AppError("Only coordinators can release requests.", 403);
+  const request = await prisma.guidanceRequest.findUnique({
+    where: { id },
+    include: { claimedBy: { select: { id: true, name: true } } },
+  });
+  if (!request) throw new AppError("Request not found.", 404);
+  if (!canCoordinatorReleaseGuidance(request, actor.id)) {
+    throw new AppError("Only the assigned coordinator can release this request.", 403);
+  }
+  const updated = await prisma.guidanceRequest.updateMany({
+    where: { id, claimedById: actor.id },
+    data: { claimedById: null, claimedAt: null, status: "NEW" },
+  });
+  if (updated.count !== 1) {
+    throw new AppError("This request can no longer be released.", 409);
+  }
+  logSafe("guidance.released", { requestId: id, coordinatorId: actor.id });
 }
 
 export async function updateGuidanceStatus(actor: SessionUser, id: string, status: GuidanceStatus) {
@@ -182,7 +213,7 @@ export function guidanceAssignmentLabel(
   return `Assigned to ${request.claimedBy?.name || "another coordinator"}`;
 }
 
-export { canMemberCancelGuidance } from "@/lib/guidance-rules";
+export { canMemberCancelGuidance, canCoordinatorReleaseGuidance, isUnclaimedGuidance } from "@/lib/guidance-rules";
 
 export async function cancelGuidanceRequest(user: SessionUser, id: string) {
   const member = await requireGuidanceMember(user);

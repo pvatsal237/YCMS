@@ -7,6 +7,7 @@ import {
   cancelGuidanceRequest,
   claimGuidance,
   createGuidanceRequest,
+  releaseGuidance,
   updateGuidanceStatus,
 } from "@/services/guidance";
 import { isNextInterruptError, logServerError, toUserMessage } from "@/lib/errors";
@@ -46,12 +47,41 @@ export async function cancelGuidanceAction(_prev: ActionResult, formData: FormDa
   }
 }
 
-export async function claimGuidanceAction(formData: FormData) {
-  const actor = await requireCoordinator();
-  await claimGuidance(actor, String(formData.get("id") ?? ""));
-  revalidatePath("/guidance");
-  revalidatePath("/request-guidance");
-  revalidatePath("/notifications");
+function revalidateGuidancePaths() {
+  try {
+    revalidatePath("/guidance");
+    revalidatePath("/request-guidance");
+    revalidatePath("/notifications");
+    revalidatePath("/dashboard");
+  } catch (error) {
+    logServerError("guidance.revalidate", error);
+  }
+}
+
+export async function claimGuidanceAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  try {
+    const actor = await requireRoleAction(["COORDINATOR"]);
+    await claimGuidance(actor, String(formData.get("id") ?? ""));
+    revalidateGuidancePaths();
+    return { ok: true, message: "Request claimed." };
+  } catch (error) {
+    if (isNextInterruptError(error)) throw error;
+    logServerError("claimGuidanceAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to claim this request.") };
+  }
+}
+
+export async function releaseGuidanceAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  try {
+    const actor = await requireRoleAction(["COORDINATOR"]);
+    await releaseGuidance(actor, String(formData.get("id") ?? ""));
+    revalidateGuidancePaths();
+    return { ok: true, message: "Request released to the coordinator queue." };
+  } catch (error) {
+    if (isNextInterruptError(error)) throw error;
+    logServerError("releaseGuidanceAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to release this request.") };
+  }
 }
 
 export async function guidanceStatusAction(formData: FormData) {

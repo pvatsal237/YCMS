@@ -12,7 +12,7 @@ import {
   tooManyVerifyAttempts,
   canShowDevOtp,
 } from "@/lib/otp";
-import { defaultHomePath, isPathAllowed, navItemsForRole } from "@/lib/authorization";
+import { COORDINATOR_DASHBOARD_STATS, defaultHomePath, isPathAllowed, navItemsForRole } from "@/lib/authorization";
 import { eventTitleParts } from "@/utils/format";
 import { advanceRegistrationCapacity } from "@/lib/capacity";
 import { registrationConfirmationEmail } from "@/lib/registration-email";
@@ -27,7 +27,7 @@ import {
 import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
 import { sanitizeEventText, inspectEventTextFields } from "@/lib/sanitize-text";
 import { buildEventWriteData, featuredPublishedEvent, memberFacingStatus } from "@/services/events";
-import { canMemberCancelGuidance } from "@/lib/guidance-rules";
+import { alreadyClaimedMessage, canCoordinatorReleaseGuidance, canMemberCancelGuidance, isUnclaimedGuidance } from "@/lib/guidance-rules";
 import { guidanceAssignmentLabel } from "@/services/guidance";
 import {
   inspectEventWriteStrings,
@@ -122,6 +122,27 @@ describe("coordinator list helpers", () => {
     expect(canMemberCancelGuidance({ memberId: "m1", status: "NEW", claimedById: null }, "m1")).toBe(true);
     expect(canMemberCancelGuidance({ memberId: "m1", status: "CLAIMED", claimedById: "c1" }, "m1")).toBe(false);
     expect(canMemberCancelGuidance({ memberId: "m1", status: "NEW", claimedById: null }, "other")).toBe(false);
+  });
+
+  it("lets only the assigned coordinator release a claimed request", () => {
+    expect(canCoordinatorReleaseGuidance({ claimedById: "me", status: "CLAIMED" }, "me")).toBe(true);
+    expect(canCoordinatorReleaseGuidance({ claimedById: "me", status: "WAITING_FOR_MEMBER" }, "me")).toBe(true);
+    expect(canCoordinatorReleaseGuidance({ claimedById: "them", status: "CLAIMED" }, "me")).toBe(false);
+    expect(canCoordinatorReleaseGuidance({ claimedById: "me", status: "RESOLVED" }, "me")).toBe(false);
+    expect(canCoordinatorReleaseGuidance({ claimedById: null, status: "NEW" }, "me")).toBe(false);
+    expect(alreadyClaimedMessage("James Okonkwo")).toBe(
+      "This request has already been claimed by James Okonkwo.",
+    );
+    expect(isUnclaimedGuidance({ status: "NEW", claimedById: null })).toBe(true);
+    expect(isUnclaimedGuidance({ status: "CLAIMED", claimedById: "me" })).toBe(false);
+  });
+
+  it("maps dashboard summary cards to coordinator routes", () => {
+    expect(COORDINATOR_DASHBOARD_STATS.map((item) => [item.label, item.href])).toEqual([
+      ["Published Events", "/events"],
+      ["Active Members", "/members"],
+      ["Unclaimed Guidance", "/guidance"],
+    ]);
   });
 });
 

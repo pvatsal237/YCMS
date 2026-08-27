@@ -1,9 +1,11 @@
 import { requireCoordinator } from "@/lib/session";
 import { dashboardStats } from "@/services/reports";
 import { getCoordinatorFeaturedEvent } from "@/services/events";
+import { COORDINATOR_DASHBOARD_STATS } from "@/lib/authorization";
 import { PageHeader, EmptyState } from "@/components/ui/Feedback";
-import { Card, CardBody } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { FeaturedEventCard } from "@/components/events/FeaturedEventCard";
+import { DashboardStatLink } from "@/components/dashboard/DashboardStatLink";
 import { loadPageData } from "@/lib/page-data";
 import { PageLoadError } from "@/components/ui/PageLoadError";
 
@@ -34,24 +36,9 @@ export default async function DashboardPage() {
         </Card>
       )}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardBody>
-            <p className="text-sm text-slate-500">Active members</p>
-            <p className="mt-2 text-3xl font-semibold">{stats.members}</p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <p className="text-sm text-slate-500">Published events</p>
-            <p className="mt-2 text-3xl font-semibold">{stats.published}</p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <p className="text-sm text-slate-500">Unclaimed guidance</p>
-            <p className="mt-2 text-3xl font-semibold">{stats.openGuidance}</p>
-          </CardBody>
-        </Card>
+        {COORDINATOR_DASHBOARD_STATS.map((item) => (
+          <DashboardStatLink key={item.key} href={item.href} label={item.label} value={stats[item.key]} />
+        ))}
       </div>
     </div>
   );
