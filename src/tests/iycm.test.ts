@@ -27,6 +27,7 @@ import {
 import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
 import { sanitizeEventText, inspectEventTextFields } from "@/lib/sanitize-text";
 import { buildEventWriteData, featuredPublishedEvent, memberFacingStatus } from "@/services/events";
+import { canMemberCancelGuidance } from "@/lib/guidance-rules";
 import { guidanceAssignmentLabel } from "@/services/guidance";
 import {
   inspectEventWriteStrings,
@@ -118,6 +119,9 @@ describe("coordinator list helpers", () => {
     expect(guidanceAssignmentLabel({ claimedById: "them", claimedBy: { name: "James Okonkwo" } }, "me")).toBe(
       "Assigned to James Okonkwo",
     );
+    expect(canMemberCancelGuidance({ memberId: "m1", status: "NEW", claimedById: null }, "m1")).toBe(true);
+    expect(canMemberCancelGuidance({ memberId: "m1", status: "CLAIMED", claimedById: "c1" }, "m1")).toBe(false);
+    expect(canMemberCancelGuidance({ memberId: "m1", status: "NEW", claimedById: null }, "other")).toBe(false);
   });
 });
 

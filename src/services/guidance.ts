@@ -1,37 +1,52 @@
 import { prisma } from "@/lib/prisma";
-import { AppError } from "@/lib/errors";
+import { AppError, logServerError } from "@/lib/errors";
 import { logSafe } from "@/lib/log";
 import { notifyCoordinators, notifyUser } from "@/services/notifications";
 import { GUIDANCE_LABELS } from "@/utils/format";
 import type { GuidanceCategory, GuidanceStatus } from "@prisma/client";
 import type { SessionUser } from "@/types";
 
+async function requireGuidanceMember(user: SessionUser) {
+  if (user.role !== "MEMBER") {
+    throw new AppError("Only members can request guidance.", 403);
+  }
+  let member = user.memberId ? await prisma.member.findUnique({ where: { id: user.memberId } }) : null;
+  if (!member) {
+    member = await prisma.member.findUnique({ where: { email: user.email } });
+  }
+  if (!member?.active) throw new AppError("Your profile is not active.", 403);
+  return member;
+}
+
 export async function createGuidanceRequest(
   user: SessionUser,
   input: { category: GuidanceCategory; customTopic?: string; message: string; eventId?: string },
 ) {
-  if (user.role !== "MEMBER" || !user.memberId) {
-    throw new AppError("Only members can request guidance.", 403);
-  }
+  const member = await requireGuidanceMember(user);
   if (input.category === "OTHER" && !input.customTopic?.trim()) {
     throw new AppError("Please tell us the topic.", 400);
   }
   if (!input.message.trim()) throw new AppError("Please tell us briefly how we can help.", 400);
   const request = await prisma.guidanceRequest.create({
     data: {
-      memberId: user.memberId,
+      memberId: member.id,
       category: input.category,
       customTopic: input.customTopic?.trim() || null,
       message: input.message.trim(),
       eventId: input.eventId || null,
     },
   });
-  await notifyCoordinators({
-    title: "New guidance request",
-    message: `${user.name} asked for help with ${GUIDANCE_LABELS[input.category]}.`,
-    href: `/guidance/${request.id}`,
-  });
   logSafe("guidance.created", { requestId: request.id, category: input.category });
+  try {
+    await notifyCoordinators({
+      title: "New guidance request",
+      message: `${user.name} asked for help with ${GUIDANCE_LABELS[input.category]}.`,
+      href: `/guidance/${request.id}`,
+    });
+  } catch (error) {
+    logSafe("guidance.notify_failed", { requestId: request.id });
+    logServerError("createGuidanceRequest.notify", error);
+  }
   return request;
 }
 
@@ -45,7 +60,7 @@ export async function listGuidanceForCoordinator() {
 export async function listMyGuidance(memberId: string) {
   return prisma.guidanceRequest.findMany({
     where: { memberId },
-    include: { claimedBy: { select: { name: true } }, messages: { orderBy: { createdAt: "asc" } } },
+    include: { claimedBy: { select: { id: true, name: true } }, messages: { orderBy: { createdAt: "asc" } } },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -165,4 +180,17 @@ export function guidanceAssignmentLabel(
   if (!request.claimedById) return "Unclaimed";
   if (request.claimedById === actorId) return "Assigned to you";
   return `Assigned to ${request.claimedBy?.name || "another coordinator"}`;
+}
+
+export { canMemberCancelGuidance } from "@/lib/guidance-rules";
+
+export async function cancelGuidanceRequest(user: SessionUser, id: string) {
+  const member = await requireGuidanceMember(user);
+  const deleted = await prisma.guidanceRequest.deleteMany({
+    where: { id, memberId: member.id, status: "NEW", claimedById: null },
+  });
+  if (deleted.count !== 1) {
+    throw new AppError("This request can no longer be cancelled.", 409);
+  }
+  logSafe("guidance.cancelled", { requestId: id, memberId: member.id });
 }

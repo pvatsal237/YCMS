@@ -1,20 +1,21 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCoordinator, requireMemberSession, requireRoleAction } from "@/lib/session";
+import { requireCoordinator, requireRoleAction } from "@/lib/session";
 import {
   addGuidanceMessage,
+  cancelGuidanceRequest,
   claimGuidance,
   createGuidanceRequest,
   updateGuidanceStatus,
 } from "@/services/guidance";
-import { logServerError, toUserMessage } from "@/lib/errors";
+import { isNextInterruptError, logServerError, toUserMessage } from "@/lib/errors";
 import type { ActionResult } from "@/types";
 import type { GuidanceCategory, GuidanceStatus } from "@prisma/client";
 
 export async function createGuidanceAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   try {
-    const user = await requireMemberSession();
+    const user = await requireRoleAction(["MEMBER"]);
     await createGuidanceRequest(user, {
       category: String(formData.get("category") ?? "") as GuidanceCategory,
       customTopic: String(formData.get("customTopic") ?? "") || undefined,
@@ -23,10 +24,25 @@ export async function createGuidanceAction(_prev: ActionResult, formData: FormDa
     revalidatePath("/request-guidance");
     revalidatePath("/guidance");
     revalidatePath("/notifications");
-    return { ok: true, message: "Your request was sent to coordinators." };
+    return { ok: true, message: "Your guidance request has been submitted." };
   } catch (error) {
+    if (isNextInterruptError(error)) throw error;
     logServerError("createGuidanceAction", error);
     return { ok: false, error: toUserMessage(error, "Unable to send your request.") };
+  }
+}
+
+export async function cancelGuidanceAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  try {
+    const user = await requireRoleAction(["MEMBER"]);
+    await cancelGuidanceRequest(user, String(formData.get("id") ?? ""));
+    revalidatePath("/request-guidance");
+    revalidatePath("/guidance");
+    return { ok: true, message: "Guidance request cancelled." };
+  } catch (error) {
+    if (isNextInterruptError(error)) throw error;
+    logServerError("cancelGuidanceAction", error);
+    return { ok: false, error: toUserMessage(error, "Unable to cancel this request.") };
   }
 }
 
@@ -56,6 +72,7 @@ export async function guidanceMessageAction(formData: FormData) {
     revalidatePath("/request-guidance");
     revalidatePath("/notifications");
   } catch (error) {
+    if (isNextInterruptError(error)) throw error;
     logServerError("guidanceMessageAction", error);
   }
 }
