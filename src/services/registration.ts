@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { AppError } from "@/lib/errors";
+import { AppError, logServerError } from "@/lib/errors";
 import { logSafe } from "@/lib/log";
 import { notifyUser } from "@/services/notifications";
 import { advanceRegistrationCapacity } from "@/lib/capacity";
@@ -7,10 +7,13 @@ import { registrationConfirmationEmail } from "@/lib/registration-email";
 import type { SessionUser } from "@/types";
 
 async function requireMember(user: SessionUser) {
-  if (user.role !== "MEMBER" || !user.memberId) {
+  if (user.role !== "MEMBER") {
     throw new AppError("Only members can register for events.", 403);
   }
-  const member = await prisma.member.findUnique({ where: { id: user.memberId } });
+  let member = user.memberId ? await prisma.member.findUnique({ where: { id: user.memberId } }) : null;
+  if (!member) {
+    member = await prisma.member.findUnique({ where: { email: user.email } });
+  }
   if (!member?.active) throw new AppError("Your profile is not active.", 403);
   return member;
 }
@@ -95,31 +98,41 @@ export async function registerForEvent(user: SessionUser, eventId: string) {
   });
 
   if (result.kind === "REGISTERED") {
-    const email = registrationConfirmationEmail({
-      memberName: `${member.firstName} ${member.lastName}`.trim(),
-      eventTitle: result.event.title,
-      eventDate: result.event.eventDate,
-      startTime: result.event.startTime,
-      endTime: result.event.endTime,
-      location: result.event.location,
-      speakerName: result.event.speakerName,
-      speakerTitle: result.event.speakerTitle,
-      speakerOrganization: result.event.speakerOrganization,
-    });
-    await notifyUser({
-      userId: user.id,
-      title: "Registration confirmed",
-      message: `You are registered for ${result.event.title}.`,
-      href: "/my-events",
-      email: { to: member.email, subject: email.subject, text: email.text },
-    });
+    try {
+      const email = registrationConfirmationEmail({
+        memberName: `${member.firstName} ${member.lastName}`.trim(),
+        eventTitle: result.event.title,
+        eventDate: result.event.eventDate,
+        startTime: result.event.startTime,
+        endTime: result.event.endTime,
+        location: result.event.location,
+        speakerName: result.event.speakerName,
+        speakerTitle: result.event.speakerTitle,
+        speakerOrganization: result.event.speakerOrganization,
+      });
+      await notifyUser({
+        userId: user.id,
+        title: "Registration confirmed",
+        message: `You are registered for ${result.event.title}.`,
+        href: "/my-events",
+        email: { to: member.email, subject: email.subject, text: email.text },
+      });
+    } catch (error) {
+      logSafe("registration.notify_failed", { eventId: result.event.id, memberId: member.id });
+      logServerError("registerForEvent.notify", error);
+    }
   } else {
-    await notifyUser({
-      userId: user.id,
-      title: "Joined waitlist",
-      message: `You are on the waitlist for ${result.event.title}.`,
-      href: "/my-events",
-    });
+    try {
+      await notifyUser({
+        userId: user.id,
+        title: "Joined waitlist",
+        message: `You are on the waitlist for ${result.event.title}.`,
+        href: "/my-events",
+      });
+    } catch (error) {
+      logSafe("registration.waitlist_notify_failed", { eventId: result.event.id, memberId: member.id });
+      logServerError("registerForEvent.notify", error);
+    }
   }
 
   return result;

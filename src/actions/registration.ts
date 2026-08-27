@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCoordinator, requireMemberSession } from "@/lib/session";
+import { requireCoordinator, requireMemberSession, requireRoleAction } from "@/lib/session";
 import { cancelRegistration, checkInMember, registerForEvent, registerWalkIn } from "@/services/registration";
-import { logServerError, toUserMessage } from "@/lib/errors";
+import { isNextInterruptError, logServerError, toUserMessage } from "@/lib/errors";
 import type { ActionResult } from "@/types";
 
 export async function registerEventAction(
@@ -11,7 +11,7 @@ export async function registerEventAction(
   formData: FormData,
 ): Promise<ActionResult> {
   try {
-    const user = await requireMemberSession();
+    const user = await requireRoleAction(["MEMBER"]);
     const result = await registerForEvent(user, String(formData.get("eventId") ?? ""));
     revalidatePath("/home");
     revalidatePath("/my-events");
@@ -21,6 +21,7 @@ export async function registerEventAction(
     }
     return { ok: true, message: "You are registered. A confirmation was sent to your email." };
   } catch (error) {
+    if (isNextInterruptError(error)) throw error;
     logServerError("registerEventAction", error);
     return { ok: false, error: toUserMessage(error, "Unable to register for this event.") };
   }
