@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { AppError, logServerError } from "@/lib/errors";
 import { logSafe } from "@/lib/log";
-import { alreadyClaimedMessage, canCoordinatorReleaseGuidance } from "@/lib/guidance-rules";
+import { alreadyClaimedMessage, canCoordinatorReleaseGuidance, guidanceHandledByLabel } from "@/lib/guidance-rules";
 import { notifyCoordinators, notifyUser } from "@/services/notifications";
 import { GUIDANCE_LABELS } from "@/utils/format";
 import type { GuidanceCategory, GuidanceStatus } from "@prisma/client";
@@ -205,15 +205,23 @@ export async function addGuidanceMessage(actor: SessionUser, id: string, body: s
 }
 
 export function guidanceAssignmentLabel(
-  request: { claimedById: string | null; claimedBy?: { name: string | null } | null },
+  request: { claimedById: string | null; claimedBy?: { name: string | null } | null; status?: string },
   actorId: string,
 ) {
+  if (request.status === "RESOLVED") return guidanceHandledByLabel(request.claimedBy?.name);
   if (!request.claimedById) return "Unclaimed";
   if (request.claimedById === actorId) return "Assigned to you";
   return `Assigned to ${request.claimedBy?.name || "another coordinator"}`;
 }
 
-export { canMemberCancelGuidance, canCoordinatorReleaseGuidance, isUnclaimedGuidance } from "@/lib/guidance-rules";
+export {
+  canMemberCancelGuidance,
+  canCoordinatorReleaseGuidance,
+  isUnclaimedGuidance,
+  isActiveAssignedGuidance,
+  isResolvedGuidance,
+  guidanceHandledByLabel,
+} from "@/lib/guidance-rules";
 
 export async function cancelGuidanceRequest(user: SessionUser, id: string) {
   const member = await requireGuidanceMember(user);

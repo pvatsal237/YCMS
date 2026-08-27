@@ -17,6 +17,7 @@
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
     "db:demo-reports": "tsx scripts/add-production-demo-data.ts",
+    "db:demo-guidance": "tsx scripts/add-guidance-demo-data.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { eventReportCsvFilename, toCsv } from "@/utils/csv";
 import { formatPhoneDisplay } from "@/services/members";
 import { fullName } from "@/utils/format";
+import { sortGuidanceRows } from "@/lib/guidance-report";
 import type { GuidanceCategory, GuidanceStatus } from "@prisma/client";
 
 export async function eventReport(eventId: string) {
@@ -76,17 +77,19 @@ export async function memberHistory(memberId: string) {
 export async function guidanceReport(filters: {
   from?: Date;
   to?: Date;
-  category?: GuidanceCategory;
-  status?: GuidanceStatus;
+  category?: GuidanceCategory | "";
+  status?: GuidanceStatus | "";
   coordinatorId?: string;
-  eventId?: string;
+  event?: string;
 }) {
   const where = {
     ...(filters.from || filters.to ? { createdAt: { gte: filters.from, lte: filters.to } } : {}),
     ...(filters.category ? { category: filters.category } : {}),
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.coordinatorId ? { claimedById: filters.coordinatorId } : {}),
-    ...(filters.eventId ? { eventId: filters.eventId } : {}),
+    ...(filters.event && filters.event !== "all"
+      ? { eventId: filters.event === "none" ? null : filters.event }
+      : {}),
   };
   const rows = await prisma.guidanceRequest.findMany({
     where,
@@ -101,6 +104,48 @@ export async function guidanceReport(filters: {
     resolved: rows.filter((row) => row.status === "RESOLVED").length,
   };
   return { rows, counts };
+}
+
+export async function exportGuidanceCsv(
+  filters: Parameters<typeof guidanceReport>[0],
+  sort: import("@/lib/guidance-report").GuidanceSort = "newest",
+) {
+  const { rows } = await guidanceReport(filters);
+  const sorted = sortGuidanceRows(
+    rows.map((row) => ({
+      ...row,
+      claimedByName: row.claimedBy?.name ?? null,
+    })),
+    sort,
+  );
+  const csv = toCsv(
+    [
+      "Member",
+      "Email",
+      "Category",
+      "Request Date",
+      "Event",
+      "Status",
+      "Handled By",
+      "Claimed At",
+      "Completed At",
+    ],
+    sorted.map((row) => [
+      fullName(row.member),
+      row.member.email,
+      row.category,
+      row.createdAt.toISOString(),
+      row.event?.title ?? "No linked event",
+      row.status,
+      row.claimedBy?.name ?? "",
+      row.claimedAt?.toISOString() ?? "",
+      row.resolvedAt?.toISOString() ?? "",
+    ]),
+  );
+  return {
+    csv: `\uFEFF${csv}`,
+    filename: `iycm-guidance-${new Date().toISOString().slice(0, 10)}.csv`,
+  };
 }
 
 export async function exportEventCsv(eventId: string) {

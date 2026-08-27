@@ -20,6 +20,16 @@ import { formatEventLongDate, parseEventDate, parseTimeOfDay, formatCheckInOpens
 import { AppError, toUserMessage } from "@/lib/errors";
 import { eventReportCsvFilename, toCsv } from "@/utils/csv";
 import {
+  buildGuidanceQuery,
+  groupGuidanceByDay,
+  groupGuidanceByEvent,
+  groupGuidanceByMonth,
+  groupGuidanceByQuarter,
+  guidanceDateRange,
+  parseGuidanceReportFilters,
+  sortGuidanceRows,
+} from "@/lib/guidance-report";
+import {
   COORDINATOR_EMAIL_BLOCKED,
   DUPLICATE_MEMBER_EMAIL,
   evaluateMemberCreate,
@@ -32,7 +42,10 @@ import {
   alreadyClaimedMessage,
   canCoordinatorReleaseGuidance,
   canMemberCancelGuidance,
+  guidanceHandledByLabel,
   guidanceQueueSections,
+  isActiveAssignedGuidance,
+  isResolvedGuidance,
   isUnclaimedGuidance,
 } from "@/lib/guidance-rules";
 import { guidanceAssignmentLabel } from "@/services/guidance";
@@ -128,6 +141,14 @@ describe("coordinator list helpers", () => {
     expect(guidanceAssignmentLabel({ claimedById: "them", claimedBy: { name: "James Okonkwo" } }, "me")).toBe(
       "Assigned to James Okonkwo",
     );
+    expect(
+      guidanceAssignmentLabel({ claimedById: "me", claimedBy: { name: "Priya" }, status: "RESOLVED" }, "me"),
+    ).toBe("Handled by Priya");
+    expect(guidanceHandledByLabel("Daniel Chen")).toBe("Handled by Daniel Chen");
+    expect(isActiveAssignedGuidance({ claimedById: "me", status: "CLAIMED" }, "me")).toBe(true);
+    expect(isActiveAssignedGuidance({ claimedById: "me", status: "RESOLVED" }, "me")).toBe(false);
+    expect(isResolvedGuidance({ status: "RESOLVED" })).toBe(true);
+    expect(isResolvedGuidance({ status: "CLAIMED" })).toBe(false);
     expect(canMemberCancelGuidance({ memberId: "m1", status: "NEW", claimedById: null }, "m1")).toBe(true);
     expect(canMemberCancelGuidance({ memberId: "m1", status: "CLAIMED", claimedById: "c1" }, "m1")).toBe(false);
     expect(canMemberCancelGuidance({ memberId: "m1", status: "NEW", claimedById: null }, "other")).toBe(false);
@@ -152,24 +173,27 @@ describe("coordinator list helpers", () => {
     ).toEqual({
       showAssignedToMe: true,
       showUnclaimed: false,
+      showUnclaimedEmpty: false,
+      showHistory: false,
       showAssignedToOthers: false,
-      showEmptyState: false,
     });
     expect(
       guidanceQueueSections({ assignedToMeCount: 0, unclaimedCount: 0, assignedToOthersCount: 0 }),
     ).toEqual({
       showAssignedToMe: false,
       showUnclaimed: false,
+      showUnclaimedEmpty: true,
+      showHistory: false,
       showAssignedToOthers: false,
-      showEmptyState: true,
     });
     expect(
       guidanceQueueSections({ assignedToMeCount: 2, unclaimedCount: 1, assignedToOthersCount: 0 }),
     ).toEqual({
       showAssignedToMe: true,
       showUnclaimed: true,
+      showUnclaimedEmpty: false,
+      showHistory: false,
       showAssignedToOthers: false,
-      showEmptyState: false,
     });
   });
 
@@ -357,5 +381,69 @@ describe("report CSV export", () => {
     expect(eventReportCsvFilename("AI at Work: Practical Tools for the Modern Workplace", new Date("2026-08-23T00:00:00.000Z"))).toBe(
       "iycm-ai-at-work-2026-08-23.csv",
     );
+  });
+});
+
+describe("guidance reporting", () => {
+  const now = new Date("2026-08-27T18:00:00.000Z");
+
+  it("parses filters and date ranges", () => {
+    expect(parseGuidanceReportFilters({}).range).toBe("month");
+    expect(guidanceDateRange({ range: "today" }, now).from?.toISOString()).toBe("2026-08-27T00:00:00.000Z");
+    expect(guidanceDateRange({ range: "month" }, now).from?.toISOString()).toBe("2026-08-01T00:00:00.000Z");
+    expect(guidanceDateRange({ range: "quarter" }, now).from?.toISOString()).toBe("2026-07-01T00:00:00.000Z");
+    expect(buildGuidanceQuery(parseGuidanceReportFilters({ category: "AI", event: "none" }), { type: "guidance" })).toContain(
+      "type=guidance",
+    );
+  });
+
+  it("groups requests by day, month, quarter, and event", () => {
+    const dates = [
+      new Date("2026-08-10T15:15:00.000Z"),
+      new Date("2026-08-10T16:00:00.000Z"),
+      new Date("2026-08-10T18:00:00.000Z"),
+      new Date("2026-08-11T12:00:00.000Z"),
+      new Date("2026-08-11T13:00:00.000Z"),
+      new Date("2026-08-12T09:00:00.000Z"),
+    ];
+    expect(groupGuidanceByDay(dates)).toEqual([
+      { key: "2026-08-10", count: 3 },
+      { key: "2026-08-11", count: 2 },
+      { key: "2026-08-12", count: 1 },
+    ]);
+    expect(groupGuidanceByMonth(dates)).toEqual([{ key: "2026-08", count: 6 }]);
+    expect(groupGuidanceByQuarter(dates)).toEqual([{ key: "Q3 2026", count: 6 }]);
+    expect(
+      groupGuidanceByEvent([
+        { eventTitle: "Career Ready: Resume and Interview Mastery" },
+        { eventTitle: "Career Ready: Resume and Interview Mastery" },
+        { eventTitle: null },
+      ]),
+    ).toEqual([
+      { key: "Career Ready: Resume and Interview Mastery", count: 2 },
+      { key: "No Event Linked", count: 1 },
+    ]);
+  });
+
+  it("sorts guidance rows by newest, category, coordinator, and completed date", () => {
+    const rows = [
+      {
+        createdAt: new Date("2026-08-12T00:00:00.000Z"),
+        category: "AI",
+        resolvedAt: new Date("2026-08-14T00:00:00.000Z"),
+        claimedByName: "Priya",
+      },
+      {
+        createdAt: new Date("2026-08-10T00:00:00.000Z"),
+        category: "FINANCE",
+        resolvedAt: new Date("2026-08-11T00:00:00.000Z"),
+        claimedByName: "James",
+      },
+    ];
+    expect(sortGuidanceRows(rows, "newest")[0].category).toBe("AI");
+    expect(sortGuidanceRows(rows, "oldest")[0].category).toBe("FINANCE");
+    expect(sortGuidanceRows(rows, "category")[0].category).toBe("AI");
+    expect(sortGuidanceRows(rows, "coordinator")[0].claimedByName).toBe("James");
+    expect(sortGuidanceRows(rows, "completed")[0].claimedByName).toBe("James");
   });
 });

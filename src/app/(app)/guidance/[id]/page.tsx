@@ -8,6 +8,7 @@ import { ReleaseGuidanceButton } from "@/components/guidance/ReleaseGuidanceButt
 import { PageHeader } from "@/components/ui/Feedback";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { formatDateTime } from "@/lib/dates";
 import { fullName, guidanceStatusLabel, GUIDANCE_LABELS } from "@/utils/format";
 
 export default async function GuidanceDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,7 +29,12 @@ export default async function GuidanceDetailPage({ params }: { params: Promise<{
         <CardBody className="space-y-2 text-sm">
           <p>{request.message}</p>
           {request.customTopic ? <p>Topic: {request.customTopic}</p> : null}
+          <p>{request.member.email}</p>
           <p>{guidanceAssignmentLabel(request, actor.id)}</p>
+          <p>Requested: {formatDateTime(request.createdAt)}</p>
+          {request.claimedAt ? <p>Claimed: {formatDateTime(request.claimedAt)}</p> : null}
+          {request.resolvedAt ? <p>Completed: {formatDateTime(request.resolvedAt)}</p> : null}
+          <p>{request.event?.title ?? "No linked event"}</p>
           {unclaimed ? <ClaimGuidanceButton requestId={request.id} /> : null}
           {canRelease ? <ReleaseGuidanceButton requestId={request.id} /> : null}
         </CardBody>
