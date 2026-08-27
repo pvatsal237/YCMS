@@ -13,6 +13,7 @@ import {
   canShowDevOtp,
 } from "@/lib/otp";
 import { defaultHomePath, isPathAllowed, navItemsForRole } from "@/lib/authorization";
+import { eventTitleParts } from "@/utils/format";
 import { advanceRegistrationCapacity } from "@/lib/capacity";
 import { registrationConfirmationEmail } from "@/lib/registration-email";
 import { formatEventLongDate, parseEventDate, parseTimeOfDay } from "@/lib/dates";
@@ -105,6 +106,10 @@ describe("coordinator list helpers", () => {
       today,
     );
     expect(featured?.eventDate.toISOString()).toBe("2026-08-30T00:00:00.000Z");
+    expect(eventTitleParts("Mastering AI: From Everyday Tools to Real-World Impact")).toEqual({
+      heading: "Mastering AI",
+      subtitle: "From Everyday Tools to Real-World Impact",
+    });
   });
 
   it("labels guidance assignment for unclaimed, self, and other coordinators", () => {
@@ -139,7 +144,7 @@ describe("privacy and registration labels", () => {
   it("shows full Canadian phone numbers to coordinators", () => {
     expect(formatPhoneDisplay("4165553487")).toBe("416-555-3487");
     expect(formatPhoneDisplay("647-555-2211")).toBe("647-555-2211");
-    expect(formatPhoneDisplay("")).toBe("—");
+    expect(formatPhoneDisplay("")).toBe("Not provided");
   });
 
   it("treats walk-in reserve as part of total capacity", () => {

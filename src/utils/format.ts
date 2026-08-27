@@ -27,6 +27,15 @@ export function cn(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
+export function eventTitleParts(title: string) {
+  const index = title.indexOf(":");
+  if (index === -1) return { heading: title.trim(), subtitle: null as string | null };
+  return {
+    heading: title.slice(0, index).trim(),
+    subtitle: title.slice(index + 1).trim() || null,
+  };
+}
+
 export function eventStatusLabel(status: string) {
   const labels: Record<string, string> = {
     DRAFT: "Draft",

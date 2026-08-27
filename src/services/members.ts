@@ -34,6 +34,14 @@ export async function listMembers(q?: string) {
           ],
         }
       : undefined,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+      active: true,
+    },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     take: 200,
   });

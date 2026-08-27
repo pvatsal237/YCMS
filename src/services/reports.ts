@@ -85,16 +85,10 @@ export async function exportEventCsv(eventId: string) {
 }
 
 export async function dashboardStats() {
-  const today = new Date();
-  const [members, published, openGuidance, upcoming] = await Promise.all([
+  const [members, published, openGuidance] = await Promise.all([
     prisma.member.count({ where: { active: true } }),
     prisma.event.count({ where: { status: "PUBLISHED" } }),
     prisma.guidanceRequest.count({ where: { status: "NEW" } }),
-    prisma.event.findMany({
-      where: { status: { in: ["PUBLISHED", "REGISTRATION_CLOSED"] }, eventDate: { gte: today } },
-      orderBy: { eventDate: "asc" },
-      take: 5,
-    }),
   ]);
-  return { members, published, openGuidance, upcoming };
+  return { members, published, openGuidance };
 }

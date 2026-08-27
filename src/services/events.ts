@@ -107,6 +107,21 @@ export function featuredPublishedEvent<T extends { status: string; eventDate: Da
   );
 }
 
+export async function getCoordinatorFeaturedEvent() {
+  const today = startOfUtcDay();
+  const events = await prisma.event.findMany({
+    where: { status: "PUBLISHED", eventDate: { gte: today } },
+    orderBy: [{ eventDate: "asc" }, { startTime: "asc" }],
+    take: 1,
+    include: {
+      _count: {
+        select: { registrations: { where: { status: "REGISTERED" } } },
+      },
+    },
+  });
+  return events[0] ?? null;
+}
+
 export async function listPublishedUpcomingEvents() {
   return prisma.event.findMany({
     where: {
