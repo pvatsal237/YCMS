@@ -47,6 +47,11 @@ export function eventStatusLabel(status: string) {
   return labels[status] ?? status;
 }
 
+export function registrationTypeLabel(type: string) {
+  if (type === "WALK_IN") return "Walk-in";
+  return "Standard";
+}
+
 export function registrationLabel(status: string) {
   const labels: Record<string, string> = {
     REGISTERED: "Registered",

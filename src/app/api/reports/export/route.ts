@@ -14,11 +14,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const eventId = searchParams.get("eventId");
   if (!eventId) return NextResponse.json({ error: "Unknown export." }, { status: 400 });
-  const csv = await exportEventCsv(eventId);
-  return new NextResponse(csv, {
+  const exported = await exportEventCsv(eventId);
+  if (!exported) return NextResponse.json({ error: "Event not found." }, { status: 404 });
+  return new NextResponse(exported.csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="iycm-event.csv"`,
+      "Content-Disposition": `attachment; filename="${exported.filename}"`,
     },
   });
 }

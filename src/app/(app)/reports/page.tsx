@@ -1,58 +1,45 @@
+import Link from "next/link";
 import { requireCoordinator } from "@/lib/session";
-import { eventReport, guidanceReport } from "@/services/reports";
+import { eventReport, reportsOverview } from "@/services/reports";
 import { listCoordinatorEvents } from "@/services/events";
 import { PageHeader, EmptyState } from "@/components/ui/Feedback";
 import { PageLoadError } from "@/components/ui/PageLoadError";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { prisma } from "@/lib/prisma";
+import { Card, CardBody } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { loadPageData } from "@/lib/page-data";
-import { GUIDANCE_LABELS } from "@/utils/format";
+import { formatEventLongDate } from "@/lib/dates";
+import { eventStatusLabel } from "@/utils/format";
 
-export default async function ReportsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ eventId?: string; range?: string; category?: string; status?: string; coordinator?: string }>;
-}) {
+export default async function ReportsPage() {
   await requireCoordinator();
-  const params = await searchParams;
   const loaded = await loadPageData("reports.page", async () => {
-    const events = await listCoordinatorEvents();
-    const eventId = params.eventId ?? events[0]?.id;
-    const report = eventId ? await eventReport(eventId) : null;
-    const now = new Date();
-    const from =
-      params.range === "today"
-        ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
-        : params.range === "quarter"
-          ? new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
-          : new Date(now.getFullYear(), now.getMonth(), 1);
-    const coordinators = await prisma.user.findMany({ where: { role: "COORDINATOR" }, select: { id: true, name: true } });
-    const guidance = await guidanceReport({
-      from,
-      to: now,
-      category: params.category as never,
-      status: params.status as never,
-      coordinatorId: params.coordinator,
-      eventId: params.eventId,
-    });
-    const allGuidance = await guidanceReport({});
-    return { events, eventId, report, coordinators, guidance, hasAnyGuidance: allGuidance.counts.total > 0 };
+    const [events, overview] = await Promise.all([listCoordinatorEvents(), reportsOverview()]);
+    const completed = events.filter((event) => event.status === "COMPLETED");
+    const other = events.filter((event) => event.status !== "COMPLETED");
+    const withCounts = await Promise.all(
+      completed.map(async (event) => {
+        const report = await eventReport(event.id);
+        return { event, counts: report?.counts };
+      }),
+    );
+    return { overview, completed: withCounts, other };
   });
 
   if (!loaded.ok) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Reports" description="Simple counts for events and guidance." />
+        <PageHeader title="Reports" description="Attendance and participation for IYCM events." />
         <PageLoadError description="We could not load reports. Please try again." />
       </div>
     );
   }
 
-  const { events, eventId, report, coordinators, guidance, hasAnyGuidance } = loaded.data;
-  if (events.length === 0 && !hasAnyGuidance) {
+  const { overview, completed, other } = loaded.data;
+  if (overview.totalEvents === 0 && overview.guidanceRequests === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Reports" description="Simple counts for events and guidance." />
+        <PageHeader title="Reports" description="Attendance and participation for IYCM events." />
         <Card>
           <EmptyState
             title="No reports available yet."
@@ -63,75 +50,97 @@ export default async function ReportsPage({
     );
   }
 
+  const stats = [
+    { label: "Total Events", value: overview.totalEvents },
+    { label: "Total Registrations", value: overview.totalRegistrations },
+    { label: "Total Check-Ins", value: overview.totalCheckIns },
+    { label: "Total No Shows", value: overview.totalNoShows },
+    { label: "Walk-Ins", value: overview.walkIns },
+    { label: "Guidance Requests", value: overview.guidanceRequests },
+  ];
+
   return (
-    <div className="space-y-6">
-      <PageHeader title="Reports" description="Simple counts for events and guidance." />
-      <Card>
-        <CardHeader title="Event report" />
-        <CardBody className="space-y-3">
-          {events.length === 0 ? (
-            <p className="text-sm text-slate-500">No events to report on yet.</p>
-          ) : (
-            <>
-              <form className="flex flex-wrap gap-2">
-                <select name="eventId" defaultValue={eventId} className="rounded-md border px-3 py-2 text-sm">
-                  {events.map((event) => (
-                    <option key={event.id} value={event.id}>{event.title}</option>
-                  ))}
-                </select>
-                <button className="rounded-md border px-3 py-2 text-sm" type="submit">View</button>
-                {eventId ? (
-                  <a className="rounded-md border px-3 py-2 text-sm" href={`/api/reports/export?type=event&eventId=${eventId}`}>
-                    Export CSV
+    <div className="space-y-8">
+      <PageHeader title="Reports" description="Attendance and participation for IYCM events." />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {stats.map((item) => (
+          <Card key={item.label}>
+            <CardBody>
+              <p className="text-sm text-slate-500">{item.label}</p>
+              <p className="mt-2 text-3xl font-semibold text-slate-900">{item.value}</p>
+            </CardBody>
+          </Card>
+        ))}
+      </div>
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-slate-500">Completed / Historical</h2>
+        {completed.length === 0 ? (
+          <Card>
+            <EmptyState
+              title="No completed events yet."
+              description="Completed events will appear here with View Report and Export CSV."
+            />
+          </Card>
+        ) : (
+          completed.map(({ event, counts }) => (
+            <Card key={event.id}>
+              <CardBody className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-semibold text-slate-900">{event.title}</h3>
+                    <Badge tone="slate">{eventStatusLabel(event.status)}</Badge>
+                  </div>
+                  <p className="text-sm text-slate-600">{formatEventLongDate(event.eventDate)}</p>
+                  {counts ? (
+                    <p className="text-sm text-slate-500">
+                      Registered {counts.registered} · Checked in {counts.checkedIn} · No shows {counts.noShows} · Walk-ins {counts.walkIns}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link href={`/reports/${event.id}`}>
+                    <Button size="sm">View Report</Button>
+                  </Link>
+                  <a href={`/api/reports/export?eventId=${event.id}`}>
+                    <Button size="sm" variant="secondary">
+                      Export CSV
+                    </Button>
                   </a>
-                ) : null}
-              </form>
-              {report ? (
-                <p className="text-sm">
-                  Registered {report.counts.registered} · Checked in {report.counts.checkedIn} · No shows {report.counts.noShows} · Walk-ins {report.counts.walkIns} · Waitlisted {report.counts.waitlisted}
-                </p>
-              ) : (
-                <p className="text-sm text-slate-500">No event selected.</p>
-              )}
-            </>
-          )}
-        </CardBody>
-      </Card>
-      <Card>
-        <CardHeader title="Guidance report" />
-        <CardBody className="space-y-3">
-          <form className="flex flex-wrap gap-2">
-            <select name="range" defaultValue={params.range ?? "month"} className="rounded-md border px-3 py-2 text-sm">
-              <option value="today">Today</option>
-              <option value="month">Month</option>
-              <option value="quarter">Quarter</option>
-            </select>
-            <select name="category" defaultValue={params.category ?? ""} className="rounded-md border px-3 py-2 text-sm">
-              <option value="">All categories</option>
-              {Object.entries(GUIDANCE_LABELS).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-            <select name="status" defaultValue={params.status ?? ""} className="rounded-md border px-3 py-2 text-sm">
-              <option value="">All statuses</option>
-              <option value="NEW">New</option>
-              <option value="CLAIMED">Claimed</option>
-              <option value="WAITING_FOR_MEMBER">Waiting for Member</option>
-              <option value="RESOLVED">Resolved</option>
-            </select>
-            <select name="coordinator" defaultValue={params.coordinator ?? ""} className="rounded-md border px-3 py-2 text-sm">
-              <option value="">All coordinators</option>
-              {coordinators.map((row) => (
-                <option key={row.id} value={row.id}>{row.name}</option>
-              ))}
-            </select>
-            <button className="rounded-md border px-3 py-2 text-sm" type="submit">Filter</button>
-          </form>
-          <p className="text-sm">
-            Total {guidance.counts.total} · New {guidance.counts.new} · Claimed {guidance.counts.claimed} · Waiting {guidance.counts.waiting} · Resolved {guidance.counts.resolved}
-          </p>
-        </CardBody>
-      </Card>
+                </div>
+              </CardBody>
+            </Card>
+          ))
+        )}
+      </section>
+      {other.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium text-slate-500">Other events</h2>
+          {other.map((event) => (
+            <Card key={event.id}>
+              <CardBody className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-medium text-slate-900">{event.title}</p>
+                  <p className="text-sm text-slate-500">
+                    {formatEventLongDate(event.eventDate)} · {eventStatusLabel(event.status)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link href={`/reports/${event.id}`}>
+                    <Button size="sm" variant="secondary">
+                      View Report
+                    </Button>
+                  </Link>
+                  <a href={`/api/reports/export?eventId=${event.id}`}>
+                    <Button size="sm" variant="ghost">
+                      Export CSV
+                    </Button>
+                  </a>
+                </div>
+              </CardBody>
+            </Card>
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }

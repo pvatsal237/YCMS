@@ -18,6 +18,7 @@ import { advanceRegistrationCapacity } from "@/lib/capacity";
 import { registrationConfirmationEmail } from "@/lib/registration-email";
 import { formatEventLongDate, parseEventDate, parseTimeOfDay, formatCheckInOpensMessage, isCheckInOpen } from "@/lib/dates";
 import { AppError, toUserMessage } from "@/lib/errors";
+import { eventReportCsvFilename, toCsv } from "@/utils/csv";
 import {
   COORDINATOR_EMAIL_BLOCKED,
   DUPLICATE_MEMBER_EMAIL,
@@ -81,6 +82,8 @@ describe("roles and navigation", () => {
     expect(defaultHomePath("MEMBER")).toBe("/home");
     expect(isPathAllowed("/events", "COORDINATOR")).toBe(true);
     expect(isPathAllowed("/events/new", "COORDINATOR")).toBe(true);
+    expect(isPathAllowed("/api/reports/export", "COORDINATOR")).toBe(true);
+    expect(isPathAllowed("/api/reports/export", "MEMBER")).toBe(false);
     expect(isPathAllowed("/events", "MEMBER")).toBe(false);
     expect(isPathAllowed("/home", "MEMBER")).toBe(true);
     expect(isPathAllowed("/dashboard", "MEMBER")).toBe(false);
@@ -341,5 +344,18 @@ describe("event text sanitization", () => {
         expect(value.includes("\u0000")).toBe(false);
       }
     }
+  });
+});
+
+describe("report CSV export", () => {
+  it("escapes commas, quotes, and newlines and names files from the event", () => {
+    const csv = toCsv(
+      ["Event Title", "Member Name"],
+      [["Career Ready: Resume, Interview", 'Maya "Patel"\nHall']],
+    );
+    expect(csv).toBe("Event Title,Member Name\n\"Career Ready: Resume, Interview\",\"Maya \"\"Patel\"\"\nHall\"");
+    expect(eventReportCsvFilename("Mastering AI: From Everyday Tools to Real-World Impact", new Date("2026-08-23T00:00:00.000Z"))).toBe(
+      "iycm-mastering-ai-2026-08-23.csv",
+    );
   });
 });

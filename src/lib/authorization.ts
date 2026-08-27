@@ -64,6 +64,7 @@ export function isPathAllowed(pathname: string, role: UserRole): boolean {
       pathIs("/members") ||
       pathIs("/guidance") ||
       pathIs("/reports") ||
+      pathIs("/api/reports") ||
       pathIs("/notifications")
     );
   }

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { toCsv } from "@/utils/csv";
+import { eventReportCsvFilename, toCsv } from "@/utils/csv";
 import { formatPhoneDisplay } from "@/services/members";
 import { fullName } from "@/utils/format";
 import type { GuidanceCategory, GuidanceStatus } from "@prisma/client";
@@ -7,19 +7,55 @@ import type { GuidanceCategory, GuidanceStatus } from "@prisma/client";
 export async function eventReport(eventId: string) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    include: { registrations: { include: { member: true } } },
+    include: {
+      registrations: {
+        include: { member: true },
+        orderBy: [{ createdAt: "asc" }],
+      },
+    },
   });
   if (!event) return null;
   const registered = event.registrations.filter((row) => row.status === "REGISTERED");
   return {
     event,
     counts: {
-      registered: registered.filter((row) => row.type === "STANDARD").length,
+      registered: registered.length,
       checkedIn: registered.filter((row) => row.checkInStatus === "CHECKED_IN").length,
       noShows: registered.filter((row) => row.checkInStatus === "NO_SHOW").length,
       walkIns: registered.filter((row) => row.type === "WALK_IN").length,
       waitlisted: event.registrations.filter((row) => row.status === "WAITLISTED").length,
     },
+  };
+}
+
+export async function reportsOverview() {
+  const [totalEvents, guidanceRequests, groups] = await Promise.all([
+    prisma.event.count(),
+    prisma.guidanceRequest.count(),
+    prisma.eventRegistration.groupBy({
+      by: ["status", "type", "checkInStatus"],
+      _count: { _all: true },
+    }),
+  ]);
+  let totalRegistrations = 0;
+  let totalCheckIns = 0;
+  let totalNoShows = 0;
+  let walkIns = 0;
+  for (const row of groups) {
+    const count = row._count._all;
+    if (row.status !== "REGISTERED") continue;
+    totalRegistrations += count;
+    if (row.checkInStatus === "CHECKED_IN") totalCheckIns += count;
+    if (row.checkInStatus === "NO_SHOW") totalNoShows += count;
+    if (row.type === "WALK_IN") walkIns += count;
+  }
+  return {
+    totalEvents,
+    totalRegistrations,
+    totalCheckIns,
+    totalNoShows,
+    walkIns,
+    guidanceRequests,
   };
 }
 
@@ -69,10 +105,22 @@ export async function guidanceReport(filters: {
 
 export async function exportEventCsv(eventId: string) {
   const report = await eventReport(eventId);
-  if (!report) return "";
-  return toCsv(
-    ["Member", "Email", "Phone", "Type", "Registration", "Check-in", "Check-in time"],
+  if (!report) return null;
+  const csv = toCsv(
+    [
+      "Event Title",
+      "Event Date",
+      "Member Name",
+      "Email",
+      "Phone",
+      "Registration Type",
+      "Registration Status",
+      "Check-In Status",
+      "Checked-In At",
+    ],
     report.event.registrations.map((row) => [
+      report.event.title,
+      report.event.eventDate.toISOString().slice(0, 10),
       fullName(row.member),
       row.member.email,
       formatPhoneDisplay(row.member.phone),
@@ -82,6 +130,10 @@ export async function exportEventCsv(eventId: string) {
       row.checkedInAt?.toISOString() ?? "",
     ]),
   );
+  return {
+    csv: `\uFEFF${csv}`,
+    filename: eventReportCsvFilename(report.event.title, report.event.eventDate),
+  };
 }
 
 export async function dashboardStats() {
