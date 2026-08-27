@@ -20,7 +20,7 @@ export function ClaimGuidanceButton({ requestId }: { requestId: string }) {
   const claimed = Boolean(state.ok && state.message);
 
   return (
-    <form action={action} className="space-y-2">
+    <form action={action} className="inline-flex flex-col gap-2">
       {!state.ok ? <Alert>{state.error}</Alert> : null}
       {claimed ? <Alert tone="success">{state.ok ? state.message : null}</Alert> : null}
       <input type="hidden" name="id" value={requestId} />

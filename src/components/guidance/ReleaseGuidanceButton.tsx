@@ -22,7 +22,7 @@ export function ReleaseGuidanceButton({ requestId }: { requestId: string }) {
   return (
     <form
       action={action}
-      className="space-y-2"
+      className="inline-flex flex-col gap-2"
       onSubmit={(event) => {
         if (released) {
           event.preventDefault();
@@ -41,12 +41,9 @@ export function ReleaseGuidanceButton({ requestId }: { requestId: string }) {
       {released ? <Alert tone="success">{state.ok ? state.message : null}</Alert> : null}
       <input type="hidden" name="id" value={requestId} />
       {released ? null : (
-        <>
-          <p className="text-xs text-slate-500">Return this request to the coordinator queue.</p>
-          <Button type="submit" size="sm" variant="secondary" disabled={pending}>
-            {pending ? "Releasing..." : "Release Request"}
-          </Button>
-        </>
+        <Button type="submit" size="sm" variant="secondary" disabled={pending}>
+          {pending ? "Releasing..." : "Release Request"}
+        </Button>
       )}
     </form>
   );

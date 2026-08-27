@@ -27,7 +27,13 @@ import {
 import { defaultCheckInOpensAt, defaultDeadline } from "@/lib/event-schedule";
 import { sanitizeEventText, inspectEventTextFields } from "@/lib/sanitize-text";
 import { buildEventWriteData, featuredPublishedEvent, memberFacingStatus } from "@/services/events";
-import { alreadyClaimedMessage, canCoordinatorReleaseGuidance, canMemberCancelGuidance, isUnclaimedGuidance } from "@/lib/guidance-rules";
+import {
+  alreadyClaimedMessage,
+  canCoordinatorReleaseGuidance,
+  canMemberCancelGuidance,
+  guidanceQueueSections,
+  isUnclaimedGuidance,
+} from "@/lib/guidance-rules";
 import { guidanceAssignmentLabel } from "@/services/guidance";
 import {
   inspectEventWriteStrings,
@@ -135,6 +141,33 @@ describe("coordinator list helpers", () => {
     );
     expect(isUnclaimedGuidance({ status: "NEW", claimedById: null })).toBe(true);
     expect(isUnclaimedGuidance({ status: "CLAIMED", claimedById: "me" })).toBe(false);
+  });
+
+  it("hides the unclaimed empty state when the coordinator already has assigned requests", () => {
+    expect(
+      guidanceQueueSections({ assignedToMeCount: 1, unclaimedCount: 0, assignedToOthersCount: 0 }),
+    ).toEqual({
+      showAssignedToMe: true,
+      showUnclaimed: false,
+      showAssignedToOthers: false,
+      showEmptyState: false,
+    });
+    expect(
+      guidanceQueueSections({ assignedToMeCount: 0, unclaimedCount: 0, assignedToOthersCount: 0 }),
+    ).toEqual({
+      showAssignedToMe: false,
+      showUnclaimed: false,
+      showAssignedToOthers: false,
+      showEmptyState: true,
+    });
+    expect(
+      guidanceQueueSections({ assignedToMeCount: 2, unclaimedCount: 1, assignedToOthersCount: 0 }),
+    ).toEqual({
+      showAssignedToMe: true,
+      showUnclaimed: true,
+      showAssignedToOthers: false,
+      showEmptyState: false,
+    });
   });
 
   it("maps dashboard summary cards to coordinator routes", () => {
