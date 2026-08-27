@@ -85,13 +85,13 @@ export default async function EventReportPage({ params }: { params: Promise<{ ev
         <CardBody className="p-0">
           <Table
             headers={[
-              "Name",
+              "Member Name",
               "Email",
-              "Phone",
-              "Registration type",
-              "Registration status",
-              "Check-in status",
-              "Check-in time",
+              "Full Phone",
+              "Registration Type",
+              "Registration Status",
+              "Check-In Status",
+              "Checked-In Time",
             ]}
           >
             {report.event.registrations.map((row) => (
