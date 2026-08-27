@@ -1,6 +1,6 @@
 import type { GuidanceCategory, GuidanceStatus } from "@prisma/client";
 
-export type GuidanceRange = "today" | "month" | "quarter" | "custom";
+export type GuidanceRange = "all" | "today" | "month" | "quarter" | "custom";
 export type GuidanceSort = "newest" | "oldest" | "category" | "coordinator" | "completed";
 
 export type GuidanceReportFilters = {
@@ -28,18 +28,23 @@ const CATEGORIES = new Set<GuidanceCategory>([
 ]);
 
 const STATUSES = new Set<GuidanceStatus>(["NEW", "CLAIMED", "WAITING_FOR_MEMBER", "RESOLVED"]);
-const RANGES = new Set<GuidanceRange>(["today", "month", "quarter", "custom"]);
+const RANGES = new Set<GuidanceRange>(["all", "today", "month", "quarter", "custom"]);
 const SORTS = new Set<GuidanceSort>(["newest", "oldest", "category", "coordinator", "completed"]);
 
+export function customDateFieldsVisible(range: GuidanceRange) {
+  return range === "custom";
+}
+
 export function parseGuidanceReportFilters(params: Record<string, string | undefined>): GuidanceReportFilters {
-  const range = RANGES.has(params.range as GuidanceRange) ? (params.range as GuidanceRange) : "month";
+  const range = RANGES.has(params.range as GuidanceRange) ? (params.range as GuidanceRange) : "all";
   const sort = SORTS.has(params.sort as GuidanceSort) ? (params.sort as GuidanceSort) : "newest";
   const category = CATEGORIES.has(params.category as GuidanceCategory) ? (params.category as GuidanceCategory) : "";
   const status = STATUSES.has(params.status as GuidanceStatus) ? (params.status as GuidanceStatus) : "";
+  const custom = range === "custom";
   return {
     range,
-    from: params.from || undefined,
-    to: params.to || undefined,
+    from: custom ? params.from || undefined : undefined,
+    to: custom ? params.to || undefined : undefined,
     category,
     status,
     coordinatorId: params.coordinator || undefined,
@@ -50,8 +55,10 @@ export function parseGuidanceReportFilters(params: Record<string, string | undef
 
 export function buildGuidanceQuery(filters: GuidanceReportFilters, extra: Record<string, string> = {}) {
   const query = new URLSearchParams({ range: filters.range, event: filters.event, sort: filters.sort, ...extra });
-  if (filters.from) query.set("from", filters.from);
-  if (filters.to) query.set("to", filters.to);
+  if (filters.range === "custom") {
+    if (filters.from) query.set("from", filters.from);
+    if (filters.to) query.set("to", filters.to);
+  }
   if (filters.category) query.set("category", filters.category);
   if (filters.status) query.set("status", filters.status);
   if (filters.coordinatorId) query.set("coordinator", filters.coordinatorId);
@@ -59,22 +66,42 @@ export function buildGuidanceQuery(filters: GuidanceReportFilters, extra: Record
 }
 
 export function guidanceDateRange(filters: Pick<GuidanceReportFilters, "range" | "from" | "to">, now = new Date()) {
+  if (filters.range === "all") {
+    return { from: undefined, to: undefined };
+  }
   if (filters.range === "today") {
     return {
       from: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())),
-      to: now,
+      to: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999)),
     };
   }
   if (filters.range === "quarter") {
     const quarterStartMonth = Math.floor(now.getUTCMonth() / 3) * 3;
-    return { from: new Date(Date.UTC(now.getUTCFullYear(), quarterStartMonth, 1)), to: now };
+    return {
+      from: new Date(Date.UTC(now.getUTCFullYear(), quarterStartMonth, 1)),
+      to: new Date(Date.UTC(now.getUTCFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999)),
+    };
   }
   if (filters.range === "custom") {
     const from = filters.from ? new Date(`${filters.from}T00:00:00.000Z`) : undefined;
-    const to = filters.to ? new Date(`${filters.to}T23:59:59.999Z`) : now;
+    const to = filters.to ? new Date(`${filters.to}T23:59:59.999Z`) : undefined;
     return { from, to };
   }
-  return { from: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)), to: now };
+  return {
+    from: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
+    to: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999)),
+  };
+}
+
+export function isValidCustomDateRange(from?: string, to?: string) {
+  if (!from || !to) return true;
+  return from <= to;
+}
+
+export function recordMatchesGuidanceRange(createdAt: Date, range: { from?: Date; to?: Date }) {
+  if (range.from && createdAt < range.from) return false;
+  if (range.to && createdAt > range.to) return false;
+  return true;
 }
 
 export function utcDayKey(date: Date) {

@@ -6,7 +6,7 @@ import {
   isResolvedGuidance,
   isUnclaimedGuidance,
 } from "@/lib/guidance-rules";
-import { guidanceDateRange, parseGuidanceReportFilters, sortGuidanceRows } from "@/lib/guidance-report";
+import { guidanceDateRange, parseGuidanceReportFilters, recordMatchesGuidanceRange, sortGuidanceRows } from "@/lib/guidance-report";
 import { CoordinatorGuidanceCard } from "@/components/guidance/CoordinatorGuidanceCard";
 import { GuidanceFilterForm } from "@/components/guidance/GuidanceFilterForm";
 import { GuidanceHistoryRow } from "@/components/guidance/GuidanceHistoryRow";
@@ -42,11 +42,8 @@ export default async function GuidancePage({
   }
 
   const { rows, coordinators, events } = loaded.data;
-  const filters = parseGuidanceReportFilters({
-    ...params,
-    status: params.status ?? "RESOLVED",
-  });
-  const { from, to } = guidanceDateRange(filters);
+  const filters = parseGuidanceReportFilters(params);
+  const range = guidanceDateRange(filters);
   const unclaimed = rows.filter(isUnclaimedGuidance);
   const assignedToMe = rows.filter((row) => isActiveAssignedGuidance(row, actor.id));
   const assignedToOthers = rows.filter(
@@ -64,8 +61,7 @@ export default async function GuidancePage({
   const history = sortGuidanceRows(
     historySource
       .filter((row) => {
-        if (from && row.createdAt < from) return false;
-        if (to && row.createdAt > to) return false;
+        if (!recordMatchesGuidanceRange(row.createdAt, range)) return false;
         if (filters.category && row.category !== filters.category) return false;
         if (filters.status && row.status !== filters.status) return false;
         if (filters.coordinatorId && row.claimedById !== filters.coordinatorId) return false;

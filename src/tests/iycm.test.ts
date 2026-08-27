@@ -21,12 +21,14 @@ import { AppError, toUserMessage } from "@/lib/errors";
 import { eventReportCsvFilename, toCsv } from "@/utils/csv";
 import {
   buildGuidanceQuery,
+  customDateFieldsVisible,
   groupGuidanceByDay,
   groupGuidanceByEvent,
   groupGuidanceByMonth,
   groupGuidanceByQuarter,
   guidanceDateRange,
   parseGuidanceReportFilters,
+  recordMatchesGuidanceRange,
   sortGuidanceRows,
 } from "@/lib/guidance-report";
 import {
@@ -388,13 +390,35 @@ describe("guidance reporting", () => {
   const now = new Date("2026-08-27T18:00:00.000Z");
 
   it("parses filters and date ranges", () => {
-    expect(parseGuidanceReportFilters({}).range).toBe("month");
+    expect(parseGuidanceReportFilters({}).range).toBe("all");
+    expect(parseGuidanceReportFilters({}).status).toBe("");
+    expect(parseGuidanceReportFilters({ range: "month", from: "2026-08-01", to: "2026-08-31" }).from).toBeUndefined();
+    expect(customDateFieldsVisible("all")).toBe(false);
+    expect(customDateFieldsVisible("custom")).toBe(true);
+    expect(guidanceDateRange({ range: "all" }, now)).toEqual({ from: undefined, to: undefined });
     expect(guidanceDateRange({ range: "today" }, now).from?.toISOString()).toBe("2026-08-27T00:00:00.000Z");
     expect(guidanceDateRange({ range: "month" }, now).from?.toISOString()).toBe("2026-08-01T00:00:00.000Z");
+    expect(guidanceDateRange({ range: "month" }, now).to?.toISOString()).toBe("2026-08-31T23:59:59.999Z");
     expect(guidanceDateRange({ range: "quarter" }, now).from?.toISOString()).toBe("2026-07-01T00:00:00.000Z");
     expect(buildGuidanceQuery(parseGuidanceReportFilters({ category: "AI", event: "none" }), { type: "guidance" })).toContain(
       "type=guidance",
     );
+  });
+
+  it("keeps historical resolved records visible for All Time and matching periods", () => {
+    const historical = new Date("2026-08-10T15:15:00.000Z");
+    const july = new Date("2026-07-15T12:00:00.000Z");
+    const june = new Date("2026-06-20T12:00:00.000Z");
+    expect(recordMatchesGuidanceRange(historical, guidanceDateRange({ range: "all" }, now))).toBe(true);
+    expect(recordMatchesGuidanceRange(historical, guidanceDateRange({ range: "month" }, now))).toBe(true);
+    expect(recordMatchesGuidanceRange(july, guidanceDateRange({ range: "month" }, now))).toBe(false);
+    expect(recordMatchesGuidanceRange(historical, guidanceDateRange({ range: "quarter" }, now))).toBe(true);
+    expect(recordMatchesGuidanceRange(june, guidanceDateRange({ range: "quarter" }, now))).toBe(false);
+    const custom = guidanceDateRange({ range: "custom", from: "2026-08-10", to: "2026-08-11" }, now);
+    expect(recordMatchesGuidanceRange(new Date("2026-08-10T00:00:00.000Z"), custom)).toBe(true);
+    expect(recordMatchesGuidanceRange(new Date("2026-08-11T23:59:59.999Z"), custom)).toBe(true);
+    expect(recordMatchesGuidanceRange(new Date("2026-08-09T23:59:59.999Z"), custom)).toBe(false);
+    expect(recordMatchesGuidanceRange(new Date("2026-08-12T00:00:00.000Z"), custom)).toBe(false);
   });
 
   it("groups requests by day, month, quarter, and event", () => {

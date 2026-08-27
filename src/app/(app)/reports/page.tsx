@@ -182,21 +182,21 @@ export default async function ReportsPage({
       ) : null}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold text-slate-900">Guidance Reports</h2>
-        <GuidanceFilterForm
-          action="/reports"
-          filters={filters}
-          coordinators={coordinators}
-          events={events}
-          includeSort
-          extra={
-            <a
-              href={`/api/reports/export?${buildGuidanceQuery(filters, { type: "guidance" })}`}
-              className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
-            >
-              Export Guidance CSV
-            </a>
-          }
-        />
+        <div className="space-y-3">
+          <GuidanceFilterForm
+            action="/reports"
+            filters={filters}
+            coordinators={coordinators}
+            events={events}
+            includeSort
+          />
+          <a
+            href={`/api/reports/export?${buildGuidanceQuery(filters, { type: "guidance" })}`}
+            className="inline-flex h-10 items-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-50"
+          >
+            Export Guidance CSV
+          </a>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[
             ["Total Guidance Requests", guidance.counts.total],
