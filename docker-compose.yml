@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    container_name: ycms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ycms
+      POSTGRES_PASSWORD: ycms_dev_password
+      POSTGRES_DB: ycms
+    ports:
+      - "5432:5432"
+    volumes:
+      - ycms_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ycms -d ycms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ycms_pgdata:

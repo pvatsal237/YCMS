@@ -1,0 +1,45 @@
+---
+description: After coding tasks, validate then commit and push to the production branch. Never force-push or commit secrets.
+alwaysApply: true
+---
+
+# IYCM ship workflow
+
+After completing a coding task in this repo (`pvatsal237/YCMS`, app name IYCM), follow this workflow automatically. Do not wait for the user to ask to commit or push.
+
+## 1. Make the requested changes
+
+Implement only what was asked. Do not change Vercel environment variables, database credentials, domains, or production infrastructure unless the user explicitly requested that.
+
+## 2. Validate before shipping
+
+Run the checks that match the change:
+
+- Prisma: `npx prisma generate` if the Prisma schema or client is involved; `npx prisma migrate` / `migrate deploy` only when a migration is required
+- TypeScript: `npx tsc --noEmit`
+- Tests: `npm test` when tests exist for the change or when behavior could break
+- Build: `npm run build` when app code, Next.js routes, or production compile risk is involved
+
+If validation fails: **do not push**. Fix the issue, or stop and tell the user what is blocking deployment.
+
+## 3. If validation succeeds
+
+1. Stage project files with `git add` (use `git add .` only after confirming no secrets are included).
+2. Create a descriptive git commit.
+3. Sync safely with the remote branch if needed (`git pull --rebase` or `git pull origin <branch>`). Never overwrite remote history.
+4. Push to **`origin cursor/ycms-application-aa1a`** with a normal push (`git push -u origin cursor/ycms-application-aa1a`).
+
+Vercel is connected to this branch. A successful push is enough for Vercel to deploy. Do not configure Vercel, env vars, or infrastructure as part of this workflow.
+
+## 4. Never force-push
+
+Do not use `--force`, `--force-with-lease`, or any other force-push.
+
+## 5. Never commit secrets
+
+Do not commit `.env`, `.env.local`, passwords, database URLs, API keys, secrets, or credentials. Keep using `.gitignore` for env files. Prefer `.env.example` with placeholder values only.
+
+## Production branch
+
+Ship to: `cursor/ycms-application-aa1a`
+Repository: `pvatsal237/YCMS`

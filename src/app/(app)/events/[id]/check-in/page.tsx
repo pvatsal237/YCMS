@@ -1,0 +1,63 @@
+import { notFound } from "next/navigation";
+import { requireCoordinator } from "@/lib/session";
+import { getEvent } from "@/services/events";
+import { CheckInButton } from "@/components/events/CheckInButton";
+import { PageHeader } from "@/components/ui/Feedback";
+import { Card, CardBody } from "@/components/ui/Card";
+import { fullName } from "@/utils/format";
+import { formatPhoneDisplay } from "@/services/members";
+
+export default async function CheckInPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ q?: string }>;
+}) {
+  await requireCoordinator();
+  const { id } = await params;
+  const { q } = await searchParams;
+  const event = await getEvent(id);
+  if (!event) notFound();
+  const query = (q ?? "").trim().toLowerCase();
+  const rows = event.registrations.filter((row) => {
+    if (row.status !== "REGISTERED") return false;
+    if (!query) return true;
+    const hay = `${row.member.firstName} ${row.member.lastName} ${row.member.email}`.toLowerCase();
+    return hay.includes(query);
+  });
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title={`Check-in · ${event.title}`}
+        description="Search quickly, then check in. Duplicate check-in is blocked."
+      />
+      <form className="max-w-md">
+        <input name="q" defaultValue={q} placeholder="Search name or email" className="w-full rounded-md border px-3 py-2 text-sm" />
+      </form>
+      <div className="space-y-2">
+        {rows.map((row) => (
+          <Card key={row.id}>
+            <CardBody className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium">{fullName(row.member)}</p>
+                <p className="text-sm text-slate-500">
+                  {row.member.email}
+                  {row.member.phone ? ` · ${formatPhoneDisplay(row.member.phone)}` : ""}
+                  {row.type === "WALK_IN" ? " · Walk-in" : ""}
+                </p>
+              </div>
+              <CheckInButton
+                registrationId={row.id}
+                checkInOpensAt={event.checkInOpensAt.toISOString()}
+                checkedIn={row.checkInStatus === "CHECKED_IN"}
+                checkedInAt={row.checkedInAt?.toISOString() ?? null}
+              />
+            </CardBody>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}

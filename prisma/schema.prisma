@@ -1,0 +1,246 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  COORDINATOR
+  MEMBER
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  REGISTRATION_CLOSED
+  COMPLETED
+  CANCELLED
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  WAITLISTED
+  CANCELLED
+}
+
+enum RegistrationType {
+  STANDARD
+  WALK_IN
+}
+
+enum CheckInStatus {
+  REGISTERED
+  CHECKED_IN
+  NO_SHOW
+}
+
+enum GuidanceCategory {
+  IMMIGRATION
+  CAREER_DEVELOPMENT
+  RESUME_INTERVIEW
+  TECHNOLOGY_IT
+  AI
+  FINANCE
+  ENGINEERING
+  EDUCATION
+  ENTREPRENEURSHIP
+  OTHER
+}
+
+enum GuidanceStatus {
+  NEW
+  CLAIMED
+  WAITING_FOR_MEMBER
+  RESOLVED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      UserRole
+  active    Boolean  @default(true)
+  memberId  String?  @unique
+  member    Member?  @relation("MemberLoginUser", fields: [memberId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  eventsCreated     Event[]             @relation("EventCreatedBy")
+  registrations     EventRegistration[]
+  checkInsRecorded  EventRegistration[] @relation("CheckedInBy")
+  guidanceClaimed   GuidanceRequest[]   @relation("GuidanceClaimedBy")
+  guidanceMessages  GuidanceMessage[]
+  notifications     Notification[]
+  emailOtps         EmailOtp[]
+  feedback          EventFeedback[]
+
+  @@index([role, active])
+}
+
+model CoordinatorAllowlist {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Member {
+  id                    String   @id @default(cuid())
+  firstName             String
+  lastName              String
+  email                 String   @unique
+  phone                 String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  loginUser             User?    @relation("MemberLoginUser")
+
+  registrations EventRegistration[]
+  guidance      GuidanceRequest[]
+  feedback      EventFeedback[]
+
+  @@index([lastName, firstName])
+  @@index([active])
+}
+
+model Event {
+  id                    String      @id @default(cuid())
+  title                 String
+  description           String
+  speakerName           String?
+  speakerTitle          String?
+  speakerOrganization   String?
+  eventDate             DateTime    @db.Date
+  startTime             String
+  endTime               String
+  location              String
+  capacity              Int
+  walkInCapacity        Int         @default(10)
+  registrationDeadline  DateTime
+  checkInOpensAt        DateTime
+  internalNotes         String?
+  status                EventStatus @default(DRAFT)
+  createdById           String?
+  createdBy             User?       @relation("EventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  registrations EventRegistration[]
+  feedback      EventFeedback[]
+  guidance      GuidanceRequest[]
+
+  @@index([status, eventDate])
+  @@index([eventDate])
+}
+
+model EventRegistration {
+  id               String             @id @default(cuid())
+  eventId          String
+  event            Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  memberId         String
+  member           Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  userId           String?
+  user             User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type             RegistrationType   @default(STANDARD)
+  status           RegistrationStatus @default(REGISTERED)
+  waitlistPosition Int?
+  checkInStatus    CheckInStatus      @default(REGISTERED)
+  checkedInAt      DateTime?
+  checkedInById    String?
+  checkedInBy      User?              @relation("CheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  cancelledAt      DateTime?
+  promotedAt       DateTime?
+
+  @@unique([eventId, memberId])
+  @@index([eventId, status])
+  @@index([memberId, status])
+  @@index([eventId, waitlistPosition])
+}
+
+model EventFeedback {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, memberId])
+}
+
+model GuidanceRequest {
+  id           String           @id @default(cuid())
+  memberId     String
+  member       Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  category     GuidanceCategory
+  customTopic  String?
+  message      String
+  status       GuidanceStatus   @default(NEW)
+  claimedById  String?
+  claimedBy    User?            @relation("GuidanceClaimedBy", fields: [claimedById], references: [id], onDelete: SetNull)
+  claimedAt    DateTime?
+  eventId      String?
+  event        Event?           @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  resolvedAt   DateTime?
+  messages     GuidanceMessage[]
+
+  @@index([status, createdAt])
+  @@index([claimedById, status])
+  @@index([memberId, createdAt])
+  @@index([category, status])
+}
+
+model GuidanceMessage {
+  id        String          @id @default(cuid())
+  requestId String
+  request   GuidanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime        @default(now())
+
+  @@index([requestId, createdAt])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+model EmailOtp {
+  id         String    @id @default(cuid())
+  email      String
+  codeHash   String
+  expiresAt  DateTime  @db.Timestamptz(3)
+  consumedAt DateTime? @db.Timestamptz(3)
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email, createdAt])
+  @@index([email, consumedAt])
+}

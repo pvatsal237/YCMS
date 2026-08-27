@@ -1,0 +1,1 @@
+ALTER TABLE "Meetup" ADD COLUMN IF NOT EXISTS "cuisine" TEXT;
