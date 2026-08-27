@@ -38,7 +38,7 @@ export function ReleaseGuidanceButton({ requestId }: { requestId: string }) {
       }}
     >
       {!state.ok ? <Alert>{state.error}</Alert> : null}
-      {released ? <Alert tone="success">{state.message}</Alert> : null}
+      {released ? <Alert tone="success">{state.ok ? state.message : null}</Alert> : null}
       <input type="hidden" name="id" value={requestId} />
       {released ? null : (
         <>

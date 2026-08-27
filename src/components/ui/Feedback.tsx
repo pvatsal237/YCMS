@@ -34,13 +34,6 @@ export function EmptyState({
     </div>
   );
 }
-  return (
-    <div className="px-5 py-12 text-center">
-      <p className="font-medium text-slate-800">{title}</p>
-      <p className="mt-1 text-sm text-slate-500">{description}</p>
-    </div>
-  );
-}
 
 export function Alert({
   tone = "error",
