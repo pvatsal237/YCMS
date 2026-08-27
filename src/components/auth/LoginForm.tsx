@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { requestOtpAction, verifyOtpAction } from "@/actions/auth";
+import { demoBypassSignInAction, requestOtpAction, verifyOtpAction } from "@/actions/auth";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
+import { isDemoBypassEmail } from "@/lib/demo-bypass-accounts";
 import type { ActionResult } from "@/types";
 
 export function LoginForm({
@@ -15,13 +16,16 @@ export function LoginForm({
   nextPath?: string;
 }) {
   const [email, setEmail] = useState("");
+  const [emailInput, setEmailInput] = useState("");
   const [step, setStep] = useState<"email" | "otp">("email");
+  const [useDemoPassword, setUseDemoPassword] = useState(false);
   const [requestState, requestAction, requestPending] = useActionState(
     async (prev: ActionResult<{ devOtp?: string; detectedRoleLabel?: string }>, formData: FormData) => {
       const result = await requestOtpAction(prev, formData);
       if (result.ok) {
         setEmail(String(formData.get("email") ?? "").trim().toLowerCase());
         setStep("otp");
+        setUseDemoPassword(false);
       }
       return result;
     },
@@ -30,6 +34,12 @@ export function LoginForm({
   const [verifyState, verifyAction, verifyPending] = useActionState(verifyOtpAction, {
     ok: true,
   } as ActionResult);
+  const [demoState, demoAction, demoPending] = useActionState(demoBypassSignInAction, {
+    ok: true,
+  } as ActionResult);
+
+  const activeEmail = step === "email" ? emailInput : email;
+  const showDemoOption = isDemoBypassEmail(activeEmail);
 
   const queryMessage =
     errorFromQuery === "disabled"
@@ -45,7 +55,18 @@ export function LoginForm({
         <form action={requestAction} className="space-y-4">
           {!requestState.ok ? <Alert>{requestState.error}</Alert> : null}
           <Field label="Email" htmlFor="email">
-            <Input id="email" name="email" type="email" autoComplete="email" required />
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={emailInput}
+              onChange={(event) => {
+                setEmailInput(event.target.value);
+                setUseDemoPassword(false);
+              }}
+            />
           </Field>
           <Button type="submit" disabled={requestPending} className="w-full">
             {requestPending ? "Sending code..." : "Send sign-in code"}
@@ -87,6 +108,34 @@ export function LoginForm({
           </button>
         </form>
       )}
+      {showDemoOption ? (
+        <div className="space-y-3 border-t border-slate-200 pt-4">
+          {useDemoPassword ? (
+            <form action={demoAction} className="space-y-3">
+              {!demoState.ok ? <Alert>{demoState.error}</Alert> : null}
+              <input type="hidden" name="email" value={activeEmail} />
+              {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
+              <Field label="Demo Password" htmlFor="demo-password">
+                <Input id="demo-password" name="password" type="password" autoComplete="current-password" required />
+              </Field>
+              <Button type="submit" disabled={demoPending} className="w-full">
+                {demoPending ? "Signing in..." : "Sign in"}
+              </Button>
+              <button type="button" className="w-full text-sm text-slate-600" onClick={() => setUseDemoPassword(false)}>
+                Use a 6-digit code instead
+              </button>
+            </form>
+          ) : (
+            <button
+              type="button"
+              className="w-full text-sm text-slate-600"
+              onClick={() => setUseDemoPassword(true)}
+            >
+              Use demo password
+            </button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   generateOtpCode,
   hashOtp,
@@ -52,6 +52,7 @@ import {
   nextGuidanceStatusButtons,
 } from "@/lib/guidance-rules";
 import { accountDetectedMessage } from "@/lib/account-detected-message";
+import { canUseDemoBypass, DEMO_BYPASS_INVALID_MESSAGE, isDemoBypassEmail } from "@/lib/demo-bypass";
 import { guidanceAssignmentLabel } from "@/services/guidance";
 import {
   inspectEventWriteStrings,
@@ -481,5 +482,31 @@ describe("guidance reporting", () => {
     expect(sortGuidanceRows(rows, "category")[0].category).toBe("AI");
     expect(sortGuidanceRows(rows, "coordinator")[0].claimedByName).toBe("James");
     expect(sortGuidanceRows(rows, "completed")[0].claimedByName).toBe("James");
+  });
+});
+
+describe("demo bypass password", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("accepts only the two demo emails with the env password and keeps role redirects unchanged", () => {
+    vi.stubEnv("DEMO_BYPASS_PASSWORD", "mentor-demo-only");
+    expect(isDemoBypassEmail("pvatsal237@gmail.com")).toBe(true);
+    expect(isDemoBypassEmail("srushtipatel0904@gmail.com")).toBe(true);
+    expect(isDemoBypassEmail("someone@example.com")).toBe(false);
+    expect(canUseDemoBypass("pvatsal237@gmail.com", "mentor-demo-only")).toBe(true);
+    expect(canUseDemoBypass("srushtipatel0904@gmail.com", "mentor-demo-only")).toBe(true);
+    expect(defaultHomePath("COORDINATOR")).toBe("/dashboard");
+    expect(defaultHomePath("MEMBER")).toBe("/home");
+    expect(DEMO_BYPASS_INVALID_MESSAGE).toBe("Invalid demo credentials.");
+  });
+
+  it("rejects a wrong password, missing env, and any other email", () => {
+    vi.stubEnv("DEMO_BYPASS_PASSWORD", "mentor-demo-only");
+    expect(canUseDemoBypass("pvatsal237@gmail.com", "wrong")).toBe(false);
+    expect(canUseDemoBypass("anyone.else@gmail.com", "mentor-demo-only")).toBe(false);
+    vi.stubEnv("DEMO_BYPASS_PASSWORD", "");
+    expect(canUseDemoBypass("pvatsal237@gmail.com", "mentor-demo-only")).toBe(false);
   });
 });

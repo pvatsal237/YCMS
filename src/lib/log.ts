@@ -1,4 +1,4 @@
-const SECRET_KEYS = /^(otp|password|secret|token|authorization|database_url|smtp|pepper|codehash)$|otpcode|rawotp|sessiontoken/i;
+const SECRET_KEYS = /^(otp|password|secret|token|authorization|database_url|smtp|pepper|codehash|demo_bypass_password)$|otpcode|rawotp|sessiontoken|auth_secret|demo_bypass/i;
 
 export function logSafe(context: string, detail?: Record<string, unknown>) {
   if (!detail) {

@@ -11,6 +11,7 @@ import { OTP_GENERIC_INVALID_MESSAGE, normalizeEmail, normalizeOtp } from "@/lib
 import { logServerError, toUserMessage } from "@/lib/errors";
 import { defaultHomePath } from "@/lib/authorization";
 import { setAuthjsSessionCookie } from "@/lib/auth-session-cookie";
+import { canUseDemoBypass, demoBypassRejection, isDemoBypassEmail } from "@/lib/demo-bypass";
 import { logSafe } from "@/lib/log";
 
 export async function requestOtpAction(
@@ -127,6 +128,43 @@ export async function verifyOtpAction(_prev: ActionResult, formData: FormData): 
     sessionVia,
   });
 
+  const home = defaultHomePath(user.role);
+  if (next.startsWith("/walk-in") && user.role === "MEMBER") redirect(next);
+  redirect(home);
+}
+
+export async function demoBypassSignInAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const email = normalizeEmail(formData.get("email"));
+  const password = String(formData.get("password") ?? "");
+  const next = String(formData.get("next") ?? "");
+
+  if (!canUseDemoBypass(email, password)) {
+    logSafe("demo.bypass.rejected", { emailMatches: isDemoBypassEmail(email), failingStage: "demo_bypass_rejected" });
+    return demoBypassRejection();
+  }
+
+  let user;
+  try {
+    user = await resolveUserAfterOtp(email);
+  } catch (error) {
+    logSafe("demo.bypass.user_resolve_failed", { emailMatches: true, failingStage: "demo_bypass_user_resolve_failed" });
+    logServerError("demoBypassSignInAction.resolve", error);
+    return demoBypassRejection();
+  }
+
+  if (!user.active) {
+    return { ok: false, error: "This account has been disabled." };
+  }
+
+  try {
+    await setAuthjsSessionCookie(user);
+  } catch (error) {
+    logSafe("demo.bypass.session_failed", { emailMatches: true, failingStage: "demo_bypass_session_failed" });
+    logServerError("demoBypassSignInAction.session", error);
+    return demoBypassRejection();
+  }
+
+  logSafe("demo.bypass.session_created", { emailMatches: true, failingStage: "demo_bypass_session_created" });
   const home = defaultHomePath(user.role);
   if (next.startsWith("/walk-in") && user.role === "MEMBER") redirect(next);
   redirect(home);
